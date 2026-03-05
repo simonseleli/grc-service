@@ -1,0 +1,380 @@
+templates:
+  # ───────────────────────────────────────────────
+  # Audit Universe
+  # ───────────────────────────────────────────────
+  - code: "grc.audit_universe.submitted"
+    name: "Audit Universe Submitted for CIA Review"
+    category: "workflow"
+    channels: ["email", "in_app"]
+    subject: "FCC FIMS - Audit Universe Submitted for Review ({{audit_universe.fiscal_year}})"
+    body_html: |
+      <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #0066cc;">Audit Universe — CIA Review Required</h2>
+            <p>Hello {{reviewer.first_name}},</p>
+            <p>An Audit Universe has been submitted for your review and approval:</p>
+            <p><strong>Details:</strong></p>
+            <ul>
+              <li>Fiscal Year: {{audit_universe.fiscal_year}}</li>
+              <li>Description: {{audit_universe.description}}</li>
+              <li>Submitted By: {{submitter.name}}</li>
+              <li>Submitted At: {{submitted_at}}</li>
+            </ul>
+            <p>Please review the audit universe scope and provide your decision (Approve or Return).</p>
+            <p style="text-align: center; margin: 30px 0;">
+              <a href="{{review_url}}" style="background-color: #0066cc; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Review Audit Universe</a>
+            </p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+            <p style="color: #666; font-size: 12px;">Best regards,<br>FCC FIMS — Internal Audit Module</p>
+          </div>
+        </body>
+      </html>
+    body_text: |
+      Audit Universe — CIA Review Required
+
+      Hello {{reviewer.first_name}},
+
+      An Audit Universe has been submitted for your review and approval:
+
+      Details:
+      - Fiscal Year: {{audit_universe.fiscal_year}}
+      - Description: {{audit_universe.description}}
+      - Submitted By: {{submitter.name}}
+      - Submitted At: {{submitted_at}}
+
+      Please review the audit universe scope and provide your decision (Approve or Return).
+
+      Review Audit Universe: {{review_url}}
+
+      Best regards,
+      FCC FIMS — Internal Audit Module
+    variables:
+      - name: "reviewer.first_name"
+        required: true
+        type: "string"
+        description: "Reviewer's first name"
+      - name: "reviewer.email"
+        required: true
+        type: "string"
+        description: "Reviewer's email address"
+      - name: "audit_universe.fiscal_year"
+        required: true
+        type: "string"
+        description: "Fiscal year code (e.g., FY2025/26)"
+      - name: "audit_universe.description"
+        required: true
+        type: "string"
+        description: "Description of the audit universe scope"
+      - name: "submitter.name"
+        required: true
+        type: "string"
+        description: "Name of the user who submitted for review"
+      - name: "submitted_at"
+        required: true
+        type: "string"
+        description: "Timestamp of submission"
+      - name: "review_url"
+        required: true
+        type: "url"
+        description: "URL to review the audit universe in the staff portal"
+    metadata:
+      service: "grc"
+      domain: "audit_universe"
+      action: "submitted_for_review"
+      priority: "high"
+      version: "1.0.0"
+
+  - code: "grc.audit_universe.approved"
+    name: "Audit Universe Approved"
+    category: "workflow"
+    channels: ["email", "in_app"]
+    subject: "FCC FIMS - Audit Universe Approved ({{audit_universe.fiscal_year}})"
+    body_html: |
+      <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #28a745;">Audit Universe Approved</h2>
+            <p>Hello {{submitter.first_name}},</p>
+            <p>Your Audit Universe has been approved by the CIA and is now ready for audit planning:</p>
+            <p><strong>Details:</strong></p>
+            <ul>
+              <li>Fiscal Year: {{audit_universe.fiscal_year}}</li>
+              <li>Approved By: {{approver.name}}</li>
+              <li>Approved At: {{approved_at}}</li>
+            </ul>
+            <p>You may now proceed with risk assessments and audit plan development.</p>
+            <p style="text-align: center; margin: 30px 0;">
+              <a href="{{detail_url}}" style="background-color: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">View Audit Universe</a>
+            </p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+            <p style="color: #666; font-size: 12px;">Best regards,<br>FCC FIMS — Internal Audit Module</p>
+          </div>
+        </body>
+      </html>
+    body_text: |
+      Audit Universe Approved
+
+      Hello {{submitter.first_name}},
+
+      Your Audit Universe has been approved by the CIA and is now ready for audit planning:
+
+      Details:
+      - Fiscal Year: {{audit_universe.fiscal_year}}
+      - Approved By: {{approver.name}}
+      - Approved At: {{approved_at}}
+
+      You may now proceed with risk assessments and audit plan development.
+
+      View Audit Universe: {{detail_url}}
+
+      Best regards,
+      FCC FIMS — Internal Audit Module
+    variables:
+      - name: "submitter.first_name"
+        required: true
+        type: "string"
+        description: "Submitter's first name"
+      - name: "submitter.email"
+        required: true
+        type: "string"
+        description: "Submitter's email address"
+      - name: "audit_universe.fiscal_year"
+        required: true
+        type: "string"
+        description: "Fiscal year code"
+      - name: "approver.name"
+        required: true
+        type: "string"
+        description: "Name of the CIA who approved"
+      - name: "approved_at"
+        required: true
+        type: "string"
+        description: "Approval timestamp"
+      - name: "detail_url"
+        required: true
+        type: "url"
+        description: "URL to view the audit universe"
+    metadata:
+      service: "grc"
+      domain: "audit_universe"
+      action: "approved"
+      priority: "normal"
+      version: "1.0.0"
+
+  - code: "grc.audit_universe.returned"
+    name: "Audit Universe Returned for Revision"
+    category: "workflow"
+    channels: ["email", "in_app"]
+    subject: "FCC FIMS - Audit Universe Returned for Revision ({{audit_universe.fiscal_year}})"
+    body_html: |
+      <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #dc3545;">Audit Universe Returned for Revision</h2>
+            <p>Hello {{submitter.first_name}},</p>
+            <p>Your Audit Universe has been returned by the CIA and requires revisions:</p>
+            <p><strong>Details:</strong></p>
+            <ul>
+              <li>Fiscal Year: {{audit_universe.fiscal_year}}</li>
+              <li>Returned By: {{reviewer.name}}</li>
+              <li>Comments: {{comments}}</li>
+            </ul>
+            <p>Please review the feedback and resubmit after making the necessary changes.</p>
+            <p style="text-align: center; margin: 30px 0;">
+              <a href="{{detail_url}}" style="background-color: #dc3545; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Edit Audit Universe</a>
+            </p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+            <p style="color: #666; font-size: 12px;">Best regards,<br>FCC FIMS — Internal Audit Module</p>
+          </div>
+        </body>
+      </html>
+    body_text: |
+      Audit Universe Returned for Revision
+
+      Hello {{submitter.first_name}},
+
+      Your Audit Universe has been returned by the CIA and requires revisions:
+
+      Details:
+      - Fiscal Year: {{audit_universe.fiscal_year}}
+      - Returned By: {{reviewer.name}}
+      - Comments: {{comments}}
+
+      Please review the feedback and resubmit after making the necessary changes.
+
+      Edit Audit Universe: {{detail_url}}
+
+      Best regards,
+      FCC FIMS — Internal Audit Module
+    variables:
+      - name: "submitter.first_name"
+        required: true
+        type: "string"
+        description: "Original submitter's first name"
+      - name: "submitter.email"
+        required: true
+        type: "string"
+        description: "Original submitter's email"
+      - name: "audit_universe.fiscal_year"
+        required: true
+        type: "string"
+        description: "Fiscal year code"
+      - name: "reviewer.name"
+        required: true
+        type: "string"
+        description: "Name of the CIA who returned it"
+      - name: "comments"
+        required: false
+        type: "string"
+        description: "CIA review comments"
+      - name: "detail_url"
+        required: true
+        type: "url"
+        description: "URL to edit the audit universe"
+    metadata:
+      service: "grc"
+      domain: "audit_universe"
+      action: "returned"
+      priority: "high"
+      version: "1.0.0"
+
+  # ───────────────────────────────────────────────
+  # Audit Plan
+  # ───────────────────────────────────────────────
+  - code: "grc.audit_plan.submitted"
+    name: "Audit Plan Submitted for Approval"
+    category: "workflow"
+    channels: ["email", "in_app"]
+    subject: "FCC FIMS - Audit Plan Submitted for Approval ({{audit_plan.fiscal_year}})"
+    body_html: |
+      <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #0066cc;">Audit Plan — Approval Required</h2>
+            <p>Hello {{reviewer.first_name}},</p>
+            <p>An Audit Plan has been submitted for your review:</p>
+            <ul>
+              <li>Fiscal Year: {{audit_plan.fiscal_year}}</li>
+              <li>Title: {{audit_plan.title}}</li>
+              <li>Submitted By: {{submitter.name}}</li>
+            </ul>
+            <p style="text-align: center; margin: 30px 0;">
+              <a href="{{review_url}}" style="background-color: #0066cc; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Review Audit Plan</a>
+            </p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+            <p style="color: #666; font-size: 12px;">Best regards,<br>FCC FIMS — Internal Audit Module</p>
+          </div>
+        </body>
+      </html>
+    body_text: |
+      Audit Plan — Approval Required
+
+      Hello {{reviewer.first_name}},
+
+      An Audit Plan has been submitted for your review:
+      - Fiscal Year: {{audit_plan.fiscal_year}}
+      - Title: {{audit_plan.title}}
+      - Submitted By: {{submitter.name}}
+
+      Review Audit Plan: {{review_url}}
+
+      Best regards,
+      FCC FIMS — Internal Audit Module
+    variables:
+      - name: "reviewer.first_name"
+        required: true
+        type: "string"
+      - name: "audit_plan.fiscal_year"
+        required: true
+        type: "string"
+      - name: "audit_plan.title"
+        required: true
+        type: "string"
+      - name: "submitter.name"
+        required: true
+        type: "string"
+      - name: "review_url"
+        required: true
+        type: "url"
+    metadata:
+      service: "grc"
+      domain: "audit_plan"
+      action: "submitted_for_approval"
+      priority: "high"
+      version: "1.0.0"
+
+  # ───────────────────────────────────────────────
+  # Audit Engagement
+  # ───────────────────────────────────────────────
+  - code: "grc.audit_engagement.assigned"
+    name: "Audit Engagement Assigned"
+    category: "assignment"
+    channels: ["email", "in_app"]
+    subject: "FCC FIMS - You Have Been Assigned to an Audit Engagement"
+    body_html: |
+      <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #0066cc;">Audit Engagement Assignment</h2>
+            <p>Hello {{assignee.first_name}},</p>
+            <p>You have been assigned to an audit engagement:</p>
+            <ul>
+              <li>Title: {{engagement.title}}</li>
+              <li>Entity: {{engagement.auditable_entity}}</li>
+              <li>Lead Auditor: {{engagement.lead_auditor}}</li>
+              <li>Planned Start: {{engagement.planned_start}}</li>
+              <li>Planned End: {{engagement.planned_end}}</li>
+            </ul>
+            <p style="text-align: center; margin: 30px 0;">
+              <a href="{{engagement_url}}" style="background-color: #0066cc; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">View Engagement</a>
+            </p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+            <p style="color: #666; font-size: 12px;">Best regards,<br>FCC FIMS — Internal Audit Module</p>
+          </div>
+        </body>
+      </html>
+    body_text: |
+      Audit Engagement Assignment
+
+      Hello {{assignee.first_name}},
+
+      You have been assigned to an audit engagement:
+      - Title: {{engagement.title}}
+      - Entity: {{engagement.auditable_entity}}
+      - Lead Auditor: {{engagement.lead_auditor}}
+      - Planned Start: {{engagement.planned_start}}
+      - Planned End: {{engagement.planned_end}}
+
+      View Engagement: {{engagement_url}}
+
+      Best regards,
+      FCC FIMS — Internal Audit Module
+    variables:
+      - name: "assignee.first_name"
+        required: true
+        type: "string"
+      - name: "engagement.title"
+        required: true
+        type: "string"
+      - name: "engagement.auditable_entity"
+        required: true
+        type: "string"
+      - name: "engagement.lead_auditor"
+        required: true
+        type: "string"
+      - name: "engagement.planned_start"
+        required: true
+        type: "string"
+      - name: "engagement.planned_end"
+        required: true
+        type: "string"
+      - name: "engagement_url"
+        required: true
+        type: "url"
+    metadata:
+      service: "grc"
+      domain: "audit_engagement"
+      action: "assigned"
+      priority: "high"
+      version: "1.0.0"

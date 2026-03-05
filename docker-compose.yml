@@ -1,0 +1,147 @@
+version: '3.8'
+
+services:
+  postgres-grc-service:
+    image: postgres:15-alpine
+    container_name: postgres-grc-service
+    environment:
+      POSTGRES_DB: ${DB_NAME:-fims_grc}
+      POSTGRES_USER: ${DB_USER:-grc_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-grc_password_2024}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "5437:5432"
+    volumes:
+      - postgres_grc_data:/var/lib/postgresql/data
+      - ./scripts/init-db/init-postgres.sql:/docker-entrypoint-initdb.d/init-postgres.sql:ro
+    networks:
+      - fims-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-grc_user} -d ${DB_NAME:-fims_grc}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis-grc-service:
+    image: redis:7-alpine
+    container_name: redis-grc-service
+    ports:
+      - "6384:6379"
+    volumes:
+      - redis_grc_data:/data
+    networks:
+      - fims-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  grc-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fims-grc-service
+    ports:
+      - "8006:8006"
+    env_file:
+      - .env
+    volumes:
+      - .:/app 
+      - ./media:/app/media
+      - ./staticfiles:/app/staticfiles
+      - ./logs:/app/logs
+    depends_on:
+      postgres-grc-service:
+        condition: service_healthy
+      redis-grc-service:
+        condition: service_healthy
+    networks:
+      - fims-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+        echo 'Running migrations...' &&
+        python manage.py migrate &&
+        echo 'Collecting static files...' &&
+        python manage.py collectstatic --noinput &&
+        echo 'Starting GRC service with gunicorn...' &&
+        gunicorn config.wsgi:application --bind 0.0.0.0:8006 --workers 4 --timeout 120
+      "
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  grc-celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fims-grc-celery-worker
+    command: celery -A config.celery_app worker -l info --concurrency=4
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      postgres-grc-service:
+        condition: service_healthy
+      redis-grc-service:
+        condition: service_healthy
+    networks:
+      - fims-network
+    restart: unless-stopped
+
+  grc-celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fims-grc-celery-beat
+    command: celery -A config.celery_app beat -l info
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      postgres-grc-service:
+        condition: service_healthy
+      redis-grc-service:
+        condition: service_healthy
+    networks:
+      - fims-network
+    restart: unless-stopped
+
+  grc-kafka-consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fims-grc-kafka-consumer
+    command: python manage.py consume_grc_events
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      postgres-grc-service:
+        condition: service_healthy
+    networks:
+      - fims-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "print('Container is responsive')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  postgres_grc_data:
+  redis_grc_data:
+
+networks:
+  fims-network:
+    external: true

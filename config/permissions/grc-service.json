@@ -1,0 +1,279 @@
+{
+  "service": {
+    "name": "grc-service",
+    "version": "0.1.0",
+    "description": "Governance, Risk, and Compliance Service (Audit Module)"
+  },
+  "permissions": [
+    {
+      "permission_code": "grc:audit_universe:view",
+      "name": "View Audit Universe",
+      "description": "View audit universe records",
+      "resource_type": "audit_universe",
+      "action": "view",
+      "category": "audit_universe"
+    },
+    {
+      "permission_code": "grc:audit_universe:manage",
+      "name": "Manage Audit Universe",
+      "description": "Create and update audit universe entries",
+      "resource_type": "audit_universe",
+      "action": "manage",
+      "category": "audit_universe"
+    },
+    {
+      "permission_code": "grc:audit_universe:approve",
+      "name": "Approve Audit Universe",
+      "description": "Formally approve the audit universe for the planning period",
+      "resource_type": "audit_universe",
+      "action": "approve",
+      "category": "audit_universe"
+    },
+    {
+      "permission_code": "grc:risk_assessment:conduct",
+      "name": "Conduct Risk Assessments",
+      "description": "Perform and submit risk assessments",
+      "resource_type": "risk_assessment",
+      "action": "conduct",
+      "category": "risk_assessment"
+    },
+    {
+      "permission_code": "grc:risk_assessment:review",
+      "name": "Review Risk Assessments",
+      "description": "Review and approve submitted risk assessments",
+      "resource_type": "risk_assessment",
+      "action": "review",
+      "category": "risk_assessment"
+    },
+    {
+      "permission_code": "grc:audit_plan:view",
+      "name": "View Audit Plans",
+      "description": "View risk-based audit plans",
+      "resource_type": "audit_plan",
+      "action": "view",
+      "category": "audit_plan"
+    },
+    {
+      "permission_code": "grc:audit_plan:manage",
+      "name": "Manage Audit Plans",
+      "description": "Create, update, and submit risk-based audit plans",
+      "resource_type": "audit_plan",
+      "action": "manage",
+      "category": "audit_plan"
+    },
+    {
+      "permission_code": "grc:audit_plan:approve",
+      "name": "Approve Audit Plans",
+      "description": "Approve audit plans after review",
+      "resource_type": "audit_plan",
+      "action": "approve",
+      "category": "audit_plan"
+    },
+    {
+      "permission_code": "grc:audit_engagement:manage",
+      "name": "Manage Audit Engagements",
+      "description": "Create, assign, and update audit engagements",
+      "resource_type": "audit_engagement",
+      "action": "manage",
+      "category": "audit_engagement"
+    },
+    {
+      "permission_code": "grc:audit_working_paper:review",
+      "name": "Review Working Papers",
+      "description": "Review and approve working papers",
+      "resource_type": "working_paper",
+      "action": "review",
+      "category": "audit_working_paper"
+    },
+    {
+      "permission_code": "grc:audit_working_paper:manage",
+      "name": "Manage Working Papers",
+      "description": "Create, upload, and update working papers during fieldwork",
+      "resource_type": "working_paper",
+      "action": "manage",
+      "category": "audit_working_paper"
+    },
+    {
+      "permission_code": "grc:audit_finding:manage",
+      "name": "Manage Audit Findings",
+      "description": "Draft, update, and track audit findings",
+      "resource_type": "audit_finding",
+      "action": "manage",
+      "category": "audit_finding"
+    },
+    {
+      "permission_code": "grc:audit_finding:respond",
+      "name": "Respond to Audit Findings",
+      "description": "Provide management response to audit findings",
+      "resource_type": "audit_finding",
+      "action": "respond",
+      "category": "audit_finding"
+    },
+    {
+      "permission_code": "grc:audit_report:view",
+      "name": "View Audit Reports",
+      "description": "View draft and final audit reports",
+      "resource_type": "audit_report",
+      "action": "view",
+      "category": "audit_report"
+    },
+    {
+      "permission_code": "grc:audit_report:approve",
+      "name": "Approve Audit Reports",
+      "description": "Approve audit reports for distribution",
+      "resource_type": "audit_report",
+      "action": "approve",
+      "category": "audit_report"
+    },
+    {
+      "permission_code": "grc:audit_monitoring:update",
+      "name": "Update Recommendation Monitoring",
+      "description": "Update implementation status for recommendations",
+      "resource_type": "audit_monitoring",
+      "action": "update",
+      "category": "audit_monitoring"
+    },
+    {
+      "permission_code": "grc:audit_dashboard:view",
+      "name": "View Audit Dashboard",
+      "description": "Access audit analytics dashboard",
+      "resource_type": "audit_dashboard",
+      "action": "view",
+      "category": "analytics"
+    },
+    {
+      "permission_code": "grc:config:fiscal_year:manage",
+      "name": "Manage Fiscal Years",
+      "description": "Create, update, and manage fiscal year configurations",
+      "resource_type": "fiscal_year",
+      "action": "manage",
+      "category": "configuration"
+    },
+    {
+      "permission_code": "grc:config:audit_severity:manage",
+      "name": "Manage Audit Severities",
+      "description": "Configure audit severity levels and color codes",
+      "resource_type": "audit_severity",
+      "action": "manage",
+      "category": "configuration"
+    },
+    {
+      "permission_code": "grc:config:finding_type:manage",
+      "name": "Manage Finding Types",
+      "description": "Configure finding type categories and descriptions",
+      "resource_type": "finding_type",
+      "action": "manage",
+      "category": "configuration"
+    },
+    {
+      "permission_code": "grc:config:risk_rating:manage",
+      "name": "Manage Risk Ratings",
+      "description": "Configure risk rating scales and thresholds",
+      "resource_type": "risk_rating",
+      "action": "manage",
+      "category": "configuration"
+    },
+    {
+      "permission_code": "grc:config:system:manage",
+      "name": "Manage System Configuration",
+      "description": "Manage system-wide GRC configuration settings",
+      "resource_type": "system_config",
+      "action": "manage",
+      "category": "configuration"
+    }
+  ],
+  "roles": [
+    {
+      "code": "internal_auditor",
+      "name": "Internal Auditor",
+      "description": "Performs risk assessments and fieldwork",
+      "permissions": [
+        "grc:audit_universe:view",
+        "grc:audit_universe:manage",
+        "grc:risk_assessment:conduct",
+        "grc:audit_plan:view",
+        "grc:audit_plan:manage",
+        "grc:audit_engagement:manage",
+        "grc:audit_working_paper:manage",
+        "grc:audit_finding:manage",
+        "grc:audit_monitoring:update",
+        "grc:audit_dashboard:view"
+      ]
+    },
+    {
+      "code": "lead_auditor",
+      "name": "Lead Auditor",
+      "description": "Oversees engagement planning and working papers",
+      "permissions": [
+        "grc:audit_universe:view",
+        "grc:audit_universe:manage",
+        "grc:risk_assessment:conduct",
+        "grc:audit_plan:view",
+        "grc:audit_plan:manage",
+        "grc:audit_engagement:manage",
+        "grc:audit_working_paper:manage",
+        "grc:audit_working_paper:review",
+        "grc:audit_finding:manage",
+        "grc:audit_report:view",
+        "grc:audit_monitoring:update",
+        "grc:audit_dashboard:view"
+      ]
+    },
+    {
+      "code": "chief_internal_auditor",
+      "name": "Chief Internal Auditor",
+      "description": "Approves plans, programs, and reports",
+      "permissions": [
+        "grc:audit_universe:view",
+        "grc:audit_universe:approve",
+        "grc:risk_assessment:review",
+        "grc:audit_plan:view",
+        "grc:audit_plan:manage",
+        "grc:audit_plan:approve",
+        "grc:audit_engagement:manage",
+        "grc:audit_working_paper:review",
+        "grc:audit_report:view",
+        "grc:audit_report:approve",
+        "grc:audit_dashboard:view",
+        "grc:config:fiscal_year:manage",
+        "grc:config:audit_severity:manage",
+        "grc:config:finding_type:manage",
+        "grc:config:risk_rating:manage",
+        "grc:config:system:manage"
+      ]
+    },
+    {
+      "code": "audit_committee",
+      "name": "Audit Committee",
+      "description": "Reviews and approves strategic audit outputs",
+      "permissions": [
+        "grc:audit_plan:view",
+        "grc:audit_plan:approve",
+        "grc:audit_report:view",
+        "grc:audit_report:approve",
+        "grc:audit_dashboard:view"
+      ]
+    },
+    {
+      "code": "management",
+      "name": "Management",
+      "description": "Reviews audit outputs and implementation",
+      "permissions": [
+        "grc:audit_plan:view",
+        "grc:audit_report:view",
+        "grc:audit_monitoring:update",
+        "grc:audit_dashboard:view"
+      ]
+    },
+    {
+      "code": "auditee",
+      "name": "Auditee",
+      "description": "Provides implementation feedback",
+      "permissions": [
+        "grc:audit_plan:view",
+        "grc:audit_finding:respond",
+        "grc:audit_monitoring:update"
+      ]
+    }
+  ]
+}

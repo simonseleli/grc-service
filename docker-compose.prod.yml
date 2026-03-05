@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  grc-service:
+    image: registry.gitlab.com/fcc/fims/grc-service:latest
+    env_file:
+      - .env
+    networks:
+      - fims-network
+    depends_on:
+      - postgres-grc-service
+      - redis-grc-service
+
+  grc-celery-worker:
+    image: registry.gitlab.com/fcc/fims/grc-service:latest
+    command: celery -A config.celery_app worker -l info --concurrency=4
+    env_file:
+      - .env
+    networks:
+      - fims-network
+    depends_on:
+      - postgres-grc-service
+      - redis-grc-service
+
+  grc-celery-beat:
+    image: registry.gitlab.com/fcc/fims/grc-service:latest
+    command: celery -A config.celery_app beat -l info
+    env_file:
+      - .env
+    networks:
+      - fims-network
+    depends_on:
+      - postgres-grc-service
+      - redis-grc-service
+
+  postgres-grc-service:
+    image: postgres:15-alpine
+    env_file:
+      - .env
+    volumes:
+      - postgres_grc_data:/var/lib/postgresql/data
+    networks:
+      - fims-network
+
+  redis-grc-service:
+    image: redis:7-alpine
+    networks:
+      - fims-network
+
+volumes:
+  postgres_grc_data:
+
+networks:
+  fims-network:
+    external: true

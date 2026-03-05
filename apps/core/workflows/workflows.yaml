@@ -1,0 +1,201 @@
+# GRC Service Workflow Templates
+# FIMS Pattern — field names follow workflow-integration-guide.md §1 (Step 1)
+# Field names match Work Orchestration StageInputSerializer:
+#   definitionKey, nextState, label (not: key, next_state, name for actions)
+
+templates:
+  - code: "grc.working_paper_approval"
+    name: "Working Paper Approval"
+    workflow_type: "grc"
+    version: 1
+    definition:
+      description: "Approval workflow for GRC audit working papers"
+      sla:
+        targetMinutes: 2880          # 48 hours overall
+        breachStrategy: "escalate"
+      metadata:
+        module: "grc"
+        category: "working_paper"
+      stages:
+        - definitionKey: "working_paper_review"
+          name: "Working Paper Review"
+          order: 1
+          assignees: ["{{prepared_by}}"]
+          actions:
+            - name: "submit"
+              label: "Submit for Review"
+              nextState: "completed"
+          sla:
+            durationMinutes: 2880
+            breachStrategy: "notify"
+
+        - definitionKey: "working_paper_approval"
+          name: "Working Paper Approval"
+          order: 2
+          assignees: ["role:grc_reviewer"]
+          actions:
+            - name: "approve"
+              label: "Approve"
+              nextState: "completed"
+            - name: "reject"
+              label: "Reject"
+              nextState: "rejected"
+            - name: "request_changes"
+              label: "Request Changes"
+              nextState: "pending"
+          sla:
+            durationMinutes: 1440
+            breachStrategy: "notify"
+
+        - definitionKey: "working_paper_completed"
+          name: "Completed"
+          order: 3
+          assignees: []
+          actions: []
+
+  - code: "grc.audit_universe_approval"
+    name: "Audit Universe Approval"
+    workflow_type: "grc"
+    version: 1
+    definition:
+      description: "Single-stage CIA review and approval of the audit universe"
+      sla:
+        targetMinutes: 4320          # 72 hours overall
+        breachStrategy: "escalate"
+      metadata:
+        module: "grc"
+        category: "audit_universe"
+      stages:
+        - definitionKey: "cia_review"
+          name: "CIA Review"
+          order: 1
+          assignees: []
+          actions:
+            - name: "approve"
+              label: "Approve"
+              nextState: "completed"
+            - name: "return"
+              label: "Return"
+              nextState: "rejected"
+          sla:
+            durationMinutes: 4320
+            breachStrategy: "notify"
+
+  - code: "grc.rbiap_approval"
+    name: "RBIAP Approval"
+    workflow_type: "grc"
+    version: 1
+    definition:
+      description: "Risk-Based Internal Audit Plan approval: CIA → Management → Committee → Commission"
+      sla:
+        targetMinutes: 40320         # ~28 days overall
+        breachStrategy: "escalate"
+      metadata:
+        module: "grc"
+        category: "audit_plan"
+      stages:
+        - definitionKey: "cia_review"
+          name: "CIA Review"
+          order: 1
+          assignees: []
+          actions:
+            - name: "approve"
+              label: "Approve"
+              nextState: "completed"
+            - name: "return"
+              label: "Return to Auditor"
+              nextState: "rejected"
+          sla:
+            durationMinutes: 4320
+            breachStrategy: "notify"
+
+        - definitionKey: "management_review"
+          name: "Management Review"
+          order: 2
+          assignees: []
+          actions:
+            - name: "adopt"
+              label: "Adopt"
+              nextState: "completed"
+            - name: "request_changes"
+              label: "Request Changes"
+              nextState: "pending"
+          sla:
+            durationMinutes: 10080
+            breachStrategy: "notify"
+
+        - definitionKey: "committee_review"
+          name: "Audit Committee Review"
+          order: 3
+          assignees: []
+          actions:
+            - name: "approve"
+              label: "Approve"
+              nextState: "completed"
+            - name: "request_improvement"
+              label: "Request Improvement"
+              nextState: "pending"
+          sla:
+            durationMinutes: 14400
+            breachStrategy: "notify"
+
+        - definitionKey: "commission_noting"
+          name: "Commission Noting"
+          order: 4
+          assignees: []
+          actions:
+            - name: "note"
+              label: "Note"
+              nextState: "completed"
+          sla:
+            durationMinutes: 10080
+            breachStrategy: "notify"
+
+  - code: "grc.engagement_notification"
+    name: "Audit Engagement Lifecycle"
+    workflow_type: "grc"
+    version: 1
+    definition:
+      description: "Audit engagement lifecycle: planning → fieldwork → reporting → completed"
+      sla:
+        targetMinutes: 50400         # ~35 days overall
+        breachStrategy: "escalate"
+      metadata:
+        module: "grc"
+        category: "audit_engagement"
+      stages:
+        - definitionKey: "planning"
+          name: "Audit Planning"
+          order: 1
+          assignees: ["{{lead_auditor}}"]
+          actions:
+            - name: "start_fieldwork"
+              label: "Start Fieldwork"
+              nextState: "completed"
+          sla:
+            durationMinutes: 7200
+            breachStrategy: "notify"
+
+        - definitionKey: "fieldwork"
+          name: "Fieldwork"
+          order: 2
+          assignees: ["{{lead_auditor}}"]
+          actions:
+            - name: "start_reporting"
+              label: "Start Reporting"
+              nextState: "completed"
+          sla:
+            durationMinutes: 28800
+            breachStrategy: "notify"
+
+        - definitionKey: "reporting"
+          name: "Reporting"
+          order: 3
+          assignees: ["{{lead_auditor}}"]
+          actions:
+            - name: "complete"
+              label: "Mark Complete"
+              nextState: "completed"
+          sla:
+            durationMinutes: 14400
+            breachStrategy: "notify"

@@ -1,0 +1,45 @@
+# Core platform
+Django==4.2.7
+djangorestframework==3.14.0
+djangorestframework-simplejwt==5.3.0
+PyJWT==2.8.0  # For permission middleware
+django-cors-headers==4.3.1
+django-filter==23.3
+python-dotenv==1.0.0
+
+# Messaging & async
+celery[redis]==5.3.4
+redis==4.6.0
+kafka-python==2.0.2  # FIMS standard for event publishing
+
+# Persistence & utilities
+psycopg2-binary==2.9.9
+python-dateutil==2.8.2
+requests==2.31.0
+
+# API documentation
+drf-spectacular==0.27.2
+drf-spectacular-sidecar==2023.10.1
+
+# Reporting & Document Generation
+reportlab==4.0.7
+openpyxl==3.1.2
+python-docx==0.8.11
+weasyprint==60.1
+qrcode==7.4.2
+Pillow==10.2.0
+
+# Monitoring & logging
+django-structlog==4.0.0
+structlog==23.1.0
+
+# Production
+whitenoise==6.6.0
+gunicorn==21.2.0
+
+# Testing
+pytest==7.4.3
+pytest-django==4.7.0
+pytest-cov==4.1.0
+factory-boy==3.3.0
+faker==19.6.2
