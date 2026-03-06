@@ -353,6 +353,63 @@ class DocumentServiceClient:
         return document
 
 
+    def generate_approved_stamp(
+        self,
+        document_id: str,
+        approver_id: str,
+        entity_type: str,
+        entity_id: str,
+        service_token: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Request DRS to embed an approval stamp (CIA signature + QR code) onto a PDF.
+
+        GAP 9 — called by GRC Kafka consumer after CIA approves a formal output
+        document (AuditReport, AuditMemo, AuditProgram).
+
+        Args:
+            document_id:   DRS Document UUID (str or UUID)
+            approver_id:   IAM User UUID of the CIA approver (for signature fetch)
+            entity_type:   GRC entity type label, e.g. 'audit_report'
+            entity_id:     GRC entity UUID (for QR verification URL)
+            service_token: X-Service-Token value; falls back to
+                           settings.SERVICE_TO_SERVICE_TOKEN if omitted.
+
+        Returns:
+            Dict with 'document_id', 'stamped_document_url', 'entity_type', 'entity_id'
+
+        Raises:
+            DocumentServiceError: on any HTTP or connection error
+        """
+        url = f'{self.base_url}/api/v1/documents/{document_id}/generate-approved-stamp/'
+
+        # Build auth headers — service-to-service calls use X-Service-Token
+        headers: Dict[str, str] = {}
+        if self.auth_token:
+            headers['Authorization'] = f'Bearer {self.auth_token}'
+
+        effective_token = service_token or getattr(settings, 'SERVICE_TO_SERVICE_TOKEN', None)
+        if effective_token:
+            headers['X-Service-Token'] = effective_token
+
+        payload = {
+            'approver_id': str(approver_id),
+            'entity_type': entity_type,
+            'entity_id': str(entity_id),
+        }
+
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=30)
+            response.raise_for_status()
+            body = response.json()
+            return body.get('data', body)
+
+        except requests.exceptions.RequestException as e:
+            error_msg = f"Stamp request for document {document_id} failed: {e}"
+            logger.error(error_msg)
+            raise DocumentServiceError(error_msg) from e
+
+
 def get_document_client(auth_token: Optional[str] = None) -> DocumentServiceClient:
     """
     Factory function to get Document Service Client instance.

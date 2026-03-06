@@ -60,6 +60,19 @@ class RiskAssessmentSerializer(serializers.ModelSerializer):
     residual_risk_rating_id = serializers.UUIDField(write_only=True, required=False)
     auto_overall_rating = RiskRatingSerializer(read_only=True)
     auto_residual_rating = RiskRatingSerializer(read_only=True)
+    # Frontend-facing aliases for the calculated score fields (GAP 6 — SRS auto-scoring)
+    # The model stores them as calculated_weighted_score / calculated_residual_score;
+    # the frontend and detail dialog expect auto_risk_score / auto_residual_score.
+    auto_risk_score = serializers.DecimalField(
+        source='calculated_weighted_score',
+        max_digits=7, decimal_places=2,
+        read_only=True, allow_null=True,
+    )
+    auto_residual_score = serializers.DecimalField(
+        source='calculated_residual_score',
+        max_digits=7, decimal_places=2,
+        read_only=True, allow_null=True,
+    )
     evidence_attachments = serializers.ListField(
         child=serializers.UUIDField(),
         required=False,
@@ -74,6 +87,7 @@ class RiskAssessmentSerializer(serializers.ModelSerializer):
             'inherent_risk_score', 'control_effectiveness_score', 'financial_exposure_score',
             'compliance_risk_score', 'operational_impact_score', 'reputational_risk_score',
             'calculated_weighted_score', 'calculated_residual_score',
+            'auto_risk_score', 'auto_residual_score',
             'overall_risk_rating', 'overall_risk_rating_id',
             'residual_risk_rating', 'residual_risk_rating_id',
             'auto_overall_rating', 'auto_residual_rating', 'rating_overridden',
@@ -82,6 +96,7 @@ class RiskAssessmentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'updated_at',
                            'calculated_weighted_score', 'calculated_residual_score',
+                           'auto_risk_score', 'auto_residual_score',
                            'auto_overall_rating', 'auto_residual_rating']
         extra_kwargs = {
             'assessed_by': {'required': False}  # Set programmatically in view
@@ -227,10 +242,10 @@ class AuditReportSerializer(serializers.ModelSerializer):
             'status', 'status_display', 'engagement', 'engagement_id',
             'opinion', 'opinion_id',
             'prepared_by', 'reviewed_by', 'approved_by', 'approval_date',
-            'distribution_list', 'distributed_at', 'document_id',
+            'distribution_list', 'distributed_at', 'document_id', 'stamped_document_url',
             'workflow_plan_id', 'is_active', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'stamped_document_url']
         extra_kwargs = {
             'reference_number': {'required': False, 'allow_blank': True},
             'prepared_by': {'required': False},  # Set programmatically in view
@@ -239,6 +254,7 @@ class AuditReportSerializer(serializers.ModelSerializer):
             'approval_date': {'required': False},
             'distributed_at': {'required': False},
             'document_id': {'required': False},
+            'stamped_document_url': {'required': False},
             'workflow_plan_id': {'required': False},
         }
 
@@ -471,6 +487,7 @@ class AuditMemoSerializer(serializers.ModelSerializer):
             'timeline_start', 'timeline_end',
             'prepared_by', 'reviewed_by_cia', 'approved_by_dg',
             'cia_review_date', 'dg_approval_date',
+            'document_id', 'stamped_document_url',
             'workflow_plan_id', 'workflow_stage', 'workflow_stage_id',
             'workflow_started_at', 'workflow_completed_at',
             'is_active', 'created_at', 'updated_at',
@@ -479,6 +496,7 @@ class AuditMemoSerializer(serializers.ModelSerializer):
             'id', 'created_at', 'updated_at',
             'workflow_plan_id', 'workflow_stage', 'workflow_stage_id',
             'workflow_started_at', 'workflow_completed_at',
+            'stamped_document_url',
         ]
         extra_kwargs = {
             'reference_number': {'required': False, 'allow_blank': True},
@@ -487,6 +505,8 @@ class AuditMemoSerializer(serializers.ModelSerializer):
             'approved_by_dg': {'required': False},
             'cia_review_date': {'required': False},
             'dg_approval_date': {'required': False},
+            'document_id': {'required': False},
+            'stamped_document_url': {'required': False},
         }
 
 
@@ -527,12 +547,18 @@ class DeclarationOfIndependenceSerializer(serializers.ModelSerializer):
             'declarant_user_id', 'declarant_name', 'declarant_role',
             'declaration_text', 'has_conflict', 'conflict_details',
             'is_signed', 'signed_at', 'status', 'status_display',
+            'document_id', 'stamped_document_url',
             'is_active', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'audit_engagement', 'audit_memo', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'audit_engagement', 'audit_memo',
+            'stamped_document_url',
+            'created_at', 'updated_at',
+        ]
         extra_kwargs = {
             'signed_at': {'required': False},
             'conflict_details': {'required': False, 'allow_blank': True},
+            'document_id': {'required': False},
         }
 
 
@@ -634,6 +660,7 @@ class AuditProgramSerializer(serializers.ModelSerializer):
             'risk_control_matrix', 'risk_control_matrix_id',
             'objectives', 'procedures',
             'prepared_by', 'reviewed_by', 'approved_by', 'approval_date',
+            'document_id', 'stamped_document_url',
             'status', 'status_display',
             'workflow_plan_id', 'workflow_stage', 'workflow_stage_id',
             'workflow_started_at', 'workflow_completed_at',
@@ -643,6 +670,7 @@ class AuditProgramSerializer(serializers.ModelSerializer):
             'id', 'audit_engagement', 'risk_control_matrix', 'created_at', 'updated_at',
             'workflow_plan_id', 'workflow_stage', 'workflow_stage_id',
             'workflow_started_at', 'workflow_completed_at',
+            'stamped_document_url',
         ]
         extra_kwargs = {
             'reference_number': {'required': False, 'allow_blank': True},
@@ -650,6 +678,8 @@ class AuditProgramSerializer(serializers.ModelSerializer):
             'reviewed_by': {'required': False},
             'approved_by': {'required': False},
             'approval_date': {'required': False},
+            'document_id': {'required': False},
+            'stamped_document_url': {'required': False},
         }
 
 

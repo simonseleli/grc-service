@@ -16,6 +16,7 @@ from apps.core.events.audit_events import (
     WorkingPaperApprovedEvent,
     WorkingPaperRejectedEvent,
     AuditFindingCreatedEvent,
+    AuditFindingFinalizedEvent,
     AuditPlanCreatedEvent,
     AuditPlanApprovedEvent,
 )
@@ -277,6 +278,90 @@ class KafkaMessagingService(MessagingServiceInterface):
 
         except Exception as e:
             logger.error(f"Error publishing plan event {event_type}: {str(e)}")
+            return False
+
+
+    def publish_finding_finalized_event(
+        self,
+        finding,
+        approved_by: str,
+    ) -> bool:
+        """
+        Publish a finding.finalized event for consumption by the Risk Management System.
+
+        Called when an AuditReport is approved by CIA — all findings within the
+        engagement are considered finalised simultaneously (SRS Req 41).
+
+        The payload is self-contained so that a future Risk Management consumer
+        can create an org-risk entry without calling back to GRC.
+
+        Args:
+            finding: AuditFinding model instance (must have related engagement,
+                     engagement.audit_plan.fiscal_year, finding_type, severity,
+                     risk_rating, and recommendations prefetched or accessible).
+            approved_by: User ID (str) of the CIA who approved the report.
+
+        Returns:
+            True if the event was published, False on error (best-effort).
+        """
+        try:
+            engagement = getattr(finding, 'engagement', None)
+            entity = getattr(engagement, 'auditable_entity', None) if engagement else None
+            plan = getattr(engagement, 'audit_plan', None) if engagement else None
+            fy = getattr(plan, 'fiscal_year', None) if plan else None
+
+            # Resolve lookup FK display names safely
+            finding_type_str = ''
+            if finding.finding_type:
+                finding_type_str = getattr(finding.finding_type, 'name', str(finding.finding_type))
+
+            severity_str = ''
+            if finding.severity:
+                severity_str = getattr(finding.severity, 'name', str(finding.severity))
+
+            rr_id, rr_name = '', ''
+            if finding.risk_rating:
+                rr_id = str(finding.risk_rating.id)
+                rr_name = getattr(finding.risk_rating, 'name', '')
+
+            rec_count = 0
+            try:
+                rec_count = finding.recommendations.count()
+            except Exception:
+                pass
+
+            event = AuditFindingFinalizedEvent(
+                finding_id=str(finding.id),
+                reference_number=finding.reference_number or '',
+                title=finding.title or '',
+                description=getattr(finding, 'condition', '') or '',
+                finding_type=finding_type_str,
+                severity=severity_str,
+                risk_rating_id=rr_id,
+                risk_rating_name=rr_name,
+                engagement_id=str(engagement.id) if engagement else '',
+                engagement_reference=getattr(engagement, 'reference_number', '') if engagement else '',
+                auditable_entity_id=str(entity.id) if entity else '',
+                auditable_entity_name=getattr(entity, 'name', '') if entity else '',
+                fiscal_year_id=str(fy.id) if fy else '',
+                fiscal_year_code=getattr(fy, 'year_code', '') if fy else '',
+                recommendation_count=rec_count,
+                finalized_by=approved_by,
+                user_id=approved_by,
+            )
+
+            publish_event(event)
+            logger.info(
+                f"Published finding.finalized event for finding {finding.id} "
+                f"(engagement {getattr(engagement, 'id', 'N/A')})"
+            )
+            return True
+
+        except Exception as e:
+            logger.error(
+                f"Failed to publish finding.finalized event for finding "
+                f"{getattr(finding, 'id', 'N/A')}: {e}"
+            )
             return False
 
 

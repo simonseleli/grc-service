@@ -282,6 +282,44 @@ class DeclarationSignView(APIView):
             except Exception as event_error:
                 logger.error("Error publishing declaration signed event: %s", event_error)
 
+            # GAP 9 / SRS Req 18 + 38: If all declarations for this engagement are
+            # now signed, trigger the approved stamp on each declaration that has
+            # a DRS document_id set.
+            try:
+                all_signed = not DeclarationOfIndependence.objects.filter(
+                    audit_engagement=decl.audit_engagement,
+                    is_active=True,
+                ).exclude(status='signed').exists()
+
+                if all_signed:
+                    from apps.infrastructure.external.document_service_client import DocumentServiceClient
+                    from django.conf import settings as django_settings
+                    service_token = getattr(django_settings, 'SERVICE_TO_SERVICE_TOKEN', None)
+                    client = DocumentServiceClient(auth_token=None)
+                    for d in DeclarationOfIndependence.objects.filter(
+                        audit_engagement=decl.audit_engagement,
+                        is_active=True,
+                        status='signed',
+                    ).exclude(document_id=None):
+                        try:
+                            result = client.generate_approved_stamp(
+                                document_id=str(d.document_id),
+                                approver_id=str(user_id),
+                                entity_type='declaration',
+                                entity_id=str(d.id),
+                                service_token=service_token,
+                            )
+                            stamped_url = result.get('stamped_document_url')
+                            if stamped_url:
+                                d.stamped_document_url = stamped_url
+                                d.save(update_fields=['stamped_document_url'])
+                        except Exception as stamp_err:
+                            logger.warning(
+                                "GAP 9: Stamp failed for Declaration %s: %s", d.id, stamp_err
+                            )
+            except Exception as gap9_err:
+                logger.warning("GAP 9: Declaration stamp check failed: %s", gap9_err)
+
             return success_response(
                 data=DeclarationOfIndependenceSerializer(decl).data,
                 message="Declaration signed successfully",

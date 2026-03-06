@@ -24,7 +24,7 @@ from apps.core.models import (
 )
 from apps.api.serializers.audit_serializers import AuditReportSerializer
 from apps.infrastructure.services.messaging_service import messaging_service
-from shared.constants.event_types import AUDIT_REPORT_EVENTS
+from shared.constants.event_types import AUDIT_REPORT_EVENTS, AUDIT_FINDING_EVENTS
 from apps.api.permissions_jwt import (
     CanViewAuditReport,
     CanApproveAuditReport,
@@ -607,6 +607,30 @@ class AuditReportStatusUpdateView(APIView):
                     )
                 except Exception as event_error:
                     logger.error(f'Error publishing report approved event: {event_error}')
+
+                try:
+                    findings = report.engagement.findings.select_related(
+                        'finding_type', 'severity', 'risk_rating',
+                        'engagement__auditable_entity',
+                        'engagement__audit_plan__fiscal_year',
+                    ).filter(is_active=True)
+                    published = 0
+                    for finding in findings:
+                        ok = messaging_service.publish_finding_finalized_event(
+                            finding=finding,
+                            approved_by=str(user_id),
+                        )
+                        if ok:
+                            published += 1
+                    logger.info(
+                        f'GAP 12: published {published} finding.finalized events '
+                        f'for report {report.reference_number}'
+                    )
+                except Exception as gap12_err:
+                    logger.error(
+                        f'GAP 12: failed to publish finding.finalized events '
+                        f'for report {report.id}: {gap12_err}'
+                    )
 
             return Response(
                 {

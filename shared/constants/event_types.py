@@ -29,6 +29,12 @@ AUDIT_FINDING_EVENTS = {
     'FINDING_ESCALATED': 'grc.audit.finding.escalated',
     'FINDING_RESOLVED': 'grc.audit.finding.resolved',
     'FINDING_CLOSED': 'grc.audit.finding.closed',
+    # GAP 12 — Risk Management integration (SRS Req 41)
+    # Published when an audit report is formally approved by CIA.
+    # Consumed by the Risk Management System (Phase 2) to create org risk entries.
+    'FINDING_FINALIZED': 'grc.audit.finding.finalized',
+    # Semantic alias: same event, explicitly named for clarity in audit report approval flow
+    'FINDING_APPROVED': 'grc.audit.finding.approved',
 }
 
 # GRC Audit Plan Events

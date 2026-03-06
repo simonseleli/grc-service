@@ -326,7 +326,11 @@ class GRCKafkaConsumer:
             elif template_code == 'grc.engagement_notification':
                 self._handle_audit_engagement_stage(subject_ref, final_decision, metadata)
             elif template_code == 'grc.audit_report_approval':
-                self._handle_audit_report_completion(subject_ref, final_decision)
+                self._handle_audit_report_completion(subject_ref, final_decision, event_data)
+            elif template_code == 'grc.audit_memo_approval':
+                self._handle_audit_memo_completion(subject_ref, final_decision, event_data)
+            elif template_code == 'grc.audit_program_approval':
+                self._handle_audit_program_completion(subject_ref, final_decision, event_data)
             else:
                 logger.warning(
                     f"Unknown GRC template_code '{template_code}' for subject_ref={subject_ref}"
@@ -671,13 +675,24 @@ class GRCKafkaConsumer:
                 f"stage_key={stage_key!r} action={action_name!r} final_decision={final_decision!r}"
             )
 
-    def _handle_audit_report_completion(self, subject_ref: str, final_decision: str):
-        """Update AuditReport.status when CIA review workflow completes."""
+    def _handle_audit_report_completion(self, subject_ref: str, final_decision: str, event_data: dict = None):
+        """Update AuditReport.status when CIA review workflow completes.
+
+        On approval:
+        - Sets status, approval_date, approved_by on the report
+        - Publishes GAP 12 finding.finalized events for all findings in the engagement
+        - Triggers GAP 9 DRS stamp to embed CIA signature + QR code (best-effort)
+        """
         from apps.core.models import AuditReport
         from django.utils import timezone
 
+        event_data = event_data or {}
+
         try:
-            report = AuditReport.objects.get(id=subject_ref)
+            report = AuditReport.objects.select_related(
+                'engagement__auditable_entity',
+                'engagement__audit_plan__fiscal_year',
+            ).get(id=subject_ref)
         except AuditReport.DoesNotExist:
             logger.warning(f"AuditReport {subject_ref} not found for workflow completion event")
             return
@@ -686,11 +701,66 @@ class GRCKafkaConsumer:
             return
 
         if final_decision == 'approved':
+            # ----- resolve the approver user ID from the WO event -----
+            approved_by_id = (
+                event_data.get('user_id')
+                or event_data.get('approved_by')
+                or (event_data.get('metadata') or {}).get('user_id')
+                or str(report.approved_by) if report.approved_by else None
+            )
+
+            now = timezone.now()
+            update_fields = ['status', 'approval_date', 'workflow_completed_at']
             report.status = 'approved'
-            report.approval_date = timezone.now()
-            report.workflow_completed_at = timezone.now()
-            report.save(update_fields=['status', 'approval_date', 'workflow_completed_at'])
+            report.approval_date = now
+            report.workflow_completed_at = now
+            if approved_by_id and not report.approved_by:
+                report.approved_by = approved_by_id
+                update_fields.append('approved_by')
+            report.save(update_fields=update_fields)
             logger.info(f"AuditReport {subject_ref} approved via WO workflow event")
+
+            # ----- GAP 12: publish finding.finalized for all findings -----
+            try:
+                from apps.infrastructure.services.messaging_service import messaging_service
+                findings = report.engagement.findings.select_related(
+                    'finding_type', 'severity', 'risk_rating',
+                    'engagement__auditable_entity',
+                    'engagement__audit_plan__fiscal_year',
+                ).filter(is_active=True)
+                published = 0
+                for finding in findings:
+                    ok = messaging_service.publish_finding_finalized_event(
+                        finding=finding,
+                        approved_by=approved_by_id or '',
+                    )
+                    if ok:
+                        published += 1
+                logger.info(
+                    f"Published {published} finding.finalized events for report {subject_ref}"
+                )
+            except Exception as gap12_err:
+                logger.error(
+                    f"GAP 12: Failed to publish finding.finalized events for report "
+                    f"{subject_ref}: {gap12_err}"
+                )
+
+            # ----- GAP 9: stamp approved PDF with CIA signature + QR -----
+            if report.document_id:
+                try:
+                    self._trigger_approved_stamp(
+                        document_id=str(report.document_id),
+                        approver_id=approved_by_id or '',
+                        entity_type='audit_report',
+                        entity_id=subject_ref,
+                        entity=report,
+                        stamp_field='stamped_document_url',
+                    )
+                except Exception as gap9_err:
+                    logger.error(
+                        f"GAP 9: Failed to trigger stamp for AuditReport {subject_ref}: {gap9_err}"
+                    )
+
         elif final_decision == 'distributed':
             report.status = 'distributed'
             report.distributed_at = timezone.now()
@@ -707,6 +777,200 @@ class GRCKafkaConsumer:
         else:
             logger.warning(
                 f"Unknown final_decision '{final_decision}' for AuditReport {subject_ref}"
+            )
+
+    def _handle_audit_memo_completion(
+        self, subject_ref: str, final_decision: str, event_data: dict = None
+    ):
+        """
+        Update AuditMemo.status when the grc.audit_memo_approval workflow completes.
+
+        Workflow stages (from get_workflow_stages()):
+          cia_review → dg_approval → transmission
+        Final workflow event: approved → status='approved' | rejected/cancelled → 'draft'
+
+        Also triggers GAP 9 DRS stamp if a document_id is attached.
+        """
+        from apps.core.models import AuditMemo
+        from django.utils import timezone
+
+        event_data = event_data or {}
+
+        try:
+            memo = AuditMemo.objects.get(id=subject_ref)
+        except AuditMemo.DoesNotExist:
+            logger.warning(f"AuditMemo {subject_ref} not found for workflow completion event")
+            return
+        except Exception as exc:
+            logger.error(f"DB error looking up AuditMemo {subject_ref}: {exc}")
+            return
+
+        if final_decision == 'approved':
+            approved_by_id = (
+                event_data.get('user_id')
+                or event_data.get('approved_by')
+                or (event_data.get('metadata') or {}).get('user_id')
+            )
+
+            now = timezone.now()
+            update_fields = ['status', 'dg_approval_date', 'workflow_completed_at']
+            memo.status = 'approved'
+            memo.dg_approval_date = now
+            memo.workflow_completed_at = now
+            if approved_by_id and not memo.approved_by_dg:
+                memo.approved_by_dg = approved_by_id
+                update_fields.append('approved_by_dg')
+            memo.save(update_fields=update_fields)
+            logger.info(f"AuditMemo {subject_ref} approved via WO workflow event")
+
+            # GAP 9: stamp PDF if a DRS document is attached
+            if getattr(memo, 'document_id', None):
+                try:
+                    self._trigger_approved_stamp(
+                        document_id=str(memo.document_id),
+                        approver_id=approved_by_id or '',
+                        entity_type='audit_memo',
+                        entity_id=subject_ref,
+                        entity=memo,
+                        stamp_field='stamped_document_url',
+                    )
+                except Exception as gap9_err:
+                    logger.error(
+                        f"GAP 9: Failed to trigger stamp for AuditMemo {subject_ref}: {gap9_err}"
+                    )
+
+        elif final_decision in ('rejected', 'cancelled'):
+            memo.status = 'draft'
+            memo.workflow_plan_id = None
+            memo.workflow_stage = ''
+            memo.workflow_stage_id = None
+            memo.save(update_fields=[
+                'status', 'workflow_plan_id', 'workflow_stage', 'workflow_stage_id'
+            ])
+            logger.info(f"AuditMemo {subject_ref} returned to draft (decision: {final_decision})")
+        else:
+            logger.warning(
+                f"Unknown final_decision '{final_decision}' for AuditMemo {subject_ref}"
+            )
+
+    def _handle_audit_program_completion(
+        self, subject_ref: str, final_decision: str, event_data: dict = None
+    ):
+        """
+        Update AuditProgram.status when the grc.audit_program_approval workflow completes.
+
+        Workflow stages (from get_workflow_stages()):
+          ia_review → cia_approval
+        Final workflow event: approved → status='approved' | rejected/cancelled → 'draft'
+
+        Also triggers GAP 9 DRS stamp if a document_id is attached.
+        """
+        from apps.core.models import AuditProgram
+        from django.utils import timezone
+
+        event_data = event_data or {}
+
+        try:
+            program = AuditProgram.objects.get(id=subject_ref)
+        except AuditProgram.DoesNotExist:
+            logger.warning(f"AuditProgram {subject_ref} not found for workflow completion event")
+            return
+        except Exception as exc:
+            logger.error(f"DB error looking up AuditProgram {subject_ref}: {exc}")
+            return
+
+        if final_decision == 'approved':
+            approved_by_id = (
+                event_data.get('user_id')
+                or event_data.get('approved_by')
+                or (event_data.get('metadata') or {}).get('user_id')
+            )
+
+            now = timezone.now()
+            update_fields = ['status', 'approval_date', 'workflow_completed_at']
+            program.status = 'approved'
+            program.approval_date = now
+            program.workflow_completed_at = now
+            if approved_by_id and not program.approved_by:
+                program.approved_by = approved_by_id
+                update_fields.append('approved_by')
+            program.save(update_fields=update_fields)
+            logger.info(f"AuditProgram {subject_ref} approved via WO workflow event")
+
+            # GAP 9: stamp PDF if a DRS document is attached
+            if getattr(program, 'document_id', None):
+                try:
+                    self._trigger_approved_stamp(
+                        document_id=str(program.document_id),
+                        approver_id=approved_by_id or '',
+                        entity_type='audit_program',
+                        entity_id=subject_ref,
+                        entity=program,
+                        stamp_field='stamped_document_url',
+                    )
+                except Exception as gap9_err:
+                    logger.error(
+                        f"GAP 9: Failed to trigger stamp for AuditProgram {subject_ref}: {gap9_err}"
+                    )
+
+        elif final_decision in ('rejected', 'cancelled'):
+            program.status = 'draft'
+            program.workflow_plan_id = None
+            program.workflow_stage = ''
+            program.workflow_stage_id = None
+            program.save(update_fields=[
+                'status', 'workflow_plan_id', 'workflow_stage', 'workflow_stage_id'
+            ])
+            logger.info(
+                f"AuditProgram {subject_ref} returned to draft (decision: {final_decision})"
+            )
+        else:
+            logger.warning(
+                f"Unknown final_decision '{final_decision}' for AuditProgram {subject_ref}"
+            )
+
+    def _trigger_approved_stamp(
+        self,
+        document_id: str,
+        approver_id: str,
+        entity_type: str,
+        entity_id: str,
+        entity,
+        stamp_field: str = 'stamped_document_url',
+    ) -> None:
+        """
+        Call DRS to overlay CIA signature + QR code onto the approved PDF document.
+
+        Best-effort: logs and swallows all errors so the approval is never blocked.
+        Stores the returned stamped_document_url on the entity model.
+
+        Args:
+            document_id: DRS document UUID to stamp.
+            approver_id: CIA user UUID (used to fetch signature from IAM via DRS).
+            entity_type: GRC entity type label (e.g. 'audit_report').
+            entity_id:   GRC entity UUID (embedded in QR verification URL).
+            entity:      Django model instance to update with stamped_document_url.
+            stamp_field: field name on entity for the stamped URL (default 'stamped_document_url').
+        """
+        from apps.infrastructure.external.document_service_client import DocumentServiceClient
+        from django.conf import settings
+
+        service_token = getattr(settings, 'SERVICE_TO_SERVICE_TOKEN', None)
+        client = DocumentServiceClient(auth_token=None)
+        result = client.generate_approved_stamp(
+            document_id=document_id,
+            approver_id=approver_id,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            service_token=service_token,
+        )
+
+        stamped_url = result.get('stamped_document_url')
+        if stamped_url and hasattr(entity, stamp_field):
+            setattr(entity, stamp_field, stamped_url)
+            entity.save(update_fields=[stamp_field])
+            logger.info(
+                f"GAP 9: Saved stamped_document_url on {entity_type} {entity_id}: {stamped_url}"
             )
     
     def close(self):

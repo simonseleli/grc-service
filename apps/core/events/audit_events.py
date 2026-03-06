@@ -181,6 +181,60 @@ class AuditFindingCreatedEvent(GRCDomainEvent):
 
 
 @dataclass
+class AuditFindingFinalizedEvent(GRCDomainEvent):
+    """
+    Audit finding was finalized — published when the parent Audit Report is
+    approved by CIA (SRS Req 41: Risk Management integration).
+
+    Consumers: Risk Management System (Phase 2) — creates org risk register entries.
+
+    The payload carries enough context for a consumer to register the finding as
+    an organisational risk without needing to call back to GRC.
+    """
+
+    finding_id: str = field(default='')
+    reference_number: str = field(default='')
+    title: str = field(default='')
+    description: str = field(default='')
+    finding_type: str = field(default='')
+    severity: str = field(default='')
+    risk_rating_id: str = field(default='')
+    risk_rating_name: str = field(default='')
+    engagement_id: str = field(default='')
+    engagement_reference: str = field(default='')
+    auditable_entity_id: str = field(default='')
+    auditable_entity_name: str = field(default='')
+    fiscal_year_id: str = field(default='')
+    fiscal_year_code: str = field(default='')
+    recommendation_count: int = field(default=0)
+    finalized_by: str = field(default='')
+
+    def __post_init__(self):
+        self.event_type = 'grc.audit.finding.finalized'
+        self.aggregate_id = self.finding_id
+
+    def _get_event_data(self) -> Dict[str, Any]:
+        return {
+            'finding_id': self.finding_id,
+            'reference_number': self.reference_number,
+            'title': self.title,
+            'description': self.description,
+            'finding_type': self.finding_type,
+            'severity': self.severity,
+            'risk_rating_id': self.risk_rating_id,
+            'risk_rating_name': self.risk_rating_name,
+            'engagement_id': self.engagement_id,
+            'engagement_reference': self.engagement_reference,
+            'auditable_entity_id': self.auditable_entity_id,
+            'auditable_entity_name': self.auditable_entity_name,
+            'fiscal_year_id': self.fiscal_year_id,
+            'fiscal_year_code': self.fiscal_year_code,
+            'recommendation_count': self.recommendation_count,
+            'finalized_by': self.finalized_by,
+        }
+
+
+@dataclass
 class AuditPlanCreatedEvent(GRCDomainEvent):
     """Audit plan was created"""
 

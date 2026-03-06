@@ -1390,7 +1390,13 @@ class AuditReport(TimestampedModel, StatusMixin, WorkflowMixin):
         blank=True,
         help_text="Generated document reference from Document Service"
     )
-    
+    stamped_document_url = models.URLField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="URL to approved PDF with embedded CIA signature and QR code (GAP 9)"
+    )
+
     class Meta:
         db_table = 'grc_audit_report'
         ordering = ['-created_at']
@@ -1908,6 +1914,17 @@ class AuditMemo(TimestampedModel, StatusMixin, WorkflowMixin):
         blank=True,
         help_text="When DG approved the memo"
     )
+    document_id = models.UUIDField(
+        null=True,
+        blank=True,
+        help_text="DRS document UUID — set when memo is uploaded as a PDF document"
+    )
+    stamped_document_url = models.URLField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="URL to approved PDF with embedded CIA signature and QR code (GAP 9)"
+    )
 
     STATUS_CHOICES = [
         ('draft', 'Draft'),
@@ -2081,6 +2098,17 @@ class DeclarationOfIndependence(TimestampedModel, StatusMixin):
         default='pending',
         db_index=True,
         help_text="Current status of the declaration"
+    )
+    document_id = models.UUIDField(
+        null=True,
+        blank=True,
+        help_text="DRS document UUID for the signed declaration PDF (GAP 9)"
+    )
+    stamped_document_url = models.URLField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="URL to the signed + QR-stamped declaration PDF (GAP 9)"
     )
 
     class Meta:
@@ -2378,6 +2406,17 @@ class AuditProgram(TimestampedModel, StatusMixin, WorkflowMixin):
         null=True,
         blank=True,
         help_text="When the program was approved"
+    )
+    document_id = models.UUIDField(
+        null=True,
+        blank=True,
+        help_text="DRS document UUID — set when program is uploaded as a PDF document"
+    )
+    stamped_document_url = models.URLField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="URL to approved PDF with embedded CIA signature and QR code (GAP 9)"
     )
 
     STATUS_CHOICES = [

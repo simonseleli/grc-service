@@ -180,6 +180,70 @@
       "resource_type": "system_config",
       "action": "manage",
       "category": "configuration"
+    },
+    {
+      "permission_code": "grc:audit_memo:view",
+      "name": "View Audit Memos",
+      "description": "View audit engagement memoranda",
+      "resource_type": "audit_memo",
+      "action": "view",
+      "category": "audit_memo"
+    },
+    {
+      "permission_code": "grc:audit_memo:manage",
+      "name": "Manage Audit Memos",
+      "description": "Create, update, and submit audit engagement memoranda through workflow",
+      "resource_type": "audit_memo",
+      "action": "manage",
+      "category": "audit_memo"
+    },
+    {
+      "permission_code": "grc:audit_declaration:manage",
+      "name": "Manage Declarations of Independence",
+      "description": "Create and update declarations of independence for audit team members",
+      "resource_type": "audit_declaration",
+      "action": "manage",
+      "category": "audit_declaration"
+    },
+    {
+      "permission_code": "grc:audit_declaration:sign",
+      "name": "Sign Declaration of Independence",
+      "description": "Electronically sign a personal declaration of independence",
+      "resource_type": "audit_declaration",
+      "action": "sign",
+      "category": "audit_declaration"
+    },
+    {
+      "permission_code": "grc:audit_survey:manage",
+      "name": "Manage Preliminary Audit Surveys",
+      "description": "Create, update, and complete preliminary survey / business understanding records",
+      "resource_type": "audit_survey",
+      "action": "manage",
+      "category": "audit_survey"
+    },
+    {
+      "permission_code": "grc:audit_rcm:manage",
+      "name": "Manage Risk Control Matrix",
+      "description": "Create, update, and submit Risk Control Matrices and their entries",
+      "resource_type": "audit_rcm",
+      "action": "manage",
+      "category": "audit_rcm"
+    },
+    {
+      "permission_code": "grc:audit_rcm:approve",
+      "name": "Approve Risk Control Matrix",
+      "description": "Review and approve submitted Risk Control Matrices",
+      "resource_type": "audit_rcm",
+      "action": "approve",
+      "category": "audit_rcm"
+    },
+    {
+      "permission_code": "grc:audit_program:manage",
+      "name": "Manage Audit Programs",
+      "description": "Create, update, and submit audit programs for review and approval",
+      "resource_type": "audit_program",
+      "action": "manage",
+      "category": "audit_program"
     }
   ],
   "roles": [
@@ -194,6 +258,13 @@
         "grc:audit_plan:view",
         "grc:audit_plan:manage",
         "grc:audit_engagement:manage",
+        "grc:audit_memo:view",
+        "grc:audit_memo:manage",
+        "grc:audit_declaration:manage",
+        "grc:audit_declaration:sign",
+        "grc:audit_survey:manage",
+        "grc:audit_rcm:manage",
+        "grc:audit_program:manage",
         "grc:audit_working_paper:manage",
         "grc:audit_finding:manage",
         "grc:audit_monitoring:update",
@@ -211,6 +282,14 @@
         "grc:audit_plan:view",
         "grc:audit_plan:manage",
         "grc:audit_engagement:manage",
+        "grc:audit_memo:view",
+        "grc:audit_memo:manage",
+        "grc:audit_declaration:manage",
+        "grc:audit_declaration:sign",
+        "grc:audit_survey:manage",
+        "grc:audit_rcm:manage",
+        "grc:audit_rcm:approve",
+        "grc:audit_program:manage",
         "grc:audit_working_paper:manage",
         "grc:audit_working_paper:review",
         "grc:audit_finding:manage",
@@ -231,6 +310,13 @@
         "grc:audit_plan:manage",
         "grc:audit_plan:approve",
         "grc:audit_engagement:manage",
+        "grc:audit_memo:view",
+        "grc:audit_memo:manage",
+        "grc:audit_declaration:manage",
+        "grc:audit_survey:manage",
+        "grc:audit_rcm:manage",
+        "grc:audit_rcm:approve",
+        "grc:audit_program:manage",
         "grc:audit_working_paper:review",
         "grc:audit_report:view",
         "grc:audit_report:approve",
@@ -249,6 +335,7 @@
       "permissions": [
         "grc:audit_plan:view",
         "grc:audit_plan:approve",
+        "grc:audit_memo:view",
         "grc:audit_report:view",
         "grc:audit_report:approve",
         "grc:audit_dashboard:view"
