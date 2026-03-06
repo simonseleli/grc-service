@@ -1,0 +1,35 @@
+user = "simon.seleli"
+metadatas.token = "i76irkcgdrycdc7o"
+
+serverAddr = "tunnel.ictpack.net"
+serverPort = 7000
+
+# ============================================
+# FIMS Services Configuration
+# ============================================
+
+# API Gateway - Main Entry Point (All APIs route here)
+[[proxies]]
+name = "fims-api-gateway"
+type = "http"
+localIP = "127.0.0.1"
+localPort = 8080
+subdomain = "fims-api"
+
+# Staff Portal (Internal Staff Interface)
+[[proxies]]
+name = "fims-staff-portal"
+type = "http"
+localIP = "127.0.0.1"
+localPort = 3001
+subdomain = "fims-staff"
+
+# Client Portal (External Client Interface)
+[[proxies]]
+name = "fims-client-portal"
+type = "http"
+localIP = "127.0.0.1"
+localPort = 3001
+subdomain = "fims-client"
+
+

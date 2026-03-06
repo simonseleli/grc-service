@@ -1,0 +1,7 @@
+# FRP Configuration and Credentials
+# DO NOT COMMIT THESE FILES TO GIT
+
+frpc.toml
+.env
+*.log
+frp_logs/
