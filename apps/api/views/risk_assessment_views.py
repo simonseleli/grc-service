@@ -622,14 +622,24 @@ class RiskAssessmentEvidenceView(APIView):
                 try:
                     doc = client.get_document(str(did))
                     doc['download_url'] = client.get_download_url(str(did))
+                    # Normalize to EvidenceAttachment frontend type
+                    doc['document_id'] = doc.get('id', '')
+                    doc['filename'] = (
+                        doc.get('title') or doc.get('file_name') or
+                        doc.get('filename') or ''
+                    )
+                    doc['upload_url'] = doc.get('download_url')
+                    doc['uploaded_by'] = doc.get('created_by')
                     documents.append(doc)
                 except DocumentServiceError:
                     # Document may have been deleted in DRS — still include a stub
                     documents.append({
                         'id': str(did),
-                        'title': '(unavailable)',
+                        'document_id': str(did),
+                        'filename': '(unavailable)',
                         'status': 'missing',
                         'download_url': None,
+                        'upload_url': None,
                     })
 
             return Response({

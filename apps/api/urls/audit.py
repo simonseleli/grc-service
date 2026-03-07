@@ -56,6 +56,11 @@ from apps.api.views.implementation_monitoring_views import (
     ImplementationMonitoringDueReviewsView,
     ImplementationMonitoringNotifyAuditeeView,
     ImplementationMonitoringNonResponsiveView,
+    AuditeeFollowUpResponseListCreateView,
+    AuditeeFollowUpResponseDetailView,
+    AuditeeFollowUpResponseSubmitView,
+    AuditeeFollowUpResponseVerifyView,
+    AuditeeFollowUpResponseOverdueView,
 )
 from apps.api.views.working_paper_views import (
     EngagementWorkingPapersView,
@@ -63,6 +68,8 @@ from apps.api.views.working_paper_views import (
     WorkingPaperReviewView,
     WorkingPaperWorkflowStatusView,
     WorkingPaperWorkflowHistoryView,
+    WorkingPaperEvidenceView,
+    WorkingPaperEvidenceDetailView,
 )
 from apps.api.views.audit_monitoring_views import AuditMonitoringListView
 from apps.api.views.audit_dashboard_views import AuditDashboardStatsView
@@ -83,6 +90,8 @@ from apps.api.views.audit_quarterly_report_views import (
     QuarterlyReportStatusUpdateView,
     QuarterlyReportConsolidateView,
     QuarterlyReportEngagementReportsView,
+    QuarterlyReportSubmitView,
+    QuarterlyReportWorkflowStatusView,
 )
 from apps.api.views.audit_memo_views import (
     AuditMemoListCreateView,
@@ -115,6 +124,13 @@ from apps.api.views.audit_program_views import (
     AuditProgramDetailView,
     AuditProgramSubmitView,
     AuditProgramWorkflowStatusView,
+)
+from apps.api.views.engagement_notification_views import (   # P2-GAP 1
+    EngagementNotificationListCreateView,
+    EngagementNotificationDetailView,
+    EngagementNotificationSubmitView,
+    EngagementNotificationTransmitView,
+    EngagementNotificationWorkflowStatusView,
 )
 from apps.api.views.lookup_views import (
     LookupDataView, FiscalYearListView, QuarterListView,
@@ -179,6 +195,16 @@ urlpatterns = [
     path("implementation-monitoring/due-reviews/", ImplementationMonitoringDueReviewsView.as_view(), name="implementation-monitoring-due-reviews"),
     path("implementation-monitoring/<uuid:pk>/notify-auditee/", ImplementationMonitoringNotifyAuditeeView.as_view(), name="implementation-monitoring-notify-auditee"),
     path("implementation-monitoring/non-responsive/", ImplementationMonitoringNonResponsiveView.as_view(), name="implementation-monitoring-non-responsive"),
+
+    # Follow-up Response endpoints (P2-GAP 4 — one row per review cycle)
+    # NOTE: static segments (overdue/) must come before <uuid:pk>/ to avoid UUID matching
+    path("follow-up-responses/overdue/", AuditeeFollowUpResponseOverdueView.as_view(), name="follow-up-response-overdue"),
+    path("follow-up-responses/", AuditeeFollowUpResponseListCreateView.as_view(), name="follow-up-response-list-create"),
+    path("follow-up-responses/<uuid:pk>/", AuditeeFollowUpResponseDetailView.as_view(), name="follow-up-response-detail"),
+    path("follow-up-responses/<uuid:pk>/submit/", AuditeeFollowUpResponseSubmitView.as_view(), name="follow-up-response-submit"),
+    path("follow-up-responses/<uuid:pk>/verify/", AuditeeFollowUpResponseVerifyView.as_view(), name="follow-up-response-verify"),
+    # Nested: all cycles for a single monitoring header
+    path("implementation-monitoring/<uuid:monitoring_id>/responses/", AuditeeFollowUpResponseListCreateView.as_view(), name="monitoring-responses-list"),
     
     # Working Paper endpoints - Phase 2 Week 1
     path("engagements/<uuid:engagement_id>/working-papers/", EngagementWorkingPapersView.as_view(), name="engagement-working-papers"),
@@ -186,6 +212,8 @@ urlpatterns = [
     path("working-papers/<uuid:paper_id>/review/", WorkingPaperReviewView.as_view(), name="working-paper-review"),
     path("working-papers/<uuid:paper_id>/workflow-status/", WorkingPaperWorkflowStatusView.as_view(), name="working-paper-workflow-status"),
     path("working-papers/<uuid:paper_id>/workflow-history/", WorkingPaperWorkflowHistoryView.as_view(), name="working-paper-workflow-history"),
+    path("working-papers/<uuid:paper_id>/evidence/", WorkingPaperEvidenceView.as_view(), name="working-paper-evidence"),
+    path("working-papers/<uuid:paper_id>/evidence/<uuid:document_id>/", WorkingPaperEvidenceDetailView.as_view(), name="working-paper-evidence-detail"),
     
     # Audit Report endpoints
     path("reports/", AuditReportListCreateView.as_view(), name="audit-report-list-create"),
@@ -204,6 +232,9 @@ urlpatterns = [
     path("quarterly-reports/<uuid:pk>/update-status/", QuarterlyReportStatusUpdateView.as_view(), name="quarterly-report-update-status"),
     path("quarterly-reports/<uuid:pk>/consolidate/", QuarterlyReportConsolidateView.as_view(), name="quarterly-report-consolidate"),
     path("quarterly-reports/<uuid:pk>/engagement-reports/", QuarterlyReportEngagementReportsView.as_view(), name="quarterly-report-engagement-reports"),
+    # P2-GAP 3 — WO integration
+    path("quarterly-reports/<uuid:pk>/submit-for-approval/", QuarterlyReportSubmitView.as_view(), name="quarterly-report-submit"),
+    path("quarterly-reports/<uuid:pk>/workflow-status/", QuarterlyReportWorkflowStatusView.as_view(), name="quarterly-report-workflow-status"),
 
     # Legacy monitoring endpoint (read-only recommendations with monitoring data)
     path("monitoring/", AuditMonitoringListView.as_view(), name="audit-monitoring-list"),
@@ -242,6 +273,13 @@ urlpatterns = [
     path("programs/<uuid:pk>/", AuditProgramDetailView.as_view(), name="audit-program-detail"),
     path("programs/<uuid:pk>/submit/", AuditProgramSubmitView.as_view(), name="audit-program-submit"),
     path("programs/<uuid:pk>/workflow-status/", AuditProgramWorkflowStatusView.as_view(), name="audit-program-workflow-status"),
+
+    # Engagement Notification endpoints (P2-GAP 1 — SRS Req 24, 25, 26)
+    path("engagement-notifications/", EngagementNotificationListCreateView.as_view(), name="engagement-notification-list-create"),
+    path("engagement-notifications/<uuid:pk>/", EngagementNotificationDetailView.as_view(), name="engagement-notification-detail"),
+    path("engagement-notifications/<uuid:pk>/submit/", EngagementNotificationSubmitView.as_view(), name="engagement-notification-submit"),
+    path("engagement-notifications/<uuid:pk>/transmit/", EngagementNotificationTransmitView.as_view(), name="engagement-notification-transmit"),
+    path("engagement-notifications/<uuid:pk>/workflow-status/", EngagementNotificationWorkflowStatusView.as_view(), name="engagement-notification-workflow-status"),
     
     # Lookup table endpoints (these might be duplicates of /config/* endpoints)
     path("lookups/", LookupDataView.as_view(), name="lookup-data-all"),

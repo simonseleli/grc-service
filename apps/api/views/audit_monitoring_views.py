@@ -73,10 +73,9 @@ class AuditMonitoringListView(APIView):
                 try:
                     monitoring = rec_obj.monitoring
                     monitoring_info.update({
-                        'implementation_progress': float(monitoring.implementation_progress),
+                        'implementation_progress': float(monitoring.latest_progress),
                         'last_review_date': monitoring.last_review_date,
                         'next_review_date': monitoring.next_review_date,
-                        'progress_notes': monitoring.progress_notes,
                         'reviewed_by': monitoring.reviewed_by,
                     })
                 except ImplementationMonitoring.DoesNotExist:
@@ -84,7 +83,6 @@ class AuditMonitoringListView(APIView):
                         'implementation_progress': 0.0,
                         'last_review_date': None,
                         'next_review_date': None,
-                        'progress_notes': '',
                         'reviewed_by': None,
                     })
                 

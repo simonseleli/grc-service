@@ -7,7 +7,7 @@ from rest_framework import serializers
 from apps.core.models import (
     AuditUniverse, AuditableEntity, RiskAssessment,
     AuditPlan, AuditEngagement, AuditFinding,
-    AuditRecommendation, AuditReport, ImplementationMonitoring,
+    AuditRecommendation, AuditReport, ImplementationMonitoring, AuditeeFollowUpResponse,
     WorkingPaper, AuditMeeting, QuarterlyAuditReport,
     AuditMemo, DeclarationOfIndependence, AuditSurvey,
     RiskControlMatrix, RCMEntry, AuditProgram,
@@ -195,25 +195,58 @@ class AuditRecommendationSerializer(serializers.ModelSerializer):
         }
 
 
+class AuditeeFollowUpResponseSerializer(serializers.ModelSerializer):
+    """Serializer for AuditeeFollowUpResponse — one row per review cycle."""
+    monitoring_id = serializers.UUIDField(write_only=True)
+    days_until_deadline = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AuditeeFollowUpResponse
+        fields = [
+            'id', 'monitoring_id', 'cycle_number', 'status',
+            'notified_at', 'response_deadline', 'days_until_deadline',
+            'submitted_by', 'submitted_at',
+            'implementation_progress', 'progress_notes', 'evidence_documents',
+            'is_overdue', 'verified_by', 'verified_at', 'verification_notes',
+            'is_active', 'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'cycle_number', 'created_at', 'updated_at',
+            'notified_at', 'days_until_deadline', 'is_overdue',
+            'submitted_at', 'verified_at',
+        ]
+
+    def get_days_until_deadline(self, obj):
+        """Return days until response deadline (negative = overdue)."""
+        if not obj.response_deadline:
+            return None
+        from django.utils import timezone
+        delta = obj.response_deadline - timezone.now()
+        return delta.days
+
+
 class ImplementationMonitoringSerializer(serializers.ModelSerializer):
-    """Serializer for ImplementationMonitoring"""
+    """Serializer for ImplementationMonitoring header (1:1 per recommendation)."""
     recommendation = AuditRecommendationSerializer(read_only=True)
     recommendation_id = serializers.UUIDField(write_only=True)
     days_until_deadline = serializers.SerializerMethodField()
-    
+    follow_up_responses = AuditeeFollowUpResponseSerializer(many=True, read_only=True)
+
     class Meta:
         model = ImplementationMonitoring
         fields = [
-            'id', 'recommendation', 'recommendation_id', 'last_review_date',
-            'next_review_date', 'implementation_progress', 'progress_notes',
-            'evidence_documents', 'reviewed_by',
+            'id', 'recommendation', 'recommendation_id', 'status',
+            'last_review_date', 'next_review_date', 'latest_progress', 'reviewed_by',
             'notification_sent_at', 'response_deadline', 'auditee_responded_at',
             'is_overdue', 'escalated', 'days_until_deadline',
-            'is_active', 'created_at', 'updated_at'
+            'follow_up_responses',
+            'is_active', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'is_overdue',
-                           'response_deadline', 'days_until_deadline',
-                           'notification_sent_at', 'auditee_responded_at', 'escalated']
+        read_only_fields = [
+            'id', 'created_at', 'updated_at', 'is_overdue',
+            'response_deadline', 'days_until_deadline',
+            'notification_sent_at', 'auditee_responded_at', 'escalated',
+        ]
 
     def get_days_until_deadline(self, obj):
         """Return number of days until response deadline (negative = overdue)."""
@@ -695,4 +728,75 @@ class AuditProgramListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'reference_number', 'title', 'engagement_reference',
             'status', 'status_display', 'prepared_by', 'created_at',
+        ]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# P2-GAP 1 — Engagement Notification Serializers (SRS Req 24, 25, 26)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class EngagementNotificationSerializer(serializers.ModelSerializer):
+    """Full serializer for Engagement Notification."""
+    engagement_reference = serializers.CharField(
+        source='audit_engagement.reference_number', read_only=True
+    )
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    audit_engagement_id = serializers.UUIDField(write_only=True)
+    audit_program_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
+
+    class Meta:
+        from apps.core.models import EngagementNotification
+        model = EngagementNotification
+        fields = [
+            'id',
+            'audit_engagement', 'audit_engagement_id', 'engagement_reference',
+            'audit_program', 'audit_program_id',
+            'reference_number',
+            'notification_date',
+            'audit_period_start', 'audit_period_end',
+            'audit_team_snapshot',
+            'scope_summary',
+            'prepared_by',
+            'approved_by_cia', 'cia_approval_date',
+            'transmitted_at',
+            'document_id', 'stamped_document_url',
+            'status', 'status_display',
+            'workflow_plan_id', 'workflow_stage', 'workflow_stage_id',
+            'workflow_started_at', 'workflow_completed_at',
+            'is_active', 'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'audit_engagement', 'audit_program',
+            'engagement_reference', 'status_display',
+            'cia_approval_date', 'transmitted_at',
+            'stamped_document_url',
+            'workflow_plan_id', 'workflow_stage', 'workflow_stage_id',
+            'workflow_started_at', 'workflow_completed_at',
+            'created_at', 'updated_at',
+        ]
+        extra_kwargs = {
+            'reference_number': {'required': False, 'allow_blank': True},
+            'notification_date': {'required': False},
+            'audit_team_snapshot': {'required': False},
+            'scope_summary': {'required': False, 'allow_blank': True},
+            'approved_by_cia': {'required': False},
+            'document_id': {'required': False},
+        }
+
+
+class EngagementNotificationListSerializer(serializers.ModelSerializer):
+    """Lightweight list serializer for Engagement Notifications."""
+    engagement_reference = serializers.CharField(
+        source='audit_engagement.reference_number', read_only=True
+    )
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        from apps.core.models import EngagementNotification
+        model = EngagementNotification
+        fields = [
+            'id', 'reference_number', 'engagement_reference',
+            'status', 'status_display',
+            'prepared_by', 'notification_date',
+            'created_at',
         ]

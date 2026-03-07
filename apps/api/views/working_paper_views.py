@@ -7,6 +7,7 @@ import logging
 import uuid
 
 from django.conf import settings
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
@@ -742,3 +743,277 @@ class WorkingPaperWorkflowHistoryView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+# ─── Working Paper Evidence Views (DRS Integration) ──────────────────────────
+
+class WorkingPaperEvidenceView(APIView):
+    """Manage supporting evidence attachments on a working paper.
+
+    Delegates file storage to Document Records Service (FIMS Principle 2).
+    GRC stores only the DRS document UUIDs in ``evidence_document_ids``.
+
+    GET    /working-papers/{paper_id}/evidence/                  — list
+    POST   /working-papers/{paper_id}/evidence/                  — upload
+    DELETE /working-papers/{paper_id}/evidence/{document_id}/    — detach
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if request.method == 'GET':
+            if not (CanManageWorkingPaper().has_permission(request, self) or
+                    CanReviewWorkingPaper().has_permission(request, self)):
+                self.permission_denied(
+                    request,
+                    message='grc:audit_working_paper:manage or :review required.',
+                )
+        elif request.method in ('POST', 'DELETE'):
+            if not CanManageWorkingPaper().has_permission(request, self):
+                self.permission_denied(
+                    request,
+                    message='grc:audit_working_paper:manage required.',
+                )
+
+    @staticmethod
+    def _get_auth_token(request):
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        return auth_header.removeprefix('Bearer ').strip() if auth_header.startswith('Bearer ') else None
+
+    @staticmethod
+    def _normalize_doc(doc: dict) -> dict:
+        """Normalize DRS document fields to match EvidenceAttachment frontend type."""
+        return {
+            **doc,
+            'document_id': doc.get('id', ''),
+            'filename': doc.get('title') or doc.get('file_name') or doc.get('filename') or '',
+            'upload_url': doc.get('download_url'),
+            'uploaded_by': doc.get('created_by'),
+        }
+
+    # ── GET — list evidence ───────────────────────────────────────────
+    def get(self, request, paper_id):
+        """Return metadata for all evidence documents attached to this working paper."""
+        try:
+            paper = get_object_or_404(WorkingPaper, id=paper_id)
+            doc_ids = paper.evidence_document_ids or []
+
+            if not doc_ids:
+                return Response({"success": True, "data": [], "meta": {"total": 0}})
+
+            auth_token = self._get_auth_token(request)
+            client = get_document_client(auth_token=auth_token)
+
+            documents = []
+            for did in doc_ids:
+                try:
+                    doc = client.get_document(str(did))
+                    doc['download_url'] = client.get_download_url(str(did))
+                    documents.append(self._normalize_doc(doc))
+                except DocumentServiceError:
+                    documents.append({
+                        'id': str(did),
+                        'document_id': str(did),
+                        'filename': '(unavailable)',
+                        'status': 'missing',
+                        'download_url': None,
+                        'upload_url': None,
+                    })
+
+            return Response({
+                "success": True,
+                "data": documents,
+                "meta": {"total": len(documents)},
+            })
+        except Exception as e:
+            logger.exception("Failed to retrieve working paper evidence")
+            return server_error_response(
+                message="Failed to retrieve working paper evidence",
+                details=str(e) if settings.DEBUG else None,
+            )
+
+    # ── POST — upload evidence to DRS and attach UUID ─────────────────
+    def post(self, request, paper_id):
+        """Upload supporting evidence file to DRS and link to working paper.
+
+        Accepts ``multipart/form-data`` with:
+        - ``file``        — the evidence file (required)
+        - ``title``       — document title (optional, defaults to filename)
+        - ``description`` — document description (optional)
+        """
+        try:
+            user_id = getattr(request.user, 'id', None)
+            if not user_id:
+                return error_response(
+                    message="User not authenticated",
+                    code="AUTH_REQUIRED",
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                )
+
+            paper = get_object_or_404(WorkingPaper, id=paper_id)
+
+            # Block uploads on approved working papers
+            if paper.review_status == 'approved':
+                return error_response(
+                    message="Cannot add evidence to an approved working paper",
+                    code="WORKING_PAPER_APPROVED",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            uploaded_file = request.FILES.get('file')
+            if not uploaded_file:
+                return error_response(
+                    message="No file provided",
+                    code="FILE_REQUIRED",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            title = request.data.get('title', uploaded_file.name)
+            description = request.data.get(
+                'description',
+                f"Supporting evidence for working paper: {paper.title} ({paper.reference_number})",
+            )
+
+            auth_token = self._get_auth_token(request)
+            client = get_document_client(auth_token=auth_token)
+
+            # Step 1: Create document + upload file to DRS
+            try:
+                document = client.create_document_with_file(
+                    title=title,
+                    description=description,
+                    file_data=uploaded_file,
+                    file_name=uploaded_file.name,
+                    document_type='audit_working_paper',
+                    classification='confidential',
+                    record_type='non_permanent',
+                    retention_period=2555,  # 7 years for audit records
+                    metadata={
+                        'working_paper_id': str(paper.id),
+                        'engagement_id': str(paper.engagement_id),
+                        'reference_number': paper.reference_number,
+                        'service': 'grc-service',
+                        'module': 'working_paper_evidence',
+                    },
+                    tags=['audit', 'evidence', 'working-paper', paper.reference_number],
+                )
+                new_doc_id = str(document['id'])
+            except DocumentServiceError as e:
+                logger.error(f"DRS upload failed for working paper {paper_id}: {e}")
+                return error_response(
+                    message="Failed to upload file to Document Records Service",
+                    code="DOCUMENT_SERVICE_ERROR",
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                )
+
+            # Step 2: Append DRS UUID to evidence_document_ids
+            with transaction.atomic():
+                paper = WorkingPaper.objects.select_for_update().get(id=paper_id)
+                doc_ids = list(paper.evidence_document_ids or [])
+                if new_doc_id not in doc_ids:
+                    doc_ids.append(new_doc_id)
+                paper.evidence_document_ids = doc_ids
+                paper.save(update_fields=['evidence_document_ids'])
+
+            logger.info(
+                f"Evidence {new_doc_id} attached to working paper {paper_id} by user {user_id}"
+            )
+
+            return Response(
+                {
+                    "success": True,
+                    "data": {
+                        "document_id": new_doc_id,
+                        "title": title,
+                        "file_name": uploaded_file.name,
+                        "working_paper_id": str(paper_id),
+                        "total_evidence": len(doc_ids),
+                    },
+                    "message": "Evidence uploaded and attached successfully",
+                },
+                status=status.HTTP_201_CREATED,
+            )
+        except Exception as e:
+            logger.exception("Failed to upload working paper evidence")
+            return server_error_response(
+                message="Failed to upload working paper evidence",
+                details=str(e) if settings.DEBUG else None,
+            )
+
+
+class WorkingPaperEvidenceDetailView(APIView):
+    """Detach a single evidence document from a working paper.
+
+    DELETE /working-papers/{paper_id}/evidence/{document_id}/
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanManageWorkingPaper().has_permission(request, self):
+            self.permission_denied(
+                request,
+                message='grc:audit_working_paper:manage required.',
+            )
+
+    def delete(self, request, paper_id, document_id):
+        """Remove a DRS document UUID from the working paper's evidence list.
+
+        Does NOT delete the document from DRS — only detaches the reference.
+        """
+        try:
+            user_id = getattr(request.user, 'id', None)
+            if not user_id:
+                return error_response(
+                    message="User not authenticated",
+                    code="AUTH_REQUIRED",
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                )
+
+            paper = get_object_or_404(WorkingPaper, id=paper_id)
+
+            if paper.review_status == 'approved':
+                return error_response(
+                    message="Cannot modify evidence on an approved working paper",
+                    code="WORKING_PAPER_APPROVED",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            doc_str = str(document_id)
+            with transaction.atomic():
+                paper = WorkingPaper.objects.select_for_update().get(id=paper_id)
+                doc_ids = list(paper.evidence_document_ids or [])
+                if doc_str not in doc_ids:
+                    return error_response(
+                        message="Document not found in evidence attachments",
+                        code="EVIDENCE_NOT_FOUND",
+                        status_code=status.HTTP_404_NOT_FOUND,
+                    )
+                doc_ids.remove(doc_str)
+                paper.evidence_document_ids = doc_ids
+                paper.save(update_fields=['evidence_document_ids'])
+
+            logger.info(
+                f"Evidence {document_id} detached from working paper {paper_id} by user {user_id}"
+            )
+
+            return Response(
+                {
+                    "success": True,
+                    "data": {
+                        "document_id": doc_str,
+                        "working_paper_id": str(paper_id),
+                        "total_evidence": len(doc_ids),
+                    },
+                    "message": "Evidence detached successfully",
+                },
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:
+            logger.exception("Failed to detach working paper evidence")
+            return server_error_response(
+                message="Failed to detach working paper evidence",
+                details=str(e) if settings.DEBUG else None,
+            )

@@ -15,9 +15,13 @@ __all__ = [
     # Core Audit Models
     'AuditUniverse', 'AuditableEntity', 'RiskAssessment',
     'AuditPlan', 'AuditEngagement', 'WorkingPaper', 'AuditFinding',
-    'AuditRecommendation', 'ImplementationMonitoring', 'AuditReport',
+    'AuditRecommendation', 'ImplementationMonitoring', 'AuditeeFollowUpResponse', 'AuditReport',
     'AuditMeeting', 'QuarterlyAuditReport',
     # SRS Gap Models (GAP 1–5)
     'AuditMemo', 'DeclarationOfIndependence', 'AuditSurvey',
     'RiskControlMatrix', 'RCMEntry', 'AuditProgram',
+    # P2-GAP 1
+    'EngagementNotification',
+    # P2-GAP 4
+    'AuditeeFollowUpResponse',
 ]

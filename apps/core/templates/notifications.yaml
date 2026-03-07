@@ -378,3 +378,545 @@ templates:
       action: "assigned"
       priority: "high"
       version: "1.0.0"
+  # ─── P2-GAP 1 — Engagement Notification ────────────────────────────────────
+
+  - code: "grc.engagement_notification.submitted"
+    name: "Engagement Notification Submitted for CIA Approval"
+    category: "workflow"
+    channels: ["email", "in_app"]
+    subject: "FCC FIMS — Engagement Notification {{engagement_notification.reference_number}} Awaiting Your Approval"
+    body_html: |
+      <p>Dear {{reviewer.first_name}},</p>
+      <p>
+        An <strong>Engagement Notification</strong> has been submitted by
+        <strong>{{submitter.name}}</strong> and requires your approval.
+      </p>
+      <table>
+        <tr><td><strong>Reference</strong></td><td>{{engagement_notification.reference_number}}</td></tr>
+        <tr><td><strong>Engagement</strong></td><td>{{engagement_notification.engagement_reference}}</td></tr>
+        <tr><td><strong>Audit Period</strong></td><td>{{engagement_notification.audit_period_start}} – {{engagement_notification.audit_period_end}}</td></tr>
+        <tr><td><strong>Submitted</strong></td><td>{{submitted_at}}</td></tr>
+      </table>
+      <p><a href="{{review_url}}">Review Engagement Notification</a></p>
+      <p>Regards,<br/>FCC FIMS Audit Management System</p>
+    body_text: |
+      Dear {{reviewer.first_name}},
+
+      An Engagement Notification has been submitted by {{submitter.name}} and requires your approval.
+
+      Reference    : {{engagement_notification.reference_number}}
+      Engagement   : {{engagement_notification.engagement_reference}}
+      Audit Period : {{engagement_notification.audit_period_start}} – {{engagement_notification.audit_period_end}}
+      Submitted    : {{submitted_at}}
+
+      Review here: {{review_url}}
+
+      Regards,
+      FCC FIMS Audit Management System
+    variables:
+      - name: "engagement_notification.reference_number"
+        required: true
+        type: "string"
+        description: "EN reference number"
+      - name: "engagement_notification.engagement_reference"
+        required: true
+        type: "string"
+        description: "Parent engagement reference number"
+      - name: "engagement_notification.audit_period_start"
+        required: true
+        type: "string"
+        description: "Audit period start date (YYYY-MM-DD)"
+      - name: "engagement_notification.audit_period_end"
+        required: true
+        type: "string"
+        description: "Audit period end date (YYYY-MM-DD)"
+      - name: "submitter.name"
+        required: true
+        type: "string"
+        description: "Full name of the Lead Auditor who submitted"
+      - name: "reviewer.first_name"
+        required: true
+        type: "string"
+        description: "First name of the CIA reviewer"
+      - name: "submitted_at"
+        required: true
+        type: "string"
+        description: "Submission timestamp (YYYY-MM-DD HH:MM)"
+      - name: "review_url"
+        required: true
+        type: "url"
+        description: "Direct link to the EN in the staff portal"
+    metadata:
+      service: "grc"
+      domain: "engagement_notification"
+      action: "submitted"
+      priority: "high"
+      version: "1.0.0"
+
+  - code: "grc.engagement_notification.approved"
+    name: "Engagement Notification Approved by CIA"
+    category: "workflow"
+    channels: ["email", "in_app"]
+    subject: "FCC FIMS — Engagement Notification {{engagement_notification.reference_number}} Has Been Approved"
+    body_html: |
+      <p>Dear {{lead_auditor.first_name}},</p>
+      <p>
+        The <strong>Engagement Notification</strong> you submitted has been
+        <strong>approved</strong> by the Chief Internal Auditor.
+      </p>
+      <table>
+        <tr><td><strong>Reference</strong></td><td>{{engagement_notification.reference_number}}</td></tr>
+        <tr><td><strong>Engagement</strong></td><td>{{engagement_notification.engagement_reference}}</td></tr>
+        <tr><td><strong>Approved by</strong></td><td>{{approver.name}}</td></tr>
+        <tr><td><strong>Approved at</strong></td><td>{{approved_at}}</td></tr>
+      </table>
+      <p>You may now transmit the notification to the auditable area.</p>
+      <p><a href="{{detail_url}}">View Engagement Notification</a></p>
+      <p>Regards,<br/>FCC FIMS Audit Management System</p>
+    body_text: |
+      Dear {{lead_auditor.first_name}},
+
+      The Engagement Notification you submitted has been approved by the Chief Internal Auditor.
+
+      Reference  : {{engagement_notification.reference_number}}
+      Engagement : {{engagement_notification.engagement_reference}}
+      Approved by: {{approver.name}}
+      Approved at: {{approved_at}}
+
+      You may now transmit the notification to the auditable area.
+      View here: {{detail_url}}
+
+      Regards,
+      FCC FIMS Audit Management System
+    variables:
+      - name: "engagement_notification.reference_number"
+        required: true
+        type: "string"
+        description: "EN reference number"
+      - name: "engagement_notification.engagement_reference"
+        required: true
+        type: "string"
+        description: "Parent engagement reference number"
+      - name: "lead_auditor.first_name"
+        required: true
+        type: "string"
+        description: "First name of the Lead Auditor"
+      - name: "approver.name"
+        required: true
+        type: "string"
+        description: "Full name of the CIA who approved"
+      - name: "approved_at"
+        required: true
+        type: "string"
+        description: "Approval timestamp (YYYY-MM-DD HH:MM)"
+      - name: "detail_url"
+        required: true
+        type: "url"
+        description: "Direct link to the EN in the staff portal"
+    metadata:
+      service: "grc"
+      domain: "engagement_notification"
+      action: "approved"
+      priority: "normal"
+      version: "1.0.0"
+
+  - code: "grc.engagement_notification.returned"
+    name: "Engagement Notification Returned by CIA"
+    category: "workflow"
+    channels: ["email", "in_app"]
+    subject: "FCC FIMS — Action Required: Engagement Notification {{engagement_notification.reference_number}} Returned for Revision"
+    body_html: |
+      <p>Dear {{lead_auditor.first_name}},</p>
+      <p>
+        The <strong>Engagement Notification</strong> you submitted has been
+        <strong>returned</strong> by the Chief Internal Auditor for revision.
+      </p>
+      <table>
+        <tr><td><strong>Reference</strong></td><td>{{engagement_notification.reference_number}}</td></tr>
+        <tr><td><strong>Engagement</strong></td><td>{{engagement_notification.engagement_reference}}</td></tr>
+        <tr><td><strong>Returned by</strong></td><td>{{reviewer.name}}</td></tr>
+        <tr><td><strong>Returned at</strong></td><td>{{returned_at}}</td></tr>
+      </table>
+      {% if comments %}<p><strong>Comments:</strong> {{comments}}</p>{% endif %}
+      <p>Please revise and resubmit.</p>
+      <p><a href="{{detail_url}}">View Engagement Notification</a></p>
+      <p>Regards,<br/>FCC FIMS Audit Management System</p>
+    body_text: |
+      Dear {{lead_auditor.first_name}},
+
+      The Engagement Notification you submitted has been returned by the Chief Internal Auditor for revision.
+
+      Reference  : {{engagement_notification.reference_number}}
+      Engagement : {{engagement_notification.engagement_reference}}
+      Returned by: {{reviewer.name}}
+      Returned at: {{returned_at}}
+      {% if comments %}Comments: {{comments}}{% endif %}
+
+      Please revise and resubmit.
+      View here: {{detail_url}}
+
+      Regards,
+      FCC FIMS Audit Management System
+    variables:
+      - name: "engagement_notification.reference_number"
+        required: true
+        type: "string"
+        description: "EN reference number"
+      - name: "engagement_notification.engagement_reference"
+        required: true
+        type: "string"
+        description: "Parent engagement reference number"
+      - name: "lead_auditor.first_name"
+        required: true
+        type: "string"
+        description: "First name of the Lead Auditor"
+      - name: "reviewer.name"
+        required: true
+        type: "string"
+        description: "Full name of the CIA who returned the EN"
+      - name: "returned_at"
+        required: true
+        type: "string"
+        description: "Return timestamp (YYYY-MM-DD HH:MM)"
+      - name: "comments"
+        required: false
+        type: "string"
+        description: "CIA's return comments (optional)"
+      - name: "detail_url"
+        required: true
+        type: "url"
+        description: "Direct link to the EN in the staff portal"
+    metadata:
+      service: "grc"
+      domain: "engagement_notification"
+      action: "returned"
+      priority: "high"
+      version: "1.0.0"
+
+  # ───────────────────────────────────────────────
+  # Implementation Monitoring
+  # ───────────────────────────────────────────────
+  - code: "grc.monitoring.overdue"
+    name: "Monitoring Response Overdue"
+    category: "monitoring"
+    channels: ["email", "in_app"]
+    subject: "FCC FIMS — Action Required: Overdue Response for Recommendation {{recommendation.reference_number}}"
+    body_html: |
+      <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #dc3545;">Implementation Follow-Up Response Overdue</h2>
+            <p>Dear {{auditee.first_name}},</p>
+            <p>
+              Your response to the implementation follow-up for <strong>Recommendation {{recommendation.reference_number}}</strong>
+              was due on <strong>{{response_deadline}}</strong> and has not yet been submitted.
+            </p>
+            <table style="width:100%; border-collapse:collapse; margin: 16px 0;">
+              <tr style="background:#f8f9fa;">
+                <td style="padding:8px; border:1px solid #dee2e6;"><strong>Recommendation</strong></td>
+                <td style="padding:8px; border:1px solid #dee2e6;">{{recommendation.reference_number}}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px; border:1px solid #dee2e6;"><strong>Title</strong></td>
+                <td style="padding:8px; border:1px solid #dee2e6;">{{recommendation.title}}</td>
+              </tr>
+              <tr style="background:#f8f9fa;">
+                <td style="padding:8px; border:1px solid #dee2e6;"><strong>Response Deadline</strong></td>
+                <td style="padding:8px; border:1px solid #dee2e6; color:#dc3545;">{{response_deadline}}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px; border:1px solid #dee2e6;"><strong>Days Overdue</strong></td>
+                <td style="padding:8px; border:1px solid #dee2e6; color:#dc3545;">{{days_overdue}}</td>
+              </tr>
+              <tr style="background:#f8f9fa;">
+                <td style="padding:8px; border:1px solid #dee2e6;"><strong>Cycle</strong></td>
+                <td style="padding:8px; border:1px solid #dee2e6;">#{{cycle_number}}</td>
+              </tr>
+            </table>
+            <p>Please submit your implementation progress and supporting evidence immediately to avoid further escalation.</p>
+            <p style="text-align: center; margin: 30px 0;">
+              <a href="{{detail_url}}" style="background-color: #dc3545; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Submit Response Now</a>
+            </p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+            <p style="color: #666; font-size: 12px;">Best regards,<br>FCC FIMS — Internal Audit Module</p>
+          </div>
+        </body>
+      </html>
+    body_text: |
+      Implementation Follow-Up Response Overdue
+
+      Dear {{auditee.first_name}},
+
+      Your response to the implementation follow-up for Recommendation {{recommendation.reference_number}}
+      was due on {{response_deadline}} and has not yet been submitted.
+
+      Recommendation  : {{recommendation.reference_number}}
+      Title           : {{recommendation.title}}
+      Response Deadline: {{response_deadline}} (OVERDUE by {{days_overdue}} days)
+      Cycle           : #{{cycle_number}}
+
+      Please submit your implementation progress and supporting evidence immediately.
+
+      Submit here: {{detail_url}}
+
+      Best regards,
+      FCC FIMS — Internal Audit Module
+    variables:
+      - name: "auditee.first_name"
+        required: true
+        type: "string"
+        description: "Auditee's first name"
+      - name: "auditee.email"
+        required: true
+        type: "string"
+        description: "Auditee's email address"
+      - name: "recommendation.reference_number"
+        required: true
+        type: "string"
+        description: "Recommendation reference number (e.g., REC-2025-001)"
+      - name: "recommendation.title"
+        required: true
+        type: "string"
+        description: "Short descriptive title of the recommendation"
+      - name: "response_deadline"
+        required: true
+        type: "string"
+        description: "Original response deadline (YYYY-MM-DD HH:MM)"
+      - name: "days_overdue"
+        required: true
+        type: "integer"
+        description: "Number of days past the response deadline"
+      - name: "cycle_number"
+        required: true
+        type: "integer"
+        description: "Follow-up cycle number (1, 2, 3 …)"
+      - name: "detail_url"
+        required: true
+        type: "url"
+        description: "Direct link to the follow-up response submission page"
+    metadata:
+      service: "grc"
+      domain: "implementation_monitoring"
+      action: "response_overdue"
+      priority: "high"
+      version: "1.0.0"
+
+  - code: "grc.monitoring.deadline_reminder"
+    name: "Monitoring Response Deadline Reminder"
+    category: "monitoring"
+    channels: ["email", "in_app"]
+    subject: "FCC FIMS — Reminder: Response Due in {{days_remaining}} Day(s) for Recommendation {{recommendation.reference_number}}"
+    body_html: |
+      <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #e67e22;">Implementation Follow-Up Deadline Reminder</h2>
+            <p>Dear {{auditee.first_name}},</p>
+            <p>
+              This is a reminder that your response to the implementation follow-up for
+              <strong>Recommendation {{recommendation.reference_number}}</strong> is due in
+              <strong>{{days_remaining}} day(s)</strong>.
+            </p>
+            <table style="width:100%; border-collapse:collapse; margin: 16px 0;">
+              <tr style="background:#f8f9fa;">
+                <td style="padding:8px; border:1px solid #dee2e6;"><strong>Recommendation</strong></td>
+                <td style="padding:8px; border:1px solid #dee2e6;">{{recommendation.reference_number}}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px; border:1px solid #dee2e6;"><strong>Title</strong></td>
+                <td style="padding:8px; border:1px solid #dee2e6;">{{recommendation.title}}</td>
+              </tr>
+              <tr style="background:#f8f9fa;">
+                <td style="padding:8px; border:1px solid #dee2e6;"><strong>Response Deadline</strong></td>
+                <td style="padding:8px; border:1px solid #dee2e6; color:#e67e22;">{{response_deadline}}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px; border:1px solid #dee2e6;"><strong>Days Remaining</strong></td>
+                <td style="padding:8px; border:1px solid #dee2e6; color:#e67e22;">{{days_remaining}}</td>
+              </tr>
+              <tr style="background:#f8f9fa;">
+                <td style="padding:8px; border:1px solid #dee2e6;"><strong>Cycle</strong></td>
+                <td style="padding:8px; border:1px solid #dee2e6;">#{{cycle_number}}</td>
+              </tr>
+            </table>
+            <p>Please submit your implementation progress and supporting evidence before the deadline to avoid escalation.</p>
+            <p style="text-align: center; margin: 30px 0;">
+              <a href="{{detail_url}}" style="background-color: #e67e22; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Submit Response</a>
+            </p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+            <p style="color: #666; font-size: 12px;">Best regards,<br>FCC FIMS — Internal Audit Module</p>
+          </div>
+        </body>
+      </html>
+    body_text: |
+      Implementation Follow-Up Deadline Reminder
+
+      Dear {{auditee.first_name}},
+
+      This is a reminder that your response to the implementation follow-up for
+      Recommendation {{recommendation.reference_number}} is due in {{days_remaining}} day(s).
+
+      Recommendation  : {{recommendation.reference_number}}
+      Title           : {{recommendation.title}}
+      Response Deadline: {{response_deadline}}
+      Days Remaining  : {{days_remaining}}
+      Cycle           : #{{cycle_number}}
+
+      Please submit your implementation progress and supporting evidence before the deadline.
+
+      Submit here: {{detail_url}}
+
+      Best regards,
+      FCC FIMS — Internal Audit Module
+    variables:
+      - name: "auditee.first_name"
+        required: true
+        type: "string"
+        description: "Auditee's first name"
+      - name: "auditee.email"
+        required: true
+        type: "string"
+        description: "Auditee's email address"
+      - name: "recommendation.reference_number"
+        required: true
+        type: "string"
+        description: "Recommendation reference number"
+      - name: "recommendation.title"
+        required: true
+        type: "string"
+        description: "Short descriptive title of the recommendation"
+      - name: "response_deadline"
+        required: true
+        type: "string"
+        description: "Response deadline (YYYY-MM-DD HH:MM)"
+      - name: "days_remaining"
+        required: true
+        type: "integer"
+        description: "Number of days remaining until the deadline"
+      - name: "cycle_number"
+        required: true
+        type: "integer"
+        description: "Follow-up cycle number (1, 2, 3 …)"
+      - name: "detail_url"
+        required: true
+        type: "url"
+        description: "Direct link to the follow-up response submission page"
+    metadata:
+      service: "grc"
+      domain: "implementation_monitoring"
+      action: "deadline_reminder"
+      priority: "normal"
+      version: "1.0.0"
+
+  - code: "grc.monitoring.escalated_to_cia"
+    name: "Monitoring Escalated to CIA"
+    category: "monitoring"
+    channels: ["email", "in_app"]
+    subject: "FCC FIMS — Escalation: Overdue Implementation Response for {{recommendation.reference_number}}"
+    body_html: |
+      <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #721c24;">Overdue Implementation Response — CIA Escalation</h2>
+            <p>Dear {{cia_reviewer.first_name}},</p>
+            <p>
+              An implementation follow-up response is significantly overdue and has been automatically escalated to your attention.
+            </p>
+            <table style="width:100%; border-collapse:collapse; margin: 16px 0;">
+              <tr style="background:#f8f9fa;">
+                <td style="padding:8px; border:1px solid #dee2e6;"><strong>Recommendation</strong></td>
+                <td style="padding:8px; border:1px solid #dee2e6;">{{recommendation.reference_number}}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px; border:1px solid #dee2e6;"><strong>Title</strong></td>
+                <td style="padding:8px; border:1px solid #dee2e6;">{{recommendation.title}}</td>
+              </tr>
+              <tr style="background:#f8f9fa;">
+                <td style="padding:8px; border:1px solid #dee2e6;"><strong>Responsible Party</strong></td>
+                <td style="padding:8px; border:1px solid #dee2e6;">{{auditee.name}}</td>
+              </tr>
+              <tr>
+                <td style="padding:8px; border:1px solid #dee2e6;"><strong>Original Deadline</strong></td>
+                <td style="padding:8px; border:1px solid #dee2e6;">{{response_deadline}}</td>
+              </tr>
+              <tr style="background:#f8f9fa;">
+                <td style="padding:8px; border:1px solid #dee2e6;"><strong>Days Overdue</strong></td>
+                <td style="padding:8px; border:1px solid #dee2e6; color:#721c24;"><strong>{{days_overdue}}</strong></td>
+              </tr>
+              <tr>
+                <td style="padding:8px; border:1px solid #dee2e6;"><strong>Cycle</strong></td>
+                <td style="padding:8px; border:1px solid #dee2e6;">#{{cycle_number}}</td>
+              </tr>
+            </table>
+            <p>Please review the situation and take appropriate action (direct intervention, stakeholder contact, or formal escalation procedures).</p>
+            <p style="text-align: center; margin: 30px 0;">
+              <a href="{{detail_url}}" style="background-color: #721c24; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">View Monitoring Record</a>
+            </p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+            <p style="color: #666; font-size: 12px;">Best regards,<br>FCC FIMS — Internal Audit Module</p>
+          </div>
+        </body>
+      </html>
+    body_text: |
+      Overdue Implementation Response — CIA Escalation
+
+      Dear {{cia_reviewer.first_name}},
+
+      An implementation follow-up response is significantly overdue and has been automatically escalated to your attention.
+
+      Recommendation   : {{recommendation.reference_number}}
+      Title            : {{recommendation.title}}
+      Responsible Party: {{auditee.name}}
+      Original Deadline: {{response_deadline}}
+      Days Overdue     : {{days_overdue}}
+      Cycle            : #{{cycle_number}}
+
+      Please review and take appropriate action.
+
+      View monitoring record: {{detail_url}}
+
+      Best regards,
+      FCC FIMS — Internal Audit Module
+    variables:
+      - name: "cia_reviewer.first_name"
+        required: true
+        type: "string"
+        description: "CIA reviewer's first name"
+      - name: "cia_reviewer.email"
+        required: true
+        type: "string"
+        description: "CIA reviewer's email address"
+      - name: "recommendation.reference_number"
+        required: true
+        type: "string"
+        description: "Recommendation reference number"
+      - name: "recommendation.title"
+        required: true
+        type: "string"
+        description: "Short descriptive title of the recommendation"
+      - name: "auditee.name"
+        required: true
+        type: "string"
+        description: "Full name of the responsible party (auditee)"
+      - name: "response_deadline"
+        required: true
+        type: "string"
+        description: "Original response deadline (YYYY-MM-DD HH:MM)"
+      - name: "days_overdue"
+        required: true
+        type: "integer"
+        description: "Number of days past the response deadline"
+      - name: "cycle_number"
+        required: true
+        type: "integer"
+        description: "Follow-up cycle number"
+      - name: "detail_url"
+        required: true
+        type: "url"
+        description: "Direct link to the monitoring record in the staff portal"
+    metadata:
+      service: "grc"
+      domain: "implementation_monitoring"
+      action: "escalated_to_cia"
+      priority: "high"
+      version: "1.0.0"

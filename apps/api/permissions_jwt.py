@@ -490,3 +490,23 @@ class CanApproveAuditProgram(BasePermission):
         if not request.user or not request.user.is_authenticated:
             return False
         return _check_grc_permission_locally(request, 'grc:audit_program:approve')
+
+
+# ── Engagement Notification (P2-GAP 1) ──────────────────────────────────────
+
+class CanManageEngagementNotification(BasePermission):
+    """Check: grc:engagement_notification:manage — create, edit, submit, transmit ENs."""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:engagement_notification:manage')
+
+
+class CanApproveEngagementNotification(BasePermission):
+    """Check: grc:engagement_notification:approve — CIA approval of Engagement Notifications."""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:engagement_notification:approve')

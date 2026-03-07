@@ -244,6 +244,38 @@
       "resource_type": "audit_program",
       "action": "manage",
       "category": "audit_program"
+    },
+    {
+      "permission_code": "grc:engagement_notification:manage",
+      "name": "Manage Engagement Notifications",
+      "description": "Create, update, submit and transmit Engagement Notifications",
+      "resource_type": "engagement_notification",
+      "action": "manage",
+      "category": "engagement_notification"
+    },
+    {
+      "permission_code": "grc:engagement_notification:approve",
+      "name": "Approve Engagement Notifications",
+      "description": "CIA approval of submitted Engagement Notifications",
+      "resource_type": "engagement_notification",
+      "action": "approve",
+      "category": "engagement_notification"
+    },
+    {
+      "permission_code": "grc:quarterly_report:manage",
+      "name": "Manage Quarterly Audit Reports",
+      "description": "Create, update, consolidate and submit quarterly audit reports for approval",
+      "resource_type": "quarterly_audit_report",
+      "action": "manage",
+      "category": "quarterly_audit_report"
+    },
+    {
+      "permission_code": "grc:quarterly_report:approve",
+      "name": "Approve Quarterly Audit Reports",
+      "description": "Advance quarterly report approval stages (CIA, Management, Committee, Commission)",
+      "resource_type": "quarterly_audit_report",
+      "action": "approve",
+      "category": "quarterly_audit_report"
     }
   ],
   "roles": [
@@ -265,14 +297,12 @@
         "grc:audit_survey:manage",
         "grc:audit_rcm:manage",
         "grc:audit_program:manage",
+        "grc:engagement_notification:manage",
         "grc:audit_working_paper:manage",
         "grc:audit_finding:manage",
         "grc:audit_monitoring:update",
         "grc:audit_dashboard:view"
-      ]
-    },
-    {
-      "code": "lead_auditor",
+      ],
       "name": "Lead Auditor",
       "description": "Oversees engagement planning and working papers",
       "permissions": [
@@ -290,11 +320,13 @@
         "grc:audit_rcm:manage",
         "grc:audit_rcm:approve",
         "grc:audit_program:manage",
+        "grc:engagement_notification:manage",
         "grc:audit_working_paper:manage",
         "grc:audit_working_paper:review",
         "grc:audit_finding:manage",
         "grc:audit_report:view",
         "grc:audit_monitoring:update",
+        "grc:quarterly_report:manage",
         "grc:audit_dashboard:view"
       ]
     },
@@ -317,9 +349,13 @@
         "grc:audit_rcm:manage",
         "grc:audit_rcm:approve",
         "grc:audit_program:manage",
+        "grc:engagement_notification:manage",
+        "grc:engagement_notification:approve",
         "grc:audit_working_paper:review",
         "grc:audit_report:view",
         "grc:audit_report:approve",
+        "grc:quarterly_report:manage",
+        "grc:quarterly_report:approve",
         "grc:audit_dashboard:view",
         "grc:config:fiscal_year:manage",
         "grc:config:audit_severity:manage",
@@ -338,6 +374,7 @@
         "grc:audit_memo:view",
         "grc:audit_report:view",
         "grc:audit_report:approve",
+        "grc:quarterly_report:approve",
         "grc:audit_dashboard:view"
       ]
     },
@@ -349,6 +386,7 @@
         "grc:audit_plan:view",
         "grc:audit_report:view",
         "grc:audit_monitoring:update",
+        "grc:quarterly_report:approve",
         "grc:audit_dashboard:view"
       ]
     },

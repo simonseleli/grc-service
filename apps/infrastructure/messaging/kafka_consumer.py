@@ -323,7 +323,7 @@ class GRCKafkaConsumer:
                 self._handle_audit_universe_completion(subject_ref, final_decision)
             elif template_code == 'grc.rbiap_approval':
                 self._handle_audit_plan_completion(subject_ref, final_decision, event_data)
-            elif template_code == 'grc.engagement_notification':
+            elif template_code == 'grc.engagement_lifecycle':
                 self._handle_audit_engagement_stage(subject_ref, final_decision, metadata)
             elif template_code == 'grc.audit_report_approval':
                 self._handle_audit_report_completion(subject_ref, final_decision, event_data)
@@ -331,6 +331,8 @@ class GRCKafkaConsumer:
                 self._handle_audit_memo_completion(subject_ref, final_decision, event_data)
             elif template_code == 'grc.audit_program_approval':
                 self._handle_audit_program_completion(subject_ref, final_decision, event_data)
+            elif template_code == 'grc.engagement_notification_approval':        # P2-GAP 1
+                self._handle_engagement_notification_completion(subject_ref, final_decision, event_data)
             else:
                 logger.warning(
                     f"Unknown GRC template_code '{template_code}' for subject_ref={subject_ref}"
@@ -927,6 +929,126 @@ class GRCKafkaConsumer:
         else:
             logger.warning(
                 f"Unknown final_decision '{final_decision}' for AuditProgram {subject_ref}"
+            )
+
+    def _handle_engagement_notification_completion(
+        self, subject_ref: str, final_decision: str, event_data: dict = None
+    ):
+        """
+        Update EngagementNotification.status when the grc.engagement_notification_approval
+        workflow completes.  (P2-GAP 1 — SRS Req 25)
+
+        Final workflow event:
+          approved          → status='approved', cia_approval_date, workflow_completed_at, approved_by_cia
+          rejected/cancelled → status='draft', clear WorkflowMixin fields
+        """
+        from apps.core.models import EngagementNotification
+        from django.utils import timezone
+
+        event_data = event_data or {}
+
+        try:
+            en = EngagementNotification.objects.get(id=subject_ref)
+        except EngagementNotification.DoesNotExist:
+            logger.warning(
+                f"EngagementNotification {subject_ref} not found for workflow completion event"
+            )
+            return
+        except Exception as exc:
+            logger.error(
+                f"DB error looking up EngagementNotification {subject_ref}: {exc}"
+            )
+            return
+
+        if final_decision == 'approved':
+            approved_by_id = (
+                event_data.get('user_id')
+                or event_data.get('approved_by')
+                or (event_data.get('metadata') or {}).get('user_id')
+            )
+
+            now = timezone.now()
+            update_fields = ['status', 'cia_approval_date', 'workflow_completed_at']
+            en.status = 'approved'
+            en.cia_approval_date = now
+            en.workflow_completed_at = now
+            if approved_by_id and not en.approved_by_cia:
+                en.approved_by_cia = approved_by_id
+                update_fields.append('approved_by_cia')
+            en.save(update_fields=update_fields)
+            logger.info(f"EngagementNotification {subject_ref} approved via WO workflow event")
+
+            # GAP 9: stamp PDF if a DRS document is attached
+            if getattr(en, 'document_id', None):
+                try:
+                    self._trigger_approved_stamp(
+                        document_id=str(en.document_id),
+                        approver_id=approved_by_id or '',
+                        entity_type='engagement_notification',
+                        entity_id=subject_ref,
+                        entity=en,
+                        stamp_field='stamped_document_url',
+                    )
+                except Exception as gap9_err:
+                    logger.error(
+                        f"GAP 9: Failed to trigger stamp for EngagementNotification {subject_ref}: {gap9_err}"
+                    )
+
+            # Notify LA that EN was approved
+            try:
+                from apps.core.services.engagement_notification_service import (
+                    EngagementNotificationService,
+                )
+                EngagementNotificationService()._publish_approval_notification(
+                    en, approved_by_id or '', approved=True
+                )
+            except Exception as notif_err:
+                logger.error(
+                    f"Failed to publish approval notification for EngagementNotification "
+                    f"{subject_ref}: {notif_err}"
+                )
+
+        elif final_decision in ('rejected', 'cancelled'):
+            # Resolve comments from event_data for the return notification
+            result_data = event_data.get('result_data', {})
+            comments = result_data.get('comments', '')
+
+            reviewer_id = (
+                event_data.get('user_id')
+                or (event_data.get('metadata') or {}).get('user_id')
+                or ''
+            )
+
+            en.status = 'draft'
+            en.workflow_plan_id = None
+            en.workflow_stage = ''
+            en.workflow_stage_id = None
+            en.save(update_fields=[
+                'status', 'workflow_plan_id', 'workflow_stage', 'workflow_stage_id'
+            ])
+            logger.info(
+                f"EngagementNotification {subject_ref} returned to draft "
+                f"(decision: {final_decision})"
+            )
+
+            # Notify LA that EN was returned
+            try:
+                from apps.core.services.engagement_notification_service import (
+                    EngagementNotificationService,
+                )
+                EngagementNotificationService()._publish_approval_notification(
+                    en, reviewer_id, approved=False, comments=comments
+                )
+            except Exception as notif_err:
+                logger.error(
+                    f"Failed to publish return notification for EngagementNotification "
+                    f"{subject_ref}: {notif_err}"
+                )
+
+        else:
+            logger.warning(
+                f"Unknown final_decision '{final_decision}' for "
+                f"EngagementNotification {subject_ref}"
             )
 
     def _trigger_approved_stamp(

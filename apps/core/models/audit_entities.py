@@ -1040,15 +1040,29 @@ class AuditRecommendation(TimestampedModel, StatusMixin):
 
 class ImplementationMonitoring(TimestampedModel, StatusMixin):
     """
-    Tracks recommendation implementation follow-up.
+    1:1 header for tracking recommendation implementation follow-up.
+    Retains latest-state snapshot for fast dashboard reads.
+    Cycle history lives in AuditeeFollowUpResponse (FK, one row per cycle).
     """
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('closed', 'Closed'),
+    ]
+
     recommendation = models.OneToOneField(
         AuditRecommendation,
         on_delete=models.CASCADE,
         related_name='monitoring',
         help_text="Recommendation being monitored"
     )
-    
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='active',
+        db_index=True,
+        help_text="Monitoring lifecycle status (active → closed when recommendation is fully implemented)"
+    )
+
     last_review_date = models.DateField(
         null=True,
         blank=True,
@@ -1059,61 +1073,138 @@ class ImplementationMonitoring(TimestampedModel, StatusMixin):
         blank=True,
         help_text="Date of next scheduled review"
     )
-    implementation_progress = models.DecimalField(
+    # Denormalized from latest AuditeeFollowUpResponse for fast dashboard reads.
+    # Updated by the verify view after each cycle completes.
+    latest_progress = models.DecimalField(
         max_digits=5,
         decimal_places=2,
         default=0.00,
-        help_text="Implementation progress percentage (0-100)"
+        help_text="Latest implementation progress % (denormalized from most-recent follow-up response)"
     )
-    progress_notes = models.TextField(
-        blank=True,
-        help_text="Notes on implementation progress"
-    )
-    evidence_documents = models.JSONField(
-        default=list,
-        blank=True,
-        help_text="List of supporting document references"
-    )
-    
     reviewed_by = models.UUIDField(
         null=True,
         blank=True,
-        help_text="User ID of the reviewer"
+        help_text="User ID of the most-recent reviewer"
     )
 
-    # Deadline enforcement fields (GAP 7 — SRS: 5-day response window)
+    # Deadline enforcement fields — reflect current open cycle timestamps
+    # for quick querying; authoritative values live on AuditeeFollowUpResponse.
     notification_sent_at = models.DateTimeField(
         null=True,
         blank=True,
-        help_text="When the implementation list was shared with auditee"
+        help_text="When the auditee was last notified (mirrored from current cycle)"
     )
     response_deadline = models.DateTimeField(
         null=True,
         blank=True,
-        help_text="Auto-calculated: notification_sent_at + 5 business days"
+        help_text="Current cycle deadline (mirrored from current AuditeeFollowUpResponse)"
     )
     auditee_responded_at = models.DateTimeField(
         null=True,
         blank=True,
-        help_text="When the auditee submitted their response"
+        help_text="When the auditee last submitted a response (mirrored from current cycle)"
     )
     is_overdue = models.BooleanField(
         default=False,
-        help_text="Whether the response deadline has passed without response"
+        help_text="Whether the current cycle's response deadline has passed without response"
     )
     escalated = models.BooleanField(
         default=False,
         help_text="Whether this record has been escalated to CIA"
     )
-    
+
     class Meta:
         db_table = 'grc_implementation_monitoring'
         ordering = ['-last_review_date']
         verbose_name = 'Implementation Monitoring'
         verbose_name_plural = 'Implementation Monitoring'
-        
+
     def __str__(self):
         return f"Monitoring: {self.recommendation.reference_number}"
+
+
+class AuditeeFollowUpResponse(TimestampedModel, StatusMixin):
+    """
+    One record per review cycle for an ImplementationMonitoring header.
+    Enables full history of how implementation progressed across multiple cycles.
+
+    Cycle flow:
+      1. Auditor creates cycle via POST /implementation-monitoring/<pk>/review/
+         → cycle_number auto-incremented, status='pending'
+      2. POST /implementation-monitoring/<pk>/notify-auditee/
+         → sets notified_at + response_deadline on this row; mirrored to header
+      3. Auditee submits → POST /follow-up-responses/<pk>/submit/
+         → submitted_by / submitted_at / progress / notes / docs; status='submitted'
+         → header auditee_responded_at updated
+      4. Auditor verifies → POST /follow-up-responses/<pk>/verify/
+         → status='verified'|'rejected'
+         → if verified: header latest_progress updated
+         → if rejected: new cycle starts from step 1
+      5. Final closure: header status='closed'
+    """
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('submitted', 'Submitted'),
+        ('verified', 'Verified'),
+        ('rejected', 'Rejected'),
+    ]
+
+    monitoring = models.ForeignKey(
+        ImplementationMonitoring,
+        on_delete=models.CASCADE,
+        related_name='follow_up_responses',
+        help_text="Parent monitoring header"
+    )
+    cycle_number = models.PositiveIntegerField(
+        help_text="Cycle sequence number (1, 2, 3 …); auto-incremented in view layer"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+        db_index=True,
+    )
+    # --- Notification phase ---
+    notified_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When the auditee was notified for this cycle"
+    )
+    response_deadline = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Response deadline for this cycle (notified_at + 5 business days)"
+    )
+    is_overdue = models.BooleanField(default=False)
+
+    # --- Submission phase ---
+    submitted_by = models.UUIDField(
+        null=True, blank=True,
+        help_text="Auditee user ID who submitted the response"
+    )
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    implementation_progress = models.DecimalField(
+        max_digits=5, decimal_places=2, default=0.00,
+        help_text="Implementation progress % reported by auditee for this cycle"
+    )
+    progress_notes = models.TextField(blank=True)
+    evidence_documents = models.JSONField(
+        default=list, blank=True,
+        help_text="List of supporting document references"
+    )
+
+    # --- Verification phase ---
+    verified_by = models.UUIDField(null=True, blank=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    verification_notes = models.TextField(blank=True)
+
+    class Meta:
+        db_table = 'grc_auditee_follow_up_response'
+        ordering = ['monitoring', 'cycle_number']
+        unique_together = [['monitoring', 'cycle_number']]
+        verbose_name = 'Auditee Follow-up Response'
+        verbose_name_plural = 'Auditee Follow-up Responses'
+
+    def __str__(self):
+        return f"Cycle {self.cycle_number} — {self.monitoring}"
 
 
 class WorkingPaper(TimestampedModel, StatusMixin, WorkflowMixin):
@@ -1205,10 +1296,10 @@ class WorkingPaper(TimestampedModel, StatusMixin, WorkflowMixin):
         """
         return {
             "prepared_by": str(self.prepared_by),
-            "engagement_id": str(self.engagement_id) if hasattr(self, 'engagement_id') else str(self.engagement.id),
             "working_paper_id": str(self.id),
+            "engagement_id": str(self.engagement_id),
             "paper_type": self.paper_type,
-            # Add more as needed for template assignees
+            "lead_auditor": str(self.engagement.lead_auditor),  # resolves {{lead_auditor}} in YAML Stage 1
         }
 
     def get_workflow_metadata(self) -> dict:
@@ -1438,17 +1529,18 @@ class AuditReport(TimestampedModel, StatusMixin, WorkflowMixin):
     def get_workflow_stages(self) -> list:
         """
         Returns inline stage definitions for the audit report approval workflow.
-        Stages: cia_review → approved (2-stage: review then distribution).
+        2-stage: IA report review → CIA report approval.
+        Stage keys aligned with grc.audit_report_approval YAML template.
         """
         return [
             {
-                "definition_key": "cia_review",
-                "name": "CIA Review",
+                "definition_key": "ia_report_review",
+                "name": "IA Review",
                 "order": 0,
                 "assignees": [],
                 "actions": [
                     {"name": "approve", "label": "Approve", "next_state": "completed"},
-                    {"name": "return",  "label": "Return",  "next_state": "rejected"},
+                    {"name": "return",  "label": "Return to Lead Auditor", "next_state": "rejected"},
                 ],
                 "form_schema": {
                     "fields": [{"name": "comments", "type": "textarea", "required": False}]
@@ -1456,17 +1548,18 @@ class AuditReport(TimestampedModel, StatusMixin, WorkflowMixin):
                 "sla": {"targetHours": 72},
             },
             {
-                "definition_key": "distribution",
-                "name": "Report Distribution",
+                "definition_key": "cia_report_approval",
+                "name": "CIA Approval",
                 "order": 1,
                 "assignees": [],
                 "actions": [
-                    {"name": "distribute", "label": "Distribute", "next_state": "completed"},
+                    {"name": "approve", "label": "Approve", "next_state": "completed"},
+                    {"name": "return",  "label": "Return to IA",  "next_state": "pending"},
                 ],
                 "form_schema": {
-                    "fields": [{"name": "distribution_notes", "type": "textarea", "required": False}]
+                    "fields": [{"name": "comments", "type": "textarea", "required": False}]
                 },
-                "sla": {"targetHours": 48},
+                "sla": {"targetHours": 96},
             },
         ]
 
@@ -1832,10 +1925,106 @@ class QuarterlyAuditReport(TimestampedModel, StatusMixin, WorkflowMixin):
     def __str__(self):
         return f"{self.reference_number} - {self.title}"
 
+    # ── Workflow integration (P2-GAP 2) ──────────────────────────────────────
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# GAP 1 — Internal Audit Memo (SRS Req 10-14, 18)
-# ═══════════════════════════════════════════════════════════════════════════════
+    def get_workflow_context(self) -> dict:
+        """
+        Returns context variables for workflow assignee resolution (FIMS pattern).
+        """
+        return {
+            "quarterly_report_id": str(self.id),
+            "prepared_by": str(self.prepared_by),
+            "fiscal_year_id": str(self.fiscal_year_id),
+            "quarter_id": str(self.quarter_id),
+            "reference_number": self.reference_number,
+        }
+
+    def get_workflow_metadata(self) -> dict:
+        """
+        Returns metadata for workflow plan display (FIMS pattern).
+        Stored with the plan in Work Orchestration Service.
+        """
+        meta = {
+            "entity_type": "quarterly_audit_report",
+            "entity_id": str(self.id),
+            "reference_number": self.reference_number,
+            "title": self.title,
+            "fiscal_year": getattr(self.fiscal_year, 'year_code', str(self.fiscal_year_id)),
+            "quarter": str(self.quarter),
+            "prepared_by": str(self.prepared_by),
+            "status": self.status,
+        }
+        from apps.core.workflow_entity_paths import add_entity_detail_path_to_metadata
+        return add_entity_detail_path_to_metadata(meta, "quarterly_audit_report")
+
+    def get_workflow_stages(self) -> list:
+        """
+        4-stage approval: CIA review → Management review → Committee review → Commission noting.
+        Stage keys aligned with grc.quarterly_report_approval YAML template.
+        """
+        return [
+            {
+                "definition_key": "cia_qr_review",
+                "name": "CIA Review",
+                "order": 0,
+                "assignees": [],
+                "actions": [
+                    {"name": "approve", "label": "Approve",             "next_state": "completed"},
+                    {"name": "return",  "label": "Return for Revision", "next_state": "rejected"},
+                ],
+                "form_schema": {
+                    "fields": [{"name": "comments", "type": "textarea", "required": False}]
+                },
+                "sla": {"targetHours": 72},
+            },
+            {
+                "definition_key": "management_qr_review",
+                "name": "Management Review",
+                "order": 1,
+                "assignees": [],
+                "actions": [
+                    {"name": "adopt",           "label": "Adopt",           "next_state": "completed"},
+                    {"name": "request_changes", "label": "Request Changes", "next_state": "pending"},
+                ],
+                "form_schema": {
+                    "fields": [
+                        {"name": "management_notes", "type": "textarea", "required": False},
+                        {"name": "comments", "type": "textarea", "required": False},
+                    ]
+                },
+                "sla": {"targetHours": 168},
+            },
+            {
+                "definition_key": "committee_qr_review",
+                "name": "Audit Committee Review",
+                "order": 2,
+                "assignees": [],
+                "actions": [
+                    {"name": "approve",             "label": "Approve",             "next_state": "completed"},
+                    {"name": "request_improvement", "label": "Request Improvement", "next_state": "pending"},
+                ],
+                "form_schema": {
+                    "fields": [
+                        {"name": "committee_notes", "type": "textarea", "required": False},
+                        {"name": "comments", "type": "textarea", "required": False},
+                    ]
+                },
+                "sla": {"targetHours": 240},
+            },
+            {
+                "definition_key": "commission_qr_noting",
+                "name": "Commission Noting",
+                "order": 3,
+                "assignees": [],
+                "actions": [
+                    {"name": "note", "label": "Note", "next_state": "completed"},
+                ],
+                "form_schema": {
+                    "fields": [{"name": "comments", "type": "textarea", "required": False}]
+                },
+                "sla": {"targetHours": 168},
+            },
+        ]
 
 class AuditMemo(TimestampedModel, StatusMixin, WorkflowMixin):
     """
@@ -1972,31 +2161,18 @@ class AuditMemo(TimestampedModel, StatusMixin, WorkflowMixin):
 
     def get_workflow_stages(self) -> list:
         """
-        3-stage approval: CIA Review → DG Approval → Transmission.
+        2-stage approval: CIA memo review → DG memo approval.
+        Stage keys aligned with grc.audit_memo_approval YAML template.
         """
         return [
             {
-                "definition_key": "cia_review",
+                "definition_key": "cia_memo_review",
                 "name": "CIA Review",
                 "order": 0,
                 "assignees": [],
                 "actions": [
-                    {"name": "approve", "label": "Approve", "next_state": "completed"},
-                    {"name": "return", "label": "Return to LA", "next_state": "rejected"},
-                ],
-                "form_schema": {
-                    "fields": [{"name": "comments", "type": "textarea", "required": False}]
-                },
-                "sla": {"targetHours": 48},
-            },
-            {
-                "definition_key": "dg_approval",
-                "name": "DG Approval",
-                "order": 1,
-                "assignees": [],
-                "actions": [
-                    {"name": "approve", "label": "Approve", "next_state": "completed"},
-                    {"name": "return", "label": "Return to CIA", "next_state": "rejected"},
+                    {"name": "forward_to_dg", "label": "Forward to DG", "next_state": "completed"},
+                    {"name": "return", "label": "Return to Lead Auditor", "next_state": "rejected"},
                 ],
                 "form_schema": {
                     "fields": [{"name": "comments", "type": "textarea", "required": False}]
@@ -2004,17 +2180,18 @@ class AuditMemo(TimestampedModel, StatusMixin, WorkflowMixin):
                 "sla": {"targetHours": 72},
             },
             {
-                "definition_key": "transmission",
-                "name": "Transmit to Lead Auditor",
-                "order": 2,
+                "definition_key": "dg_memo_approval",
+                "name": "DG Approval",
+                "order": 1,
                 "assignees": [],
                 "actions": [
-                    {"name": "transmit", "label": "Transmit", "next_state": "completed"},
+                    {"name": "approve", "label": "Approve", "next_state": "completed"},
+                    {"name": "return", "label": "Return to CIA", "next_state": "pending"},
                 ],
                 "form_schema": {
                     "fields": [{"name": "comments", "type": "textarea", "required": False}]
                 },
-                "sla": {"targetHours": 24},
+                "sla": {"targetHours": 96},
             },
         ]
 
@@ -2462,17 +2639,18 @@ class AuditProgram(TimestampedModel, StatusMixin, WorkflowMixin):
 
     def get_workflow_stages(self) -> list:
         """
-        2-stage approval: IA Review → CIA Approval.
+        2-stage approval: IA program review → CIA program approval.
+        Stage keys aligned with grc.audit_program_approval YAML template.
         """
         return [
             {
-                "definition_key": "ia_review",
+                "definition_key": "ia_program_review",
                 "name": "IA Review",
                 "order": 0,
                 "assignees": [],
                 "actions": [
                     {"name": "approve", "label": "Approve", "next_state": "completed"},
-                    {"name": "return", "label": "Return to LA", "next_state": "rejected"},
+                    {"name": "return", "label": "Return to Lead Auditor", "next_state": "rejected"},
                 ],
                 "form_schema": {
                     "fields": [{"name": "comments", "type": "textarea", "required": False}]
@@ -2480,13 +2658,13 @@ class AuditProgram(TimestampedModel, StatusMixin, WorkflowMixin):
                 "sla": {"targetHours": 48},
             },
             {
-                "definition_key": "cia_approval",
+                "definition_key": "cia_program_approval",
                 "name": "CIA Approval",
                 "order": 1,
                 "assignees": [],
                 "actions": [
                     {"name": "approve", "label": "Approve", "next_state": "completed"},
-                    {"name": "return", "label": "Return to IA", "next_state": "rejected"},
+                    {"name": "return", "label": "Return to IA", "next_state": "pending"},
                 ],
                 "form_schema": {
                     "fields": [{"name": "comments", "type": "textarea", "required": False}]
@@ -2495,3 +2673,159 @@ class AuditProgram(TimestampedModel, StatusMixin, WorkflowMixin):
             },
         ]
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# P2-GAP 1 — Engagement Notification (SRS Req 24, 25, 26)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class EngagementNotification(TimestampedModel, StatusMixin, WorkflowMixin):
+    """
+    Formal Engagement Notification document — prepared by LA, approved by CIA,
+    then transmitted to the auditable area before fieldwork begins.
+    SRS Requirements: 24, 25, 26.
+
+    Distinct from AuditEngagement: the engagement record tracks the lifecycle
+    phase; this document is the formal notice issued to the auditee.
+    """
+    audit_engagement = models.OneToOneField(
+        AuditEngagement,
+        on_delete=models.CASCADE,
+        related_name='engagement_notification',
+        help_text="Engagement this notification belongs to"
+    )
+    reference_number = models.CharField(
+        max_length=100,
+        unique=True,
+        help_text="Unique EN reference (auto: EN-{engagement_ref})"
+    )
+    audit_program = models.ForeignKey(
+        AuditProgram,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='engagement_notifications',
+        help_text="Linked Audit Program (optional — used to pull scope summary)"
+    )
+    notification_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date the notification is formally issued"
+    )
+    audit_period_start = models.DateField(
+        help_text="Start of the audit period stated in the EN"
+    )
+    audit_period_end = models.DateField(
+        help_text="End of the audit period stated in the EN"
+    )
+    audit_team_snapshot = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=(
+            'Audit team composition at time of notification. '
+            'Format: [{"user_id": "uuid", "role": "lead_auditor|team_member", "name": "Full Name"}]'
+        )
+    )
+    scope_summary = models.TextField(
+        blank=True,
+        default='',
+        help_text="Summary of audit scope to include in the EN document"
+    )
+    prepared_by = models.UUIDField(
+        help_text="LA who prepared the EN (user ID from IAM)"
+    )
+    approved_by_cia = models.UUIDField(
+        null=True,
+        blank=True,
+        help_text="CIA who approved the EN (user ID from IAM)"
+    )
+    cia_approval_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the CIA approved"
+    )
+    transmitted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the EN was transmitted to the auditable area"
+    )
+    document_id = models.UUIDField(
+        null=True,
+        blank=True,
+        help_text="DRS document UUID (set when EN is uploaded as PDF)"
+    )
+    stamped_document_url = models.URLField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="URL to approved PDF with embedded CIA signature and QR code (GAP 9)"
+    )
+
+    STATUS_CHOICES = [
+        ('draft',       'Draft'),
+        ('under_review', 'Under CIA Review'),
+        ('approved',    'Approved'),
+        ('transmitted', 'Transmitted to Auditable Area'),
+    ]
+    status = models.CharField(
+        max_length=15,
+        choices=STATUS_CHOICES,
+        default='draft',
+        db_index=True,
+        help_text="Current status of the engagement notification"
+    )
+
+    class Meta:
+        db_table = 'grc_engagement_notification'
+        ordering = ['-created_at']
+        verbose_name = 'Engagement Notification'
+        verbose_name_plural = 'Engagement Notifications'
+
+    def __str__(self):
+        return f"{self.reference_number}"
+
+    def get_workflow_context(self) -> dict:
+        """
+        Returns context variables for workflow assignee resolution (FIMS pattern).
+        """
+        return {
+            "engagement_notification_id": str(self.id),
+            "prepared_by": str(self.prepared_by),
+            "audit_engagement_id": str(self.audit_engagement_id),
+        }
+
+    def get_workflow_metadata(self) -> dict:
+        """
+        Returns metadata for workflow plan display (FIMS pattern).
+        Stored with the plan in Work Orchestration Service.
+        """
+        meta = {
+            "entity_type": "engagement_notification",
+            "entity_id": str(self.id),
+            "reference_number": self.reference_number,
+            "prepared_by": str(self.prepared_by),
+            "audit_engagement_id": str(self.audit_engagement_id),
+            "status": self.status,
+        }
+        from apps.core.workflow_entity_paths import add_entity_detail_path_to_metadata
+        return add_entity_detail_path_to_metadata(meta, "engagement_notification")
+
+    def get_workflow_stages(self) -> list:
+        """
+        Single-stage CIA approval — mirrors grc.engagement_notification_approval YAML.
+        """
+        return [
+            {
+                "definition_key": "cia_approval",
+                "name": "CIA Approval",
+                "order": 0,
+                "assignees": [],
+                "actions": [
+                    {"name": "approve", "label": "Approve", "next_state": "completed"},
+                    {"name": "return",  "label": "Return to LA", "next_state": "rejected"},
+                ],
+                "form_schema": {
+                    "fields": [{"name": "comments", "type": "textarea", "required": False}]
+                },
+                "sla": {"targetHours": 48},
+            },
+        ]

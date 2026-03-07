@@ -37,6 +37,8 @@ from apps.api.permissions_jwt import (
     CanManageQuarterlyReport,
     CanApproveQuarterlyReport,
 )
+from apps.core.services.quarterly_report_service import QuarterlyReportService
+from apps.infrastructure.external.orchestration_client import OrchestrationClient
 from apps.infrastructure.services.messaging_service import messaging_service
 from shared.constants.event_types import QUARTERLY_REPORT_EVENTS
 
@@ -68,6 +70,12 @@ VALID_QUARTERLY_TRANSITIONS = {
 
 LOCKED_STATUSES = ('submitted_to_commission',)
 APPROVAL_REQUIRED_STATUSES = ('approved', 'submitted_to_commission')
+
+# Statuses that can only be entered via WO-driven transitions (not direct writes).
+# The draft→cia_review transition is now exclusively owned by submit-for-approval.
+WO_MANAGED_TRANSITIONS = {
+    'draft': ['cia_review'],   # use POST /<pk>/submit-for-approval/ instead
+}
 
 
 # ---------------------------------------------------------------------------
@@ -292,6 +300,41 @@ class QuarterlyReportStatusUpdateView(APIView):
 
         if not new_status:
             return Response({'success': False, 'error': {'message': "'status' is required.", 'code': 'MISSING_STATUS'}}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Block transitions that must go through Work Orchestration Service.
+        # draft → cia_review is owned by POST /<pk>/submit-for-approval/
+        wo_blocked = WO_MANAGED_TRANSITIONS.get(report.status, [])
+        if new_status in wo_blocked:
+            return Response(
+                {
+                    'success': False,
+                    'error': {
+                        'message': (
+                            f"Transition from '{report.status}' to '{new_status}' must go through "
+                            "Work Orchestration Service. Use POST /<pk>/submit-for-approval/ "
+                            "to start the approval workflow."
+                        ),
+                        'code': 'USE_SUBMIT_FOR_APPROVAL',
+                    },
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Post-draft transitions require an active WO workflow plan.
+        if report.status != 'draft' and not report.workflow_plan_id:
+            return Response(
+                {
+                    'success': False,
+                    'error': {
+                        'message': (
+                            "No active workflow plan found. Submit the report for approval first "
+                            "via POST /<pk>/submit-for-approval/ to start the WO workflow."
+                        ),
+                        'code': 'WORKFLOW_REQUIRED',
+                    },
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         allowed_next = VALID_QUARTERLY_TRANSITIONS.get(report.status, [])
         if new_status not in allowed_next:
@@ -536,3 +579,190 @@ class QuarterlyReportEngagementReportsView(APIView):
         audit_reports = AuditReport.objects.filter(id__in=report_ids)
         report.engagement_reports.remove(*audit_reports)
         return Response({'success': True, 'data': QuarterlyAuditReportSerializer(report, context={'request': request}).data, 'message': "Removed audit report(s) from the quarterly report."}, status=status.HTTP_200_OK)
+
+
+# ---------------------------------------------------------------------------
+# 6. QuarterlyReportSubmitView  (P2-GAP 3 — WO integration)
+# ---------------------------------------------------------------------------
+
+class QuarterlyReportSubmitView(APIView):
+    """
+    POST /api/v1/grc/audit/quarterly-reports/<pk>/submit-for-approval/
+
+    Submits a draft quarterly report to the Work Orchestration Service,
+    creating a 4-stage approval plan (CIA → Management → Committee → Commission).
+    Replaces the direct draft→cia_review status write.
+
+    Guards:
+      - Report must be in 'draft' status.
+      - Workflow must not already be in progress.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanManageQuarterlyReport().has_permission(request, self):
+            self.permission_denied(request, message='grc:quarterly_report:manage permission required.')
+
+    def post(self, request, pk):
+        user_id = getattr(request.user, 'id', None)
+        if not user_id:
+            return Response(
+                {'success': False, 'error': {'message': 'User not authenticated', 'code': 'AUTH_REQUIRED'}},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        report = get_object_or_404(QuarterlyAuditReport, pk=pk)
+
+        if report.status != 'draft':
+            return Response(
+                {
+                    'success': False,
+                    'error': {
+                        'message': f"Only draft reports can be submitted. Current status: '{report.status}'.",
+                        'code': 'INVALID_STATUS',
+                    },
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if report.workflow_plan_id:
+            return Response(
+                {
+                    'success': False,
+                    'error': {
+                        'message': 'Approval workflow already in progress.',
+                        'code': 'WORKFLOW_ALREADY_STARTED',
+                        'workflow_plan_id': str(report.workflow_plan_id),
+                    },
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        auth_token = auth_header.removeprefix('Bearer ').strip() or None
+
+        try:
+            service = QuarterlyReportService()
+            report = service.submit_for_approval(
+                report_id=str(pk),
+                submitter_id=str(user_id),
+                auth_token=auth_token,
+            )
+
+            try:
+                messaging_service.publish_audit_event(
+                    event_type=QUARTERLY_REPORT_EVENTS.get('QUARTERLY_REPORT_UPDATED', 'quarterly_report.submitted'),
+                    audit_data={
+                        'report_id': str(report.id),
+                        'reference_number': report.reference_number,
+                        'submitted_by': str(user_id),
+                        'workflow_plan_id': str(report.workflow_plan_id) if report.workflow_plan_id else None,
+                        'status': report.status,
+                    },
+                )
+            except Exception as event_error:
+                logger.error('Error publishing quarterly_report submitted event for %s: %s', pk, event_error)
+
+            return Response(
+                {
+                    'success': True,
+                    'data': QuarterlyAuditReportSerializer(report, context={'request': request}).data,
+                    'message': 'Quarterly report submitted for 4-stage approval via Work Orchestration Service.',
+                    'workflow_plan_id': str(report.workflow_plan_id) if report.workflow_plan_id else None,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as exc:
+            logger.exception('Error submitting QuarterlyAuditReport %s for approval', pk)
+            return Response(
+                {
+                    'success': False,
+                    'error': {
+                        'message': 'Failed to submit quarterly report for approval.',
+                        'details': str(exc),
+                    },
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+# ---------------------------------------------------------------------------
+# 7. QuarterlyReportWorkflowStatusView  (P2-GAP 3 — WO integration)
+# ---------------------------------------------------------------------------
+
+class QuarterlyReportWorkflowStatusView(APIView):
+    """
+    GET /api/v1/grc/audit/quarterly-reports/<pk>/workflow-status/
+
+    Returns the current state of the approval plan in Work Orchestration Service.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        has_manage  = CanManageQuarterlyReport().has_permission(request, self)
+        has_approve = CanApproveQuarterlyReport().has_permission(request, self)
+        if not (has_manage or has_approve):
+            self.permission_denied(
+                request,
+                message='grc:quarterly_report:manage or :approve required.',
+            )
+
+    def get(self, request, pk):
+        user_id = getattr(request.user, 'id', None)
+        if not user_id:
+            return Response(
+                {'success': False, 'error': {'message': 'User not authenticated', 'code': 'AUTH_REQUIRED'}},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        report = get_object_or_404(QuarterlyAuditReport, pk=pk)
+
+        if not report.workflow_plan_id:
+            return Response(
+                {
+                    'success': True,
+                    'data': {
+                        'has_workflow': False,
+                        'status': report.status,
+                        'message': 'No workflow plan started yet. Use POST /<pk>/submit-for-approval/ to begin.',
+                    },
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        auth_token = auth_header.removeprefix('Bearer ').strip() or None
+
+        try:
+            client = OrchestrationClient()
+            plan_status = client.get_plan_status(
+                plan_id=str(report.workflow_plan_id),
+                auth_token=auth_token,
+            )
+        except Exception as exc:
+            logger.error('Error fetching workflow status for QuarterlyAuditReport %s: %s', pk, exc, exc_info=True)
+            return Response(
+                {'success': False, 'error': {'message': 'Failed to retrieve workflow status', 'details': str(exc)}},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response(
+            {
+                'success': True,
+                'data': {
+                    'has_workflow': True,
+                    'workflow_plan_id': str(report.workflow_plan_id),
+                    'workflow_stage': report.workflow_stage,
+                    'workflow_stage_id': str(report.workflow_stage_id) if report.workflow_stage_id else None,
+                    'status': report.status,
+                    'workflow_started_at': report.workflow_started_at.isoformat() if report.workflow_started_at else None,
+                    'plan_status': plan_status,
+                },
+            },
+            status=status.HTTP_200_OK,
+        )

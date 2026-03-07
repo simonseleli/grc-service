@@ -55,11 +55,16 @@ class OrchestrationClient:
     # Maps GRC template_code → WO workflow_type (set in WO seed_workflow_templates.py).
     # Used by _get_template_id_by_code() to look up the UUID from WO at runtime.
     TEMPLATE_CODE_TO_WO_TYPE: Dict[str, str] = {
-        "grc.working_paper_approval":  "grc_working_paper_approval",
-        "grc.audit_universe_approval": "grc_audit_universe_approval",
-        "grc.rbiap_approval":          "grc_rbiap_approval",
-        "grc.engagement_notification": "grc_engagement_lifecycle",
-        "grc.audit_report_approval":   "grc_audit_report_approval",
+        "grc.working_paper_approval":             "grc_working_paper_approval",
+        "grc.audit_universe_approval":            "grc_audit_universe_approval",
+        "grc.rbiap_approval":                     "grc_rbiap_approval",
+        "grc.engagement_lifecycle":               "grc_engagement_lifecycle",
+        "grc.engagement_notification_approval":   "grc_engagement_notification_approval",   # P2-GAP 1
+        "grc.audit_report_approval":              "grc_audit_report_approval",
+        # P2-GAP 2
+        "grc.audit_memo_approval":                "grc_audit_memo_approval",
+        "grc.audit_program_approval":             "grc_audit_program_approval",
+        "grc.quarterly_report_approval":          "grc_quarterly_report_approval",
     }
 
     # Process-lifetime cache: template_code → UUID string.

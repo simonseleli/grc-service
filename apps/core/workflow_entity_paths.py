@@ -10,6 +10,10 @@ ENTITY_DETAIL_PATHS = {
     # SRS Gap entities
     'audit_memo':       '/service/grc/audit-memos',
     'audit_program':    '/service/grc/audit-programs',
+    # P2-GAP 1
+    'engagement_notification': '/service/grc/engagement-notifications',
+    # P2-GAP 2
+    'quarterly_audit_report':  '/service/grc/quarterly-reports',
 }
 
 def get_entity_detail_path(entity_type: str):

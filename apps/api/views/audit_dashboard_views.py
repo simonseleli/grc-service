@@ -124,12 +124,12 @@ class AuditDashboardStatsView(APIView):
             monitoring_total = ImplementationMonitoring.objects.count()
             monitoring_avg_progress = (
                 ImplementationMonitoring.objects.aggregate(
-                    avg=Avg("implementation_progress")
+                    avg=Avg("latest_progress")
                 )["avg"]
                 or 0
             )
             monitoring_complete = ImplementationMonitoring.objects.filter(
-                implementation_progress__gte=100
+                latest_progress__gte=100
             ).count()
 
             # ── Working Papers ────────────────────────────────────────

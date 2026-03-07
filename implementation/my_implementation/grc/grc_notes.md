@@ -49,3 +49,11 @@ print('user_id:', d.get('user_id',''))
 
 
 
+
+Restarting grc-service:
+docker compose restart grc-service && sleep 5 && echo "Restarted"
+
+or  
+
+docker compose restart grc-service 2>&1 | tail -3
+

@@ -1293,4 +1293,615 @@ if app:
 
 ---
 
-*Last updated: February 2026*
+## Step 8: React to Workflow Events (Kafka — Your Service Consumes)
+
+The workflow-integration-guide above shows how to **start** a workflow. This section covers how your service **reacts** to what WO publishes back — the closing half of the integration loop.
+
+### 8.1 What WO Publishes
+
+Every time a stage action is executed or a workflow completes, WO publishes to the Kafka topic `workflow-events`.
+
+Your service must subscribe to this topic and filter by `event_type`:
+
+| `event_type` | When | Key Fields |
+|---|---|---|
+| `WorkflowStageUpdated` | Every stage action (approve/reject/return/etc.) | `planId`, `stageId`, `action`, `actorId`, `newStatus`, `form_data` |
+| `WorkflowCompleted` | Simple completion event (all stages terminal) | `planId`, `workflowType` |
+| `{workflow_type}.workflow.completed` | Full completion event | `plan_id`, `final_decision`, `result_data`, `metadata` |
+| `{workflow_type}.stage.completed` | **GRC engagement only** — individual stage completes | `plan_id`, `stage_key`, `action_name`, `metadata` |
+
+> `{workflow_type}.workflow.completed` is the event your service waits for to finalize an entity (set status to `approved`, `rejected`, `cancelled`). The `WorkflowCompleted` event fires at the same time but carries less data.
+
+### 8.2 Full Completion Event Payload
+
+```json
+{
+  "event_type": "grc.workflow.completed",
+  "event_version": "1.0",
+  "timestamp": "2026-03-07T10:30:00Z",
+  "source_service": "work-orchestration-service",
+  "plan_id": "plan-uuid",
+  "workflow_type": "grc",
+  "final_status": "completed",
+  "final_decision": "approved",
+  "metadata": {
+    "entity_id": "your-entity-uuid",
+    "entity_type": "audit_plan",
+    "reference_number": "RBIAP-001",
+    "template_code": "grc.audit_plan_approval"
+  },
+  "result_data": {
+    "disposal_method": "shredding",
+    "certificate_number": "CERT-001"
+  },
+  "completed_at": "2026-03-07T10:30:00Z"
+}
+```
+
+**`final_decision` values:**
+
+| Value | Meaning |
+|---|---|
+| `approved` | All stages completed with no rejection |
+| `rejected` | At least one stage was rejected |
+| `cancelled` | Workflow was cancelled before completion |
+
+**`result_data`** contains form fields submitted during stage actions (e.g., dropdowns, text fields in the WO console). Your service reads these to extract final decisions that were recorded in the console.
+
+### 8.3 Stage Completion Event (GRC Engagement Lifecycle Only)
+
+For `grc.engagement_notification` workflows, WO publishes a **stage event** after each individual stage completes, letting GRC update the engagement's current phase before the full workflow ends:
+
+```json
+{
+  "event_type": "grc.stage.completed",
+  "source_service": "work-orchestration-service",
+  "plan_id": "plan-uuid",
+  "workflow_type": "grc",
+  "final_decision": "",
+  "metadata": {
+    "template_code": "grc.engagement_notification",
+    "entity_id": "engagement-uuid",
+    "stage_key": "planning",
+    "action_name": "start_fieldwork"
+  }
+}
+```
+
+`stage_key` values are the `key` field from your workflow template stage definition (e.g., `planning`, `fieldwork`, `reporting`).
+
+> This event only fires when `metadata.template_code == 'grc.engagement_notification'`. For all other workflow types, only the final `{type}.workflow.completed` event is published.
+
+### 8.4 How to Consume — Kafka Consumer Pattern
+
+Your service subscribes to `workflow-events` topic and processes events based on `event_type`:
+
+```python
+# apps/core/workflows/consumers/workflow_event_consumer.py
+
+import json
+import logging
+from kafka import KafkaConsumer
+from django.conf import settings
+
+logger = logging.getLogger(__name__)
+
+
+class WorkflowEventConsumer:
+    """Consumes workflow-events topic from Work Orchestration."""
+
+    TOPIC = 'workflow-events'
+
+    def __init__(self):
+        self.consumer = KafkaConsumer(
+            self.TOPIC,
+            bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS.split(','),
+            value_deserializer=lambda v: json.loads(v.decode('utf-8')),
+            group_id='grc-service-workflow-consumer',  # use YOUR service prefix
+            auto_offset_reset='earliest',
+            enable_auto_commit=True,
+        )
+
+    def process_event(self, event: dict) -> bool:
+        event_type = event.get('event_type', '')
+
+        # Only process GRC workflow events
+        if not event_type.startswith('grc.'):
+            return True  # Ignore other services' events
+
+        if event_type == 'grc.workflow.completed':
+            return self._handle_workflow_completed(event)
+
+        if event_type == 'grc.stage.completed':
+            return self._handle_stage_completed(event)
+
+        logger.debug("Unhandled GRC event type: %s", event_type)
+        return True
+
+    def _handle_workflow_completed(self, event: dict) -> bool:
+        """Update entity status based on workflow final decision."""
+        metadata = event.get('metadata', {})
+        entity_id = metadata.get('entity_id')
+        entity_type = metadata.get('entity_type')
+        final_decision = event.get('final_decision')  # 'approved', 'rejected', 'cancelled'
+        result_data = event.get('result_data', {})
+
+        if not entity_id or not entity_type:
+            logger.warning("Workflow completed event missing entity_id or entity_type: %s", event)
+            return False
+
+        # Route to correct handler based on entity_type
+        try:
+            if entity_type == 'audit_plan':
+                self._finalize_audit_plan(entity_id, final_decision, result_data, metadata)
+            elif entity_type == 'engagement':
+                self._finalize_engagement(entity_id, final_decision, result_data, metadata)
+            # ... add other entity types
+            return True
+        except Exception as e:
+            logger.error("Failed to finalize %s %s: %s", entity_type, entity_id, e, exc_info=True)
+            return False
+
+    def _handle_stage_completed(self, event: dict) -> bool:
+        """Update engagement stage/phase based on intermediate stage completion."""
+        metadata = event.get('metadata', {})
+        entity_id = metadata.get('entity_id')
+        stage_key = metadata.get('stage_key')
+        action_name = metadata.get('action_name')
+
+        if not entity_id or not stage_key:
+            return False
+
+        logger.info("Engagement %s: stage '%s' completed via action '%s'", entity_id, stage_key, action_name)
+        # e.g., update engagement.current_phase = 'fieldwork' when stage_key='fieldwork'
+        return True
+
+    def _finalize_audit_plan(self, entity_id, decision, result_data, metadata):
+        """Apply workflow outcome to audit plan."""
+        from apps.core.models import AuditPlan
+        plan = AuditPlan.objects.get(id=entity_id)
+        if decision == 'approved':
+            plan.status = 'approved'
+        elif decision == 'rejected':
+            plan.status = 'returned'
+        plan.save(update_fields=['status'])
+        logger.info("Audit plan %s finalized: %s", entity_id, decision)
+```
+
+#### Celery Beat Task to Drive the Consumer
+
+```python
+# In grc-service apps/core/tasks.py
+
+@shared_task(bind=True, ignore_result=True)
+def process_workflow_events(self) -> int:
+    """Poll workflow-events Kafka topic and apply outcomes to GRC entities."""
+    consumer = get_workflow_event_consumer()
+    processed = 0
+    try:
+        for _ in range(20):  # max 20 per run
+            count = consumer.poll_and_process(timeout=0.5)
+            if count == 0:
+                break
+            processed += count
+        if processed > 0:
+            logger.info("Processed %d workflow event(s)", processed)
+    except Exception as e:
+        logger.error("Error processing workflow events: %s", e, exc_info=True)
+    return processed
+```
+
+```python
+# In settings.py
+CELERY_BEAT_SCHEDULE = {
+    # ... existing tasks ...
+    'process-workflow-events': {
+        'task': 'apps.core.tasks.process_workflow_events',
+        'schedule': 10.0,  # Every 10 seconds
+    },
+}
+```
+
+### 8.5 Consumer Group Naming Convention
+
+```
+{service-name}-workflow-consumer
+```
+
+Examples:
+- `grc-service-workflow-consumer`
+- `document-records-service-workflow-consumer`
+- `corporate-service-workflow-consumer`
+
+Each service has its own consumer group so every service independently reads the same events (Kafka fan-out).
+
+---
+
+## Step 9: Tasks Integration (HTTP REST)
+
+WO has a full task management subsystem. Your service can create, assign, and track tasks — either linked to a workflow plan or completely standalone.
+
+### 9.1 Task Types
+
+| Type | Description |
+|---|---|
+| **Plan-linked tasks** | Assigned to a specific workflow stage; lifecycle tied to the plan |
+| **Standalone tasks** | Independent tasks with no workflow plan; tracked separately |
+
+### 9.2 Task Endpoints
+
+All endpoints are under `/api/v1/work-orchestration/`:
+
+| Method | Path | What it does |
+|---|---|---|
+| `GET` | `tasks/` | List all plan-linked tasks (filter by `status`, `assignee`, `queue`, `due_before`) |
+| `POST` | `tasks/` | Create a plan-linked task |
+| `GET/PATCH` | `plans/{plan_id}/tasks/{task_id}/` | Get or update a plan task |
+| `GET` | `standalone-tasks/` | List standalone tasks |
+| `POST` | `standalone-tasks/` | Create a standalone task |
+| `GET/PATCH` | `standalone-tasks/{task_id}/` | Get or update a standalone task |
+| `GET/POST` | `tasks/{task_id}/comments/` | Thread comments on a task |
+| `GET/DELETE` | `tasks/{task_id}/comments/{comment_id}/` | Manage individual comment |
+| `GET/POST` | `tasks/{task_id}/collaborators/` | Add/list collaborators |
+| `GET` | `invitations/` | User's pending task invitations |
+| `GET/POST` | `task-types/` | Manage task type definitions |
+| `GET/POST` | `task-queues/` | Manage task queue definitions |
+
+### 9.3 Create Task Request Body
+
+```json
+POST /api/v1/work-orchestration/tasks/
+{
+  "title": "Prepare risk assessment matrix",
+  "description": "Identify and rate all risks for FY2025/26 audit",
+  "task_type": "audit",
+  "assignee": "user-uuid",
+  "created_by": "user-uuid",
+  "plan_id": "optional-plan-uuid",
+  "stage_id": "optional-stage-uuid",
+  "due_at": "2026-03-14T17:00:00Z",
+  "priority": "high",
+  "queue": "audit-fieldwork",
+  "estimated_hours": 8.0,
+  "related_entity": {
+    "type": "engagement",
+    "id": "engagement-uuid"
+  },
+  "context": {}
+}
+```
+
+**Task status values:** `pending`, `assigned`, `in_progress`, `completed`, `cancelled`
+
+**Task priority values:** `low`, `normal`, `high`, `urgent`
+
+### 9.4 Task Response Shape
+
+```json
+{
+  "id": "task-uuid",
+  "title": "Prepare risk assessment matrix",
+  "description": "...",
+  "task_type": "audit",
+  "status": "assigned",
+  "priority": "high",
+  "assignee": "user-uuid",
+  "created_by": "user-uuid",
+  "plan_id": "plan-uuid",
+  "stage_id": "stage-uuid",
+  "queue": "audit-fieldwork",
+  "due_at": "2026-03-14T17:00:00Z",
+  "estimated_hours": 8.0,
+  "actual_hours": null,
+  "related_entity": {"type": "engagement", "id": "..."},
+  "created_at": "2026-03-07T10:00:00Z",
+  "updated_at": "2026-03-07T10:00:00Z"
+}
+```
+
+### 9.5 Automatic Task Notifications
+
+WO **automatically sends notifications** when tasks change — you do not need to publish notification events for these:
+
+| Event | Notification Sent |
+|---|---|
+| Task created | `work_orchestration.task.assigned` → assignee |
+| `assignee` field updated | `work_orchestration.task.assigned` → new assignee |
+| `status` set to `completed` | `work_orchestration.task.completed` → task creator |
+| Other field update | `work_orchestration.task.updated` → assignee |
+
+### 9.6 Timesheet Logging
+
+Users log time against tasks:
+
+```json
+POST /api/v1/work-orchestration/plans/{plan_id}/tasks/{task_id}/timesheets/
+{
+  "user_id": "user-uuid",
+  "started_at": "2026-03-07T08:00:00Z",
+  "ended_at": "2026-03-07T12:00:00Z",
+  "hours": 4.0,
+  "notes": "Reviewed working papers"
+}
+```
+
+For standalone tasks, replace the path with `standalone-tasks/{task_id}/timesheets/`.
+
+---
+
+## Step 10: Reminders Integration (HTTP REST)
+
+Your service can schedule reminders through WO's reminder engine. WO delivers then via configured channels (in_app, email, SMS, webhook) with retry and escalation support.
+
+WO's Celery Beat processes due reminders every **60 seconds**.
+
+### 10.1 Schedule a Reminder
+
+```json
+POST /api/v1/work-orchestration/reminders/
+{
+  "title": "Audit Plan Review Due",
+  "message": "The audit plan review deadline is today. Please take action.",
+  "due_at": "2026-03-10T09:00:00Z",
+  "plan_id": "optional-plan-uuid",
+  "task_id": "optional-task-uuid",
+  "channel": "email",
+  "target_user_id": "user-uuid",
+  "metadata": {
+    "entity_type": "audit_plan",
+    "entity_id": "plan-uuid",
+    "link": "https://staff.fcc.go.tz/grc/audit/plans/plan-uuid"
+  },
+  "max_retries": 3,
+  "recurrence": {},
+  "escalation_policy": {}
+}
+```
+
+**`channel` values:** `in_app`, `email`, `sms`, `webhook`
+
+### 10.2 List Reminders
+
+```
+GET /api/v1/work-orchestration/reminders/?status=pending&plan_id={uuid}&due_before=2026-03-10T00:00:00Z
+```
+
+### 10.3 Recurrence Configuration
+
+```json
+"recurrence": {
+  "frequency": "daily",
+  "interval": 1,
+  "end_date": "2026-03-20T00:00:00Z"
+}
+```
+
+### 10.4 Escalation Policy
+
+```json
+"escalation_policy": {
+  "escalate_after_minutes": 120,
+  "escalate_to_user_id": "supervisor-uuid",
+  "escalate_channel": "email"
+}
+```
+
+### 10.5 Automation-Triggered Reminders
+
+You can also trigger reminders automatically via the workflow template's `automation.escalationReminder` config (see Step 12) — this requires no code in your service, only YAML configuration.
+
+---
+
+## Step 11: Analytics & Reports (HTTP REST)
+
+WO exposes read-only analytics and report generation across all workflow and task data. All endpoints require JWT auth + `CanViewAnalytics` permission.
+
+### 11.1 Analytics Endpoints
+
+| Endpoint | Returns |
+|---|---|
+| `GET /analytics/stats/` | Total plans by status/type, total tasks, completion rates, avg duration |
+| `GET /analytics/tasks/overdue/?limit=100` | List of all overdue tasks platform-wide |
+| `GET /analytics/queues/?queue_name=audit-fieldwork` | Queue depth, pending count, avg task age |
+| `GET /analytics/stages/?limit=10` | Stage performance — avg duration, bottleneck detection, slowest stages |
+
+### 11.2 Stats Response (example)
+
+```json
+{
+  "data": {
+    "total_plans": 142,
+    "plans_by_status": {"completed": 98, "in_progress": 31, "cancelled": 13},
+    "plans_by_type": {"grc": 67, "corporate_hr": 45, "document": 30},
+    "total_tasks": 520,
+    "tasks_by_status": {"completed": 310, "in_progress": 145, "pending": 65},
+    "avg_completion_days": 4.2
+  }
+}
+```
+
+### 11.3 Vetting Report
+
+Generates a cross-workflow vetting/audit report:
+
+```
+GET /api/v1/work-orchestration/reports/vetting/
+  ?workflow_type=grc
+  &start_date=2026-01-01
+  &end_date=2026-03-31
+  &status=completed
+  &format=json
+```
+
+**Supported formats:** `json`, `pdf`, `excel`, `csv`
+
+PDF and Excel output are returned as file downloads (`Content-Disposition: attachment`):
+
+```
+GET /reports/vetting/?format=pdf   → application/pdf download
+GET /reports/vetting/?format=excel → .xlsx download
+GET /reports/vetting/?format=csv   → .csv download
+```
+
+### 11.4 Task Report
+
+```
+GET /api/v1/work-orchestration/reports/tasks/
+  ?assignee={user-uuid}
+  &status=overdue
+  &queue=audit-fieldwork
+  &format=json
+```
+
+---
+
+## Step 12: Automation Engine (Template YAML Metadata)
+
+WO evaluates automation rules embedded directly in your **workflow template stage metadata** every 30 seconds. This lets you configure automated behavior without writing any service-side code.
+
+### 12.1 How It Works
+
+When WO receives a `WorkflowStageUpdated` event on `workflow-events`, it:
+
+1. Loads the plan and stage
+2. Reads `stage.metadata.automation` config
+3. Executes any matching automation rules
+
+### 12.2 Available Automation Rules
+
+Add an `automation` key to any stage's `metadata` in your `workflows.yaml`:
+
+```yaml
+templates:
+  - code: "grc.audit_plan_approval"
+    name: "Audit Plan Approval"
+    workflow_type: "grc"
+    version: 1
+    definition:
+      stages:
+        - key: "cia_review"
+          name: "CIA Review"
+          order: 1
+          assignees: ["{{cia_id}}"]
+          actions:
+            - name: "approve"
+              next_state: "completed"
+            - name: "return"
+              next_state: "rejected"
+          metadata:
+            automation:
+              # Rule 1 — Auto-advance to a specific target when approved
+              autoAdvance:
+                onStatuses: ["completed"]
+                action: "activate"
+                targetStage: "director_endorsement"
+                actorId: "automation-bot"
+                comment: "Automatically forwarded after CIA approval"
+
+              # Rule 2 — Schedule an escalation reminder if stage goes blocked/pending
+              escalationReminder:
+                onStatuses: ["blocked", "pending"]
+                offsetMinutes: 60
+                channel: "email"
+                title: "Audit Plan Review Outstanding"
+                message: "The audit plan review requires your attention."
+                maxRetries: 3
+                escalationPolicy:
+                  escalate_after_minutes: 120
+                  escalate_to_user_id: "{{cia_id}}"
+
+              # Rule 3 — POST to your service when stage updates
+              webhooks:
+                - url: "https://grc-service:8002/internal/hooks/stage-update/"
+                  events: ["WorkflowStageUpdated"]
+                  headers:
+                    X-Internal-Token: "shared-secret-token"
+```
+
+### 12.3 Automation Rule Reference
+
+#### `autoAdvance`
+
+Automatically executes a stage action when a stage reaches a target status.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `onStatuses` | `List[str]` | YES | Status values that trigger this rule (e.g., `["completed"]`) |
+| `action` | `string` | YES | Action name to execute (must be defined in stage actions) |
+| `targetStage` | `string` | NO | Key of the target stage to activate (defaults to next sequential stage) |
+| `actorId` | `string` | NO | Actor to attribute the automated action to (defaults to `automation-bot`) |
+| `comment` | `string` | NO | Comment appended to activity log |
+| `metadataPatch` | `object` | NO | Key-value pairs to merge into stage metadata |
+
+#### `escalationReminder`
+
+Schedules a reminder delivery when a stage enters a blocked/pending state.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `onStatuses` | `List[str]` | YES | Trigger statuses (e.g., `["blocked", "pending"]`) |
+| `offsetMinutes` | `int` | YES | Minutes from trigger to reminder delivery |
+| `channel` | `string` | YES | Delivery channel: `email`, `in_app`, `sms`, `webhook` |
+| `title` | `string` | YES | Reminder title |
+| `message` | `string` | NO | Reminder body |
+| `targetUserId` | `string` | NO | User to remind (defaults to first assignee of stage) |
+| `maxRetries` | `int` | NO | Max delivery retries (default: 3) |
+| `recurrence` | `object` | NO | Recurrence configuration |
+| `escalationPolicy` | `object` | NO | Escalation after N minutes to another user |
+
+#### `webhooks`
+
+HTTP POST to one or more URLs when specified events fire.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `url` | `string` | YES | Full URL to POST to |
+| `events` | `List[str]` | YES | Event type filter (e.g., `["WorkflowStageUpdated"]`) |
+| `headers` | `object` | NO | HTTP headers to include (e.g., auth token) |
+
+**Webhook payload sent to your URL:**
+
+```json
+{
+  "eventType": "WorkflowStageUpdated",
+  "planId": "plan-uuid",
+  "stageDefinitionKey": "cia_review",
+  "newStatus": "completed",
+  "actorId": "user-uuid",
+  "action": "approve",
+  "timestamp": "2026-03-07T10:30:00Z",
+  "metadata": { ...stage metadata... }
+}
+```
+
+### 12.4 Automation Polling Schedule
+
+WO's Celery Beat runs `process_workflow_events` every **30 seconds**. The automation engine processes the `WorkflowStageUpdated` event from the `workflow-events` Kafka topic and evaluates all matching rules.
+
+---
+
+## Complete Integration Summary
+
+This table shows every integration point WO offers and which step covers it:
+
+| Integration | Method | Direction | Guide Section |
+|---|---|---|---|
+| **Register workflow template** | Kafka `workflow-templates` | Your service → WO | Step 2 |
+| **Start a workflow plan** | HTTP POST `/plans/` | Your service → WO | Step 4 |
+| **Embedded workflow console UI** | iframe → `/plans/{id}/console/` | Frontend → WO | Step 5 |
+| **React to stage actions** | Kafka `workflow-events` consumer | WO → Your service | Step 8 |
+| **React to workflow completion** | Kafka `workflow-events` consumer | WO → Your service | Step 8 |
+| **Create / manage tasks** | HTTP REST `/tasks/` & `/standalone-tasks/` | Your service → WO | Step 9 |
+| **Log time against tasks** | HTTP REST `/tasks/{id}/timesheets/` | Your service → WO | Step 9 |
+| **Schedule reminders** | HTTP REST `/reminders/` | Your service → WO | Step 10 |
+| **Dashboard analytics** | HTTP GET `/analytics/stats/` | Your service → WO | Step 11 |
+| **Vetting / task reports** | HTTP GET `/reports/vetting/` (json/pdf/excel/csv) | Your service → WO | Step 11 |
+| **Auto-advance stages** | Template YAML `metadata.automation.autoAdvance` | Config only | Step 12 |
+| **Escalation reminders** | Template YAML `metadata.automation.escalationReminder` | Config only | Step 12 |
+| **Webhooks on stage events** | Template YAML `metadata.automation.webhooks` | WO → Your service | Step 12 |
+| **Register notification templates** | Kafka `notification-templates` | Your service → WO | See `WORK_ORCHESTRATION_NOTIFICATIONS.md` |
+| **Send notifications via WO** | Kafka `notifications-{priority}` | Your service → WO | See `WORK_ORCHESTRATION_NOTIFICATIONS.md` |
+
+---
+
+*Last updated: March 2026*

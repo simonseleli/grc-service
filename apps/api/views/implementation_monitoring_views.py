@@ -17,9 +17,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.models import (
-    ImplementationMonitoring, AuditRecommendation
+    ImplementationMonitoring, AuditRecommendation, AuditeeFollowUpResponse
 )
-from apps.api.serializers.audit_serializers import ImplementationMonitoringSerializer
+from apps.api.serializers.audit_serializers import (
+    ImplementationMonitoringSerializer,
+    AuditeeFollowUpResponseSerializer,
+)
 from apps.api.permissions_jwt import CanUpdateAuditMonitoring
 
 # FIMS standard utilities
@@ -70,9 +73,9 @@ class ImplementationMonitoringListCreateView(APIView):
             if reviewed_by:
                 queryset = queryset.filter(reviewed_by=reviewed_by)
             if progress_min:
-                queryset = queryset.filter(implementation_progress__gte=float(progress_min))
+                queryset = queryset.filter(latest_progress__gte=float(progress_min))
             if progress_max:
-                queryset = queryset.filter(implementation_progress__lte=float(progress_max))
+                queryset = queryset.filter(latest_progress__lte=float(progress_max))
             if is_active is not None:
                 queryset = queryset.filter(is_active=is_active.lower() == 'true')
             
@@ -80,7 +83,7 @@ class ImplementationMonitoringListCreateView(APIView):
             ordering = get_ordering_param(
                 request,
                 default='-last_review_date',
-                allowed_fields=['last_review_date', 'next_review_date', 'implementation_progress', 'created_at']
+                allowed_fields=['last_review_date', 'next_review_date', 'latest_progress', 'created_at']
             )
             queryset = queryset.order_by(ordering)
             
@@ -414,10 +417,10 @@ class ImplementationMonitoringReviewView(APIView):
             self.permission_denied(request, message='grc:audit_monitoring:update required.')
 
     def post(self, request, pk):
-        """Record a follow-up review with progress update"""
+        """Open a new review cycle (creates AuditeeFollowUpResponse row at cycle_number = max+1)."""
         try:
             monitoring = get_object_or_404(ImplementationMonitoring, pk=pk)
-            
+
             # Check if recommendation is closed
             if monitoring.recommendation.status == 'closed':
                 return Response(
@@ -430,14 +433,12 @@ class ImplementationMonitoringReviewView(APIView):
                     },
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            
+
             # Extract review data
             implementation_progress = request.data.get('implementation_progress')
-            progress_notes = request.data.get('progress_notes')
-            evidence_documents = request.data.get('evidence_documents', [])
             next_review_date = request.data.get('next_review_date')
-            
-            # Validate required fields
+
+            # Validate required field
             if implementation_progress is None:
                 return Response(
                     {
@@ -449,19 +450,7 @@ class ImplementationMonitoringReviewView(APIView):
                     },
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            
-            if not progress_notes:
-                return Response(
-                    {
-                        "success": False,
-                        "error": {
-                            "message": "Progress notes required for review",
-                            "code": "MISSING_NOTES"
-                        }
-                    },
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
+
             # Validate progress percentage
             try:
                 progress = float(implementation_progress)
@@ -487,46 +476,61 @@ class ImplementationMonitoringReviewView(APIView):
                     },
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            
+
             with transaction.atomic():
-                # Get user ID
-                # FIMS pattern: always require authenticated user — no system user fallback
                 user_id = getattr(request.user, 'id', None)
                 if not user_id:
                     return Response(
                         {"success": False, "error": {"message": "User not authenticated", "code": "AUTH_REQUIRED"}},
                         status=status.HTTP_401_UNAUTHORIZED,
                     )
-                
-                # Update monitoring record
-                monitoring.implementation_progress = progress
-                monitoring.progress_notes = progress_notes
-                monitoring.evidence_documents = evidence_documents
+
+                # Determine next cycle number
+                last_cycle = monitoring.follow_up_responses.order_by('-cycle_number').first()
+                next_cycle_number = (last_cycle.cycle_number + 1) if last_cycle else 1
+
+                # Create the new cycle (pending — awaiting notify-auditee then submission)
+                cycle = AuditeeFollowUpResponse.objects.create(
+                    monitoring=monitoring,
+                    cycle_number=next_cycle_number,
+                    status='pending',
+                    created_by=user_id,
+                )
+
+                # Update header snapshot fields
+                monitoring.latest_progress = progress
                 monitoring.last_review_date = timezone.now().date()
                 monitoring.reviewed_by = user_id
-                
+                # Reset per-cycle notification/response fields for the new cycle
+                monitoring.notification_sent_at = None
+                monitoring.response_deadline = None
+                monitoring.auditee_responded_at = None
+                monitoring.is_overdue = False
+
                 if next_review_date:
                     monitoring.next_review_date = next_review_date
-                
+
                 monitoring.save(update_fields=[
-                    'implementation_progress', 'progress_notes', 'evidence_documents',
-                    'last_review_date', 'next_review_date', 'reviewed_by'
+                    'latest_progress', 'last_review_date', 'next_review_date',
+                    'reviewed_by', 'notification_sent_at', 'response_deadline',
+                    'auditee_responded_at', 'is_overdue',
                 ])
-            
+
             return Response(
                 {
                     "success": True,
                     "data": ImplementationMonitoringSerializer(monitoring).data,
-                    "message": "Review recorded successfully"
+                    "current_cycle": AuditeeFollowUpResponseSerializer(cycle).data,
+                    "message": f"Review cycle {next_cycle_number} opened. Call /notify-auditee/ to notify the auditee."
                 }
             )
-                
+
         except Exception as e:
             return Response(
                 {
                     "success": False,
                     "error": {
-                        "message": "Failed to record review",
+                        "message": "Failed to open review cycle",
                         "details": str(e)
                     }
                 },
@@ -604,19 +608,39 @@ class ImplementationMonitoringNotifyAuditeeView(APIView):
         return current
 
     def post(self, request, pk):
-        """Notify auditee: sets notification_sent_at, calculates response_deadline."""
+        """Notify auditee: sets notification timestamps on the current open cycle + mirrors to header."""
         try:
             monitoring = get_object_or_404(ImplementationMonitoring, pk=pk)
 
-            if monitoring.notification_sent_at:
+            # Find the current open cycle (latest pending — created by /review/)
+            current_cycle = (
+                monitoring.follow_up_responses
+                .filter(status='pending')
+                .order_by('-cycle_number')
+                .first()
+            )
+
+            if current_cycle is None:
                 return Response(
                     {
                         "success": False,
                         "error": {
-                            "message": "Auditee has already been notified",
+                            "message": "No open review cycle. Call /review/ first to create a new cycle.",
+                            "code": "NO_OPEN_CYCLE",
+                        },
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if current_cycle.notified_at:
+                return Response(
+                    {
+                        "success": False,
+                        "error": {
+                            "message": "Auditee has already been notified for this cycle",
                             "code": "ALREADY_NOTIFIED",
-                            "notified_at": monitoring.notification_sent_at.isoformat(),
-                            "deadline": monitoring.response_deadline.isoformat() if monitoring.response_deadline else None,
+                            "notified_at": current_cycle.notified_at.isoformat(),
+                            "deadline": current_cycle.response_deadline.isoformat() if current_cycle.response_deadline else None,
                         },
                     },
                     status=status.HTTP_409_CONFLICT,
@@ -626,12 +650,17 @@ class ImplementationMonitoringNotifyAuditeeView(APIView):
             deadline = self._add_business_days(now, 5)
 
             with transaction.atomic():
+                # Update the cycle row
+                current_cycle.notified_at = now
+                current_cycle.response_deadline = deadline
+                current_cycle.save(update_fields=['notified_at', 'response_deadline'])
+
+                # Mirror to header for quick querying
                 monitoring.notification_sent_at = now
                 monitoring.response_deadline = deadline
                 monitoring.save(update_fields=['notification_sent_at', 'response_deadline'])
 
             # Publish notification event via Kafka → WO Service delivers email/SMS/in-app
-            # (Principle 2: WO owns notification delivery)
             try:
                 from apps.infrastructure.services.messaging_service import messaging_service
                 messaging_service.publish_audit_plan_event(
@@ -640,6 +669,7 @@ class ImplementationMonitoringNotifyAuditeeView(APIView):
                     additional_data={
                         'monitoring_id': str(monitoring.id),
                         'recommendation_id': str(monitoring.recommendation_id),
+                        'cycle_number': current_cycle.cycle_number,
                         'deadline': deadline.isoformat(),
                     },
                 )
@@ -648,7 +678,7 @@ class ImplementationMonitoringNotifyAuditeeView(APIView):
 
             return success_response(
                 data=ImplementationMonitoringSerializer(monitoring).data,
-                message=f"Auditee notified. Response deadline: {deadline.strftime('%Y-%m-%d %H:%M')}",
+                message=f"Auditee notified (cycle {current_cycle.cycle_number}). Response deadline: {deadline.strftime('%Y-%m-%d %H:%M')}",
             )
         except Exception as e:
             logger.exception("Failed to notify auditee for monitoring %s", pk)
@@ -706,5 +736,317 @@ class ImplementationMonitoringNonResponsiveView(APIView):
             logger.exception("Failed to retrieve non-responsive monitoring records")
             return server_error_response(
                 message="Failed to retrieve non-responsive records",
+                details=str(e) if settings.DEBUG else None,
+            )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# P2-GAP 4: AuditeeFollowUpResponse views — one row per review cycle
+# ─────────────────────────────────────────────────────────────────────────────
+
+class AuditeeFollowUpResponseListCreateView(APIView):
+    """
+    GET  /follow-up-responses/?monitoring=<uuid>  — list cycles for a monitoring header
+    GET  /implementation-monitoring/<uuid>/responses/  — nested alias (same view)
+    POST /follow-up-responses/                    — create new cycle directly
+    """
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanUpdateAuditMonitoring().has_permission(request, self):
+            self.permission_denied(request, message='grc:audit_monitoring:update required.')
+
+    def get(self, request, monitoring_id=None):
+        """List all follow-up response cycles for a monitoring record."""
+        try:
+            monitoring_pk = monitoring_id or request.query_params.get('monitoring')
+            if not monitoring_pk:
+                return error_response("?monitoring=<uuid> query parameter required.", code="MISSING_FILTER")
+
+            monitoring = get_object_or_404(ImplementationMonitoring, pk=monitoring_pk)
+            queryset = (
+                AuditeeFollowUpResponse.objects
+                .filter(monitoring=monitoring)
+                .order_by('cycle_number')
+            )
+
+            page_data = paginate_queryset(queryset, request)
+            serializer = AuditeeFollowUpResponseSerializer(page_data["queryset"], many=True)
+
+            return paginated_list_response(
+                items=serializer.data,
+                count=page_data["total"],
+                page=page_data["page"],
+                page_size=page_data["page_size"],
+                resource="follow_up_responses",
+            )
+        except Exception as e:
+            logger.exception("Failed to list follow-up responses")
+            return server_error_response(
+                message="Failed to list follow-up responses",
+                details=str(e) if settings.DEBUG else None,
+            )
+
+    def post(self, request, monitoring_id=None):
+        """Create a new follow-up response cycle directly."""
+        try:
+            monitoring_pk = monitoring_id or request.data.get('monitoring_id')
+            if not monitoring_pk:
+                return error_response("monitoring_id required.", code="MISSING_FIELD")
+
+            monitoring = get_object_or_404(ImplementationMonitoring, pk=monitoring_pk)
+
+            user_id = getattr(request.user, 'id', None)
+            if not user_id:
+                return Response(
+                    {"success": False, "error": {"message": "User not authenticated", "code": "AUTH_REQUIRED"}},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+
+            with transaction.atomic():
+                last_cycle = monitoring.follow_up_responses.order_by('-cycle_number').first()
+                next_cycle_number = (last_cycle.cycle_number + 1) if last_cycle else 1
+
+                cycle = AuditeeFollowUpResponse.objects.create(
+                    monitoring=monitoring,
+                    cycle_number=next_cycle_number,
+                    status='pending',
+                    created_by=user_id,
+                )
+
+            return Response(
+                {
+                    "success": True,
+                    "data": AuditeeFollowUpResponseSerializer(cycle).data,
+                    "message": f"Follow-up response cycle {next_cycle_number} created.",
+                },
+                status=status.HTTP_201_CREATED,
+            )
+        except Exception as e:
+            logger.exception("Failed to create follow-up response cycle")
+            return server_error_response(
+                message="Failed to create follow-up response cycle",
+                details=str(e) if settings.DEBUG else None,
+            )
+
+
+class AuditeeFollowUpResponseDetailView(APIView):
+    """
+    GET   /follow-up-responses/<pk>/   — retrieve cycle detail
+    PATCH /follow-up-responses/<pk>/   — partial update (auditor edits notes etc.)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanUpdateAuditMonitoring().has_permission(request, self):
+            self.permission_denied(request, message='grc:audit_monitoring:update required.')
+
+    def get(self, request, pk):
+        try:
+            cycle = get_object_or_404(AuditeeFollowUpResponse, pk=pk)
+            return success_response(data=AuditeeFollowUpResponseSerializer(cycle).data)
+        except Exception as e:
+            return server_error_response(message="Failed to retrieve follow-up response", details=str(e) if settings.DEBUG else None)
+
+    def patch(self, request, pk):
+        try:
+            cycle = get_object_or_404(AuditeeFollowUpResponse, pk=pk)
+            serializer = AuditeeFollowUpResponseSerializer(cycle, data=request.data, partial=True)
+            if not serializer.is_valid():
+                return validation_error_response(errors=serializer.errors)
+
+            user_id = getattr(request.user, 'id', None)
+            if not user_id:
+                return Response({"success": False, "error": {"message": "User not authenticated", "code": "AUTH_REQUIRED"}}, status=status.HTTP_401_UNAUTHORIZED)
+
+            updated = serializer.save(modified_by=user_id)
+            return success_response(data=AuditeeFollowUpResponseSerializer(updated).data, message="Follow-up response updated.")
+        except Exception as e:
+            return server_error_response(message="Failed to update follow-up response", details=str(e) if settings.DEBUG else None)
+
+
+class AuditeeFollowUpResponseSubmitView(APIView):
+    """POST /follow-up-responses/<pk>/submit/  — auditee submits progress + evidence"""
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanUpdateAuditMonitoring().has_permission(request, self):
+            self.permission_denied(request, message='grc:audit_monitoring:update required.')
+
+    def post(self, request, pk):
+        try:
+            cycle = get_object_or_404(AuditeeFollowUpResponse, pk=pk)
+
+            if cycle.status != 'pending':
+                return Response(
+                    {"success": False, "error": {
+                        "message": f"Cannot submit a cycle that is already '{cycle.status}'.",
+                        "code": "WRONG_STATUS",
+                    }},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            implementation_progress = request.data.get('implementation_progress')
+            if implementation_progress is None:
+                return error_response("implementation_progress required.", code="MISSING_FIELD")
+
+            try:
+                progress = float(implementation_progress)
+                if not (0 <= progress <= 100):
+                    return error_response("progress must be 0–100.", code="INVALID_PROGRESS")
+            except (ValueError, TypeError):
+                return error_response("Invalid progress value.", code="INVALID_PROGRESS")
+
+            progress_notes = request.data.get('progress_notes', '')
+            evidence_documents = request.data.get('evidence_documents', [])
+
+            user_id = getattr(request.user, 'id', None)
+            if not user_id:
+                return Response({"success": False, "error": {"message": "User not authenticated", "code": "AUTH_REQUIRED"}}, status=status.HTTP_401_UNAUTHORIZED)
+
+            now = timezone.now()
+
+            with transaction.atomic():
+                cycle.submitted_by = user_id
+                cycle.submitted_at = now
+                cycle.implementation_progress = progress
+                cycle.progress_notes = progress_notes
+                cycle.evidence_documents = evidence_documents
+                cycle.status = 'submitted'
+                cycle.save(update_fields=[
+                    'submitted_by', 'submitted_at', 'implementation_progress',
+                    'progress_notes', 'evidence_documents', 'status',
+                ])
+
+                # Mirror auditee_responded_at to header
+                cycle.monitoring.auditee_responded_at = now
+                cycle.monitoring.save(update_fields=['auditee_responded_at'])
+
+            return success_response(
+                data=AuditeeFollowUpResponseSerializer(cycle).data,
+                message="Response submitted successfully.",
+            )
+        except Exception as e:
+            logger.exception("Failed to submit follow-up response %s", pk)
+            return server_error_response(message="Failed to submit response", details=str(e) if settings.DEBUG else None)
+
+
+class AuditeeFollowUpResponseVerifyView(APIView):
+    """POST /follow-up-responses/<pk>/verify/  — auditor verifies (verdict: verified | rejected)"""
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanUpdateAuditMonitoring().has_permission(request, self):
+            self.permission_denied(request, message='grc:audit_monitoring:update required.')
+
+    def post(self, request, pk):
+        try:
+            cycle = get_object_or_404(AuditeeFollowUpResponse, pk=pk)
+
+            if cycle.status != 'submitted':
+                return Response(
+                    {"success": False, "error": {
+                        "message": f"Cannot verify a cycle that has status '{cycle.status}'. Must be 'submitted'.",
+                        "code": "WRONG_STATUS",
+                    }},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            verdict = request.data.get('verdict')
+            if verdict not in ('verified', 'rejected'):
+                return error_response("verdict must be 'verified' or 'rejected'.", code="INVALID_VERDICT")
+
+            verification_notes = request.data.get('verification_notes', '')
+
+            user_id = getattr(request.user, 'id', None)
+            if not user_id:
+                return Response({"success": False, "error": {"message": "User not authenticated", "code": "AUTH_REQUIRED"}}, status=status.HTTP_401_UNAUTHORIZED)
+
+            now = timezone.now()
+
+            with transaction.atomic():
+                cycle.verified_by = user_id
+                cycle.verified_at = now
+                cycle.verification_notes = verification_notes
+                cycle.status = verdict
+                cycle.save(update_fields=['verified_by', 'verified_at', 'verification_notes', 'status'])
+
+                monitoring = cycle.monitoring
+                monitoring.reviewed_by = user_id
+                monitoring.last_review_date = now.date()
+
+                if verdict == 'verified':
+                    # Denormalize latest progress to header
+                    monitoring.latest_progress = cycle.implementation_progress
+                    # Close header if fully implemented
+                    if cycle.implementation_progress >= 100:
+                        monitoring.status = 'closed'
+                    monitoring.save(update_fields=['reviewed_by', 'last_review_date', 'latest_progress', 'status'])
+                else:
+                    # rejected — caller should open a new cycle via /review/
+                    monitoring.save(update_fields=['reviewed_by', 'last_review_date'])
+
+            message_map = {
+                'verified': "Response verified. Header latest_progress updated.",
+                'rejected': "Response rejected. Open a new cycle via /review/ to continue.",
+            }
+
+            return success_response(
+                data=AuditeeFollowUpResponseSerializer(cycle).data,
+                message=message_map[verdict],
+            )
+        except Exception as e:
+            logger.exception("Failed to verify follow-up response %s", pk)
+            return server_error_response(message="Failed to verify response", details=str(e) if settings.DEBUG else None)
+
+
+class AuditeeFollowUpResponseOverdueView(APIView):
+    """GET /follow-up-responses/overdue/  — all cycles past deadline with no submission"""
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanUpdateAuditMonitoring().has_permission(request, self):
+            self.permission_denied(request, message='grc:audit_monitoring:update required.')
+
+    def get(self, request):
+        try:
+            now = timezone.now()
+            queryset = (
+                AuditeeFollowUpResponse.objects
+                .select_related('monitoring', 'monitoring__recommendation')
+                .filter(
+                    status='pending',
+                    response_deadline__lt=now,
+                    is_active=True,
+                )
+                .order_by('response_deadline')
+            )
+
+            ordering = get_ordering_param(
+                request,
+                default='response_deadline',
+                allowed_fields=['response_deadline', 'notified_at', 'created_at', 'cycle_number'],
+            )
+            queryset = queryset.order_by(ordering)
+
+            page_data = paginate_queryset(queryset, request)
+            serializer = AuditeeFollowUpResponseSerializer(page_data["queryset"], many=True)
+
+            return paginated_list_response(
+                items=serializer.data,
+                count=page_data["total"],
+                page=page_data["page"],
+                page_size=page_data["page_size"],
+                resource="overdue_follow_up_responses",
+            )
+        except Exception as e:
+            logger.exception("Failed to retrieve overdue follow-up responses")
+            return server_error_response(
+                message="Failed to retrieve overdue follow-up responses",
                 details=str(e) if settings.DEBUG else None,
             )

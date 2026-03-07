@@ -7,7 +7,7 @@ templates:
   - code: "grc.working_paper_approval"
     name: "Working Paper Approval"
     workflow_type: "grc"
-    version: 1
+    version: 2
     definition:
       description: "Approval workflow for GRC audit working papers"
       sla:
@@ -20,7 +20,7 @@ templates:
         - definitionKey: "working_paper_review"
           name: "Working Paper Review"
           order: 1
-          assignees: ["{{prepared_by}}"]
+          assignees: ["{{lead_auditor}}"]
           actions:
             - name: "submit"
               label: "Submit for Review"
@@ -151,10 +151,10 @@ templates:
             durationMinutes: 10080
             breachStrategy: "notify"
 
-  - code: "grc.engagement_notification"
+  - code: "grc.engagement_lifecycle"
     name: "Audit Engagement Lifecycle"
     workflow_type: "grc"
-    version: 1
+    version: 2
     definition:
       description: "Audit engagement lifecycle: planning → fieldwork → reporting → completed"
       sla:
@@ -198,4 +198,229 @@ templates:
               nextState: "completed"
           sla:
             durationMinutes: 14400
+            breachStrategy: "notify"
+  # P2-GAP 1 — Engagement Notification
+  - code: "grc.engagement_notification_approval"
+    name: "Engagement Notification Approval"
+    workflow_type: "grc"
+    version: 1
+    definition:
+      description: "Single-stage CIA approval of the Engagement Notification before transmission to the auditable area"
+      sla:
+        targetMinutes: 2880
+        breachStrategy: "escalate"
+      metadata:
+        module: "grc"
+        category: "engagement_notification"
+      stages:
+        - definitionKey: "cia_approval"
+          name: "CIA Approval"
+          order: 1
+          assignees: []
+          actions:
+            - name: "approve"
+              label: "Approve"
+              nextState: "completed"
+            - name: "return"
+              label: "Return to Lead Auditor"
+              nextState: "rejected"
+          sla:
+            durationMinutes: 2880
+            breachStrategy: "notify"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# P2-GAP 2 — Missing Workflow YAML Templates (SRS Req 11-14, 22-23, 36, QR)
+# ─────────────────────────────────────────────────────────────────────────────
+
+  - code: "grc.audit_memo_approval"
+    name: "Audit Memo Approval"
+    workflow_type: "grc"
+    version: 1
+    definition:
+      description: "2-stage approval: CIA reviews the audit memo and forwards to DG; DG approves"
+      sla:
+        targetMinutes: 10080
+        breachStrategy: "escalate"
+      metadata:
+        module: "grc"
+        category: "audit_memo"
+      stages:
+        - definitionKey: "cia_memo_review"
+          name: "CIA Review"
+          order: 1
+          assignees: []
+          actions:
+            - name: "forward_to_dg"
+              label: "Forward to DG"
+              nextState: "completed"
+            - name: "return"
+              label: "Return to Lead Auditor"
+              nextState: "rejected"
+          sla:
+            durationMinutes: 4320
+            breachStrategy: "notify"
+        - definitionKey: "dg_memo_approval"
+          name: "DG Approval"
+          order: 2
+          assignees: []
+          actions:
+            - name: "approve"
+              label: "Approve"
+              nextState: "completed"
+            - name: "return"
+              label: "Return to CIA"
+              nextState: "pending"
+          sla:
+            durationMinutes: 5760
+            breachStrategy: "notify"
+
+  - code: "grc.audit_program_approval"
+    name: "Audit Program Approval"
+    workflow_type: "grc"
+    version: 1
+    definition:
+      description: "2-stage approval: IA team reviews the audit program; CIA gives final approval"
+      sla:
+        targetMinutes: 7200
+        breachStrategy: "escalate"
+      metadata:
+        module: "grc"
+        category: "audit_program"
+      stages:
+        - definitionKey: "ia_program_review"
+          name: "IA Review"
+          order: 1
+          assignees: []
+          actions:
+            - name: "approve"
+              label: "Approve"
+              nextState: "completed"
+            - name: "return"
+              label: "Return to Lead Auditor"
+              nextState: "rejected"
+          sla:
+            durationMinutes: 2880
+            breachStrategy: "notify"
+        - definitionKey: "cia_program_approval"
+          name: "CIA Approval"
+          order: 2
+          assignees: []
+          actions:
+            - name: "approve"
+              label: "Approve"
+              nextState: "completed"
+            - name: "return"
+              label: "Return to IA"
+              nextState: "pending"
+          sla:
+            durationMinutes: 4320
+            breachStrategy: "notify"
+
+  - code: "grc.audit_report_approval"
+    name: "Audit Report Approval"
+    workflow_type: "grc"
+    version: 1
+    definition:
+      description: "2-stage approval: IA team reviews the draft audit report; CIA gives final approval"
+      sla:
+        targetMinutes: 10080
+        breachStrategy: "escalate"
+      metadata:
+        module: "grc"
+        category: "audit_report"
+      stages:
+        - definitionKey: "ia_report_review"
+          name: "IA Review"
+          order: 1
+          assignees: []
+          actions:
+            - name: "approve"
+              label: "Approve"
+              nextState: "completed"
+            - name: "return"
+              label: "Return to Lead Auditor"
+              nextState: "rejected"
+          sla:
+            durationMinutes: 4320
+            breachStrategy: "notify"
+        - definitionKey: "cia_report_approval"
+          name: "CIA Approval"
+          order: 2
+          assignees: []
+          actions:
+            - name: "approve"
+              label: "Approve"
+              nextState: "completed"
+            - name: "return"
+              label: "Return to IA"
+              nextState: "pending"
+          sla:
+            durationMinutes: 5760
+            breachStrategy: "notify"
+
+  - code: "grc.quarterly_report_approval"
+    name: "Quarterly Audit Report Approval"
+    workflow_type: "grc"
+    version: 1
+    definition:
+      description: "4-stage approval: CIA review → Management review → Audit Committee review → Commission noting"
+      sla:
+        targetMinutes: 20160
+        breachStrategy: "escalate"
+      metadata:
+        module: "grc"
+        category: "quarterly_audit_report"
+      stages:
+        - definitionKey: "cia_qr_review"
+          name: "CIA Review"
+          order: 1
+          assignees: []
+          actions:
+            - name: "approve"
+              label: "Approve"
+              nextState: "completed"
+            - name: "return"
+              label: "Return for Revision"
+              nextState: "rejected"
+          sla:
+            durationMinutes: 4320
+            breachStrategy: "notify"
+        - definitionKey: "management_qr_review"
+          name: "Management Review"
+          order: 2
+          assignees: []
+          actions:
+            - name: "adopt"
+              label: "Adopt"
+              nextState: "completed"
+            - name: "request_changes"
+              label: "Request Changes"
+              nextState: "pending"
+          sla:
+            durationMinutes: 10080
+            breachStrategy: "notify"
+        - definitionKey: "committee_qr_review"
+          name: "Audit Committee Review"
+          order: 3
+          assignees: []
+          actions:
+            - name: "approve"
+              label: "Approve"
+              nextState: "completed"
+            - name: "request_improvement"
+              label: "Request Improvement"
+              nextState: "pending"
+          sla:
+            durationMinutes: 14400
+            breachStrategy: "notify"
+        - definitionKey: "commission_qr_noting"
+          name: "Commission Noting"
+          order: 4
+          assignees: []
+          actions:
+            - name: "note"
+              label: "Note"
+              nextState: "completed"
+          sla:
+            durationMinutes: 10080
             breachStrategy: "notify"

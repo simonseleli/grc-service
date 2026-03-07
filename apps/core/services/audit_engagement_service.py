@@ -7,7 +7,7 @@ Follows working_paper_service.py pattern exactly:
   - calls OrchestrationClient.start_workflow(template_code, context, initiator_id,
       subject_ref, metadata, stages=...)  → guide §4.3 signature
 
-Template: grc.engagement_notification (3-phase lifecycle:
+Template: grc.engagement_lifecycle (3-phase lifecycle:
           planning → fieldwork → reporting → completed)
 """
 import logging
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class AuditEngagementService:
 
     # Guide §4.2: WORKFLOW_TEMPLATE_CODE identifies the process
-    WORKFLOW_TEMPLATE_CODE = "grc.engagement_notification"
+    WORKFLOW_TEMPLATE_CODE = "grc.engagement_lifecycle"
 
     def __init__(self):
         self.workflow_client = OrchestrationClient()
