@@ -242,11 +242,52 @@ ME: I DID IT AND PASSED — Universe created successfully with correct fiscal ye
 
 **Expected:** 4 risk assessments created, each linked to its auditable entity.
 
+### Status Workflow for Risk Assessments:
+
+> **⚠️ 3-step UI flow:** Each action triggers a different backend endpoint and dialog.
+
+| Step | UI Action | Status | Backend endpoint |
+|---|---|---|---|
+| 1 | Created | `draft` | `POST /risk-assessments/` |
+| 2 | ⋮ → **Progress Update** → click **Confirm** | `draft → submitted` | `POST /risk-assessments/{id}/submit/` |
+| 3 | ⋮ → **Progress Update** → **Approve** button | `submitted → reviewed` | `POST /risk-assessments/{id}/review/` with `{action:"approve"}` |
+| 4 | ⋮ → **Progress Update** → click **Confirm** | `reviewed → approved` | `POST /risk-assessments/{id}/submit/` (same endpoint, second call) |
+
+> **Reject path:** In Step 3, clicking **Reject** instead of Approve returns status to `draft` so the assessor can revise.
+> **Terminal state:** `approved` — no further progress updates possible. The ⋮ Progress Update option is hidden for approved assessments.
+
+---
+
 ### ✅ GAP 6 — Auto-Score Verification:
-After saving each risk assessment, open the detail dialog and verify:
-- `Auto Risk Score` field is populated (calculated from `likelihood × impact × control_effectiveness`)
-- `Auto Residual Score` field is populated (calculated from `residual_likelihood × residual_impact × residual_control`)
-- These are **read-only** — they update automatically when you change the scoring inputs
+After saving each risk assessment, open the detail dialog (click **View**) and verify:
+
+**`auto_risk_score`** (displayed as *Calculated Score* badge) is computed as a **weighted average** of all 6 input scores:
+
+| Dimension | API field | Weight |
+|---|---|---|
+| Inherent Risk | `inherent_risk_score` | 25% |
+| Control Effectiveness | `control_effectiveness_score` | 20% |
+| Financial Exposure | `financial_exposure_score` | 15% |
+| Compliance Risk | `compliance_risk_score` | 15% |
+| Operational Impact | `operational_impact_score` | 15% |
+| Reputational Risk | `reputational_risk_score` | 10% |
+
+**`auto_residual_score`** = `auto_risk_score × (1 − control_effectiveness_score / 10)`
+
+> Example — ICT Directorate scores (8, 5, 6, 7, 9, 6):
+> `auto_risk_score` = (8×0.25) + (5×0.20) + (6×0.15) + (7×0.15) + (9×0.15) + (6×0.10) = **6.90**
+> `auto_residual_score` = 6.90 × (1 − 5/10) = **3.45**
+
+**Auto-rating behavior:**
+- `auto_overall_rating` and `auto_residual_rating` are auto-populated using `classify_score()` which matches against `min_score`/`max_score` thresholds on RiskRating records
+- The **pre-seeded RiskRatings do not have `min_score`/`max_score` set** → the system falls back to *closest numerical_value* (range: 1.5–4.5). On a 0–10 score scale this means most scores above ~4.0 map to **Very High Risk**
+- To get meaningful auto-ratings: go to **GRC → Configuration → Risk Ratings** and set threshold ranges (e.g. Very High = 7–10, High = 5–6.99, Medium-High = 4–4.99, Medium = 3–3.99, Low-Medium = 1.5–2.99, Low = 0–1.49)
+- `overall_risk_rating` and `residual_risk_rating` (the fields the user selects in the create form) are **automatically overridden by the auto-calculated values** after save unless `rating_overridden = true`. This means what the user selects in the form dropdowns will be replaced by the system's auto-rating.
+
+**What to verify:**
+- `auto_risk_score` field is non-null in the detail dialog ✅
+- `auto_residual_score` field is non-null ✅
+- `auto_overall_rating` badge is shown ✅
 - Backend field aliases: `auto_risk_score` → `calculated_weighted_score`, `auto_residual_score` → `calculated_residual_score`
 
 ---
@@ -256,11 +297,18 @@ After saving each risk assessment, open the detail dialog and verify:
 **Page:** Go back to the **Audit Universe** detail page
 
 1. Click **Submit for Approval**
-2. Workflow Console activates (right panel)
-3. **Stage 1 — CIA Review:** Click **Approve**
-4. Universe status → `approved`
+   - Universe status immediately changes from `draft` → **`under_review`**
+   - A 1-stage WO workflow plan is created (template: `grc.audit_universe_approval`)
+   - The Workflow Console in the right panel activates and shows the pending CIA Review stage
+2. **Stage 1 — CIA Review:** In the Workflow Console → click **Approve**
+   - WO fires `grc.workflow.completed` Kafka event with `final_decision=approved`
+   - GRC Kafka consumer sets universe status → **`approved`** and records `approved_at` timestamp
 
-**Expected:** Status badge changes to `approved`. Universe is now locked for editing.
+**Expected:** Status badge changes to `approved`. Universe is now locked for editing (`UNIVERSE_APPROVED` error code if update is attempted).
+
+> **⚠️ If CIA clicks Return instead of Approve:** Status reverts to `draft`, `workflow_plan_id` is cleared, and the Submit button reappears — you can revise the universe and resubmit.
+
+> **⚠️ Intermediate status:** While awaiting CIA approval, the universe is in `under_review` status. The **Submit for Approval** button disappears and the Workflow Console shows the active stage. Entities can still be added/removed at this stage (entity management is not blocked by `under_review`; only `approved` fully locks the universe).
 
 ---
 
@@ -272,9 +320,9 @@ After saving each risk assessment, open the detail dialog and verify:
 
 | Field | Value |
 |---|---|
-| **Reference Number** | `RBIAP-2025-001` *(optional — leave empty to auto-generate)* |
+| **Reference Number** | `RBIAP-2025-001` *(optional — leave empty to auto-generate as `RBIAP-{year_code}-{sequence}`)* |
 | **Plan Title** | `Risk-Based Internal Audit Plan 2025/2026` |
-| **Plan Type** | `Annual Plan` |
+| **Plan Type** | `annual` *(API value — displayed in the form as "Annual Plan")* |
 | **Fiscal Year** | `2025/2026` |
 | **Audit Universe** | *(select the approved universe — only approved ones appear)* |
 | **Management Comments** | *(leave empty — filled during management review stage)* |
@@ -287,18 +335,45 @@ After saving each risk assessment, open the detail dialog and verify:
 ### Submit Plan for Approval (4-stage workflow):
 
 1. Click **Submit for Approval**
-2. **Stage 1 — CIA Review:** Approve
-3. **Stage 2 — Management Adoption:** Approve
-4. **Stage 3 — Audit Committee Approval:** Approve
-5. **Stage 4 — Commission Approval:** Approve
-6. Plan status → `approved`
+   - Plan status immediately set to `management_review` by the service (GRC-side)
+   - Work Orchestration starts its 4-stage workflow internally at the CIA Review stage
+2. In the **WO Workflow Console**, complete each stage in order:
 
-### ✅ GAP 11 — Auto-Generate Plan Draft:
-After the Audit Universe reaches `approved`:
-1. Navigate to GRC → **Audit Plans** → Click **Create**
-2. The form has a **"Generate from Universe"** button (or equivalent) that auto-drafts plan objectives/scope from the approved universe's auditable entities and risk assessment scores
-3. Alternatively, after universe approval, check if a plan draft was **auto-created** in the Audit Plans list (the GAP 11 backend hook fires a `plan.auto_generated` event on universe approval)
-4. Either way, review the auto-generated content and adjust as needed before submitting through the 4-stage approval workflow
+| # | WO stage_key | Stage Name | Action Button | Next Status (WO) |
+|---|---|---|---|---|
+| 1 | `cia_review` | CIA Review | **Approve** / Return | — |
+| 2 | `management_review` | Management Review | **Adopt** / Request Changes | — |
+| 3 | `committee_review` | Audit Committee Review | **Approve** / Request Improvement | — |
+| 4 | `commission_noting` | Commission Noting | **Note** *(not "Approve")* | Final |
+
+3. After all 4 stages complete → GRC plan status → `approved`
+
+> **Rejection path:** If the plan is rejected or cancelled at any stage, GRC resets plan status to `draft` and clears `workflow_plan_id`. The plan must be resubmitted from scratch.
+
+### ✅ GAP 11 — Generate Draft Plan:
+
+This is **not** an auto-created plan on universe approval. It is a deliberate **"Generate Draft"** button on the Audit Plans list page.
+
+**Steps:**
+1. Navigate to GRC → **Audit Plans**
+2. Click the **Generate Draft** button (separate from the Create button — opens a dedicated dialog)
+3. In the dialog, select:
+   - **Fiscal Year** *(required)*
+   - **Audit Universe** *(required — must be `approved`)*
+4. Click **Generate**
+
+**Pre-conditions enforced by the backend (`POST /audit/plans/generate-draft/`):**
+- The selected Audit Universe must have status `approved` → otherwise `UNIVERSE_NOT_APPROVED` error
+- There must be no existing plan for the same universe + fiscal year → otherwise `PLAN_EXISTS` conflict
+- Approved risk assessments must exist for entities in the universe → otherwise `NO_ASSESSMENTS` error
+
+**What gets auto-generated:**
+- `reference_number`: auto-assigned as `RBIAP-{year_code}-{sequence}`
+- `priority_areas`: entities sorted descending by `calculated_weighted_score` from the approved risk assessments
+- `plan_type`: defaults to `annual`
+- `status`: `draft`
+
+5. Review the generated draft, adjust as needed, then submit through the 4-stage approval workflow above.
 
 ---
 
@@ -306,11 +381,13 @@ After the Audit Universe reaches `approved`:
 
 **Page:** Sidebar → **Audit Engagements** → Click **Create**
 
+> **Pre-condition:** The Audit Plan must be in `approved` or `implementation` status. Engagements cannot be created against plans in any earlier status.
+
 | Field | Value |
 |---|---|
 | **Title** | `ICT General Controls Audit 2025/2026` |
 | **Reference Number** | `ENG-2025-001` |
-| **Engagement Type** | `planned` |
+| **Engagement Type** | `planned` *(API value; other options: `unplanned`, `special_investigation`, `follow_up`)* |
 | **Audit Plan** | `RBIAP-2025-001` (select approved plan) |
 | **Auditable Entity** | `ICT Directorate (ICT-001)` |
 | **Lead Auditor** | `fb680f30-398b-4b86-865b-455a35c3c8d9` (admin) |
@@ -324,19 +401,52 @@ After the Audit Universe reaches `approved`:
 
 ### Start Engagement Workflow:
 
+> **⚠️ CRITICAL ORDERING — do NOT start the workflow yet.** The backend enforces `engagement.status == 'planning'` for Survey (Phase 7c), RCM (Phase 7d), and Audit Program (Phase 7e) creation. Clicking **Start Engagement Workflow** immediately sets the engagement to `fieldwork`, which will cause all three to reject with `INVALID_ENGAGEMENT_STATUS`. **Complete phases 7a through 7e first**, then return here to start the workflow. Also ensure Declaration 1 is signed before starting (any existing unsigned declaration blocks the start).
+
 The engagement lifecycle is driven entirely by the **Work Orchestration (WO) Workflow Console**. Each stage action sends a Kafka event to GRC which updates the engagement status (FIMS Architecture Principle 2).
 
-1. Open engagement detail → click **Start Workflow** → Engagement enters `fieldwork`
-2. Complete fieldwork: create working papers (Phase 8), findings (Phase 9), recommendations (Phase 10)
-3. In the Workflow Console → **Stage 2: Fieldwork** → click **Start Reporting**
+**Step 1 — Start Engagement Workflow:**
+
+1. Open the engagement detail page
+2. Click the **Start Engagement Workflow** button in the page header
+   - This button only appears when `status = planning` AND no workflow is running yet
+   - Backend: `POST /engagements/{id}/phase-transition/`
+   - **Declaration prerequisite:** If any `DeclarationOfIndependence` records exist for this engagement and are not `signed`, the backend returns `DECLARATIONS_NOT_SIGNED` (400). All declarations must be signed before starting the workflow (see Phase 7b).
+3. On success: GRC engagement status immediately set to `fieldwork` by the service (for UX responsiveness — the WO Kafka event is canonical and will confirm this)
+4. **WO Workflow Console → Stage 1: Audit Planning → click "Start Fieldwork"**
+   - This completes Stage 1 in the WO and fires a `grc.stage.completed` Kafka event with `stage_key=planning, action=start_fieldwork`
+   - GRC Kafka consumer confirms `status = fieldwork` (canonical update)
+   - WO advances to Stage 2: Fieldwork — you can now see the **"Start Reporting"** action
+
+> **⚠️ Stage 1 must be completed in WO Console before Stage 2 is accessible.** If you skip clicking "Start Fieldwork", the WO stays on Stage 1 and the "Start Reporting" action will not be visible yet.
+
+**Step 2 — Fieldwork → Reporting:**
+
+5. Complete fieldwork: create working papers (Phase 8), findings (Phase 9), recommendations (Phase 10)
+6. In the **WO Workflow Console** → **Stage 2: Fieldwork** → click **Start Reporting**
    - WO fires a `grc.stage.completed` Kafka event with `stage_key=fieldwork, action=start_reporting`
    - GRC consumer updates engagement status to `reporting` ✓
-4. *(After audit report is created and approved — Phase 13)*
-   In the Workflow Console → **Stage 3: Reporting** → click **Mark Complete**
-   - WO fires a `grc.workflow.completed` event with `final_decision=approved`
-   - GRC consumer updates engagement status to `completed` ✓
 
-> **⚠️ Important:** You must complete Step 3 above (click **Start Reporting** in WO) before attempting Phase 13 (Create Audit Report). The Audit Report create form only shows engagements in `reporting` or `completed` status.
+**Step 3 — Reporting → Completed:**
+
+7. *(After audit report is created and approved — Phase 13)*
+   In the **WO Workflow Console** → **Stage 3: Reporting** → click **Mark Complete**
+   - WO fires a `grc.workflow.completed` event with `final_decision=approved`
+   - GRC consumer updates engagement status to `completed`, sets `actual_end_date` ✓
+
+**Full WO stage sequence:**
+
+| # | WO stage_key | Stage Name | Action Button | GRC Status After |
+|---|---|---|---|---|
+| 1 | `planning` | Audit Planning | **Start Fieldwork** *(completes Stage 1 — GRC status already `fieldwork` from service, Kafka confirms)* | `fieldwork` |
+| 2 | `fieldwork` | Fieldwork | **Start Reporting** | `reporting` |
+| 3 | `reporting` | Reporting | **Mark Complete** | `completed` |
+
+> **Rejection path:** If cancelled at any stage, GRC resets engagement status to `planning` and clears `workflow_plan_id`.
+
+> **⚠️ Important:** After Step 1 (Start Engagement Workflow), all subsequent stage transitions are **only via the WO Console** — there are no further GRC-side buttons for fieldwork or reporting transitions.
+
+> **⚠️ Important:** You must complete Step 2 above (click **Start Reporting** in WO) before attempting Phase 13 (Create Audit Report). The Audit Report create form only shows engagements in `reporting` or `completed` status.
 
 ---
 
@@ -362,15 +472,24 @@ The engagement lifecycle is driven entirely by the **Work Orchestration (WO) Wor
 
 **Expected result:** Memo created with status `draft`.
 
-### Status Workflow (5 stages — SRS Steps 10–14):
+### Status Workflow (2-stage WO workflow — SRS Steps 10–14):
 
-| Step | Action | Status | SRS Mapping |
+1. Click **Submit Memo for Review**
+   - Backend: `POST /memos/{id}/submit/`
+   - Memo status immediately set to `cia_review` by the service
+   - Work Orchestration starts a 2-stage workflow
+2. In the **WO Workflow Console**, complete each stage:
+
+| # | WO stage_key | Stage Name | Action Button |
 |---|---|---|---|
-| 1 | Created | `draft` | IA prepares memo |
-| 2 | Click **Progress Update** → `cia_review` | `cia_review` | Submitted to CIA |
-| 3 | Click **Progress Update** → `dg_review` | `dg_review` | CIA submits to DG |
-| 4 | Click **Progress Update** → `approved` | `approved` | DG approves memo |
-| 5 | Click **Progress Update** → `transmitted` | `transmitted` | CIA transmits to LA |
+| 1 | `cia_memo_review` | CIA Review | **Forward to DG** / Return to Lead Auditor |
+| 2 | `dg_memo_approval` | DG Approval | **Approve** / Return to CIA |
+
+3. After WO final approval → Kafka event → GRC `memo.status = approved`
+
+> **Rejection path:** Rejected/cancelled at any stage → GRC resets `memo.status = draft`, clears `workflow_plan_id`.
+
+> **⚠️ Note:** `dg_review` and `transmitted` statuses exist in the model but are **not set by the current WO-driven flow**. After DG approves in WO, GRC status jumps from `cia_review` directly to `approved`.
 
 ### ✅ GAP 9 Stamp Verification:
 After status → `approved`:
@@ -446,8 +565,8 @@ After signing → open detail dialog → **"Download Signed Declaration"** butto
 | **Process Description** (`process_description`) | `Preliminary survey covering the ICT General Controls environment. Processes assessed include user access management, IT change management, backup and disaster recovery, and network security configuration.` |
 | **Control Environment Notes** (`control_environment_notes`) | `The ICT control environment shows moderate maturity. Formal policies exist for access management and change control but are inconsistently enforced. Management tone is supportive of audit activity.` |
 | **Prior Audit History** (`prior_audit_history`) | `Last ICT audit conducted FY 2023/2024. Key findings were: excessive user privileges (partially remediated), incomplete change documentation (open), and backup restoration not tested (open). Prior recommendations 60% implemented.` |
-| **Fraud Risk Assessment** (`fraud_risk_assessment`) | `Low-to-medium fraud risk identified. Primary risks relate to access management controls — terminated employees with active access could enable unauthorized system use. No direct evidence of fraud. Recommend extended access control testing.` |
-| **Control Assessments** (`control_assessments`) | `[{"control": "Access Management", "adequacy": "inadequate", "notes": "No quarterly reviews performed"}, {"control": "Change Management", "adequacy": "partially adequate", "notes": "Process exists but inconsistently followed"}, {"control": "Backup & Recovery", "adequacy": "inadequate", "notes": "No recent restoration test"}]` |
+| **Fraud Risk Assessment** (`fraud_risk_assessment`) | `[{"risk_factor": "Unauthorized access via terminated employee accounts", "likelihood": "medium", "impact": "high", "notes": "3 terminated employees had active access; no automated deprovisioning"}, {"risk_factor": "Vendor collusion in change management bypasses", "likelihood": "low", "impact": "medium", "notes": "Emergency changes bypassing approval — low likelihood but notable"}]` *(JSON array — each object must have `risk_factor`, `likelihood`, `impact`, `notes`)* |
+| **Control Assessments** (`control_assessments`) | `[{"control_name": "Quarterly Access Reviews", "control_owner": "ICT Director", "design_adequate": false, "notes": "No quarterly reviews performed; access review process not documented", "test_strategy": "effectiveness"}, {"control_name": "Change Management Approval", "control_owner": "IT Operations Manager", "design_adequate": true, "notes": "Process well-designed but inconsistently followed", "test_strategy": "effectiveness"}, {"control_name": "Backup & Recovery", "control_owner": "IT Operations Manager", "design_adequate": false, "notes": "No recent restoration test conducted", "test_strategy": "impact"}]` *(JSON array — each object must have `control_name`, `control_owner`, `design_adequate` (boolean), `notes`, `test_strategy`)* |
 | **Preliminary Findings** (`preliminary_findings`) | `Access review process not documented; 15 of 42 accounts had excessive privileges. Change management bypassed for emergency changes. Backup restoration last tested 18 months ago.` |
 
 **Expected result:** Survey created with status `draft`.
@@ -497,7 +616,7 @@ After signing → open detail dialog → **"Download Signed Declaration"** butto
 | **In Scope** (`in_scope`) | `Yes` (toggle ON) |
 | **Design Adequate** (`design_adequate`) | `No` (toggle OFF — control exists but design is flawed) |
 | **Design Assessment Notes** (`design_assessment_notes`) | `Access review process is not formally documented. No evidence of execution in the last 12 months. 15 of 42 sampled accounts had excessive privileges.` |
-| **Test Approach** (`test_approach`) | `walkthrough` |
+| **Test Approach** (`test_approach`) | `effectiveness_test` *(API values: `effectiveness_test` \| `impact_test` \| `not_applicable` — NOT `walkthrough` or `substantive`)* |
 | **Priority** (`priority`) | `high` |
 
 > **⚠️ Note:** There is no `test_result` or `comments` field on `RCMEntry`. Test outcomes are captured in Working Papers and Audit Findings.
@@ -515,7 +634,7 @@ After signing → open detail dialog → **"Download Signed Declaration"** butto
 | **In Scope** (`in_scope`) | `Yes` (toggle ON) |
 | **Design Adequate** (`design_adequate`) | `Yes` (toggle ON — process is well-designed) |
 | **Design Assessment Notes** (`design_assessment_notes`) | `Change management policy exists and is well-designed. However, 7 of 12 sampled changes lacked complete documentation. Emergency change procedures are being bypassed.` |
-| **Test Approach** (`test_approach`) | `substantive` |
+| **Test Approach** (`test_approach`) | `effectiveness_test` |
 | **Priority** (`priority`) | `medium` |
 
 ### Step 3: Submit RCM for Approval
@@ -540,19 +659,30 @@ After signing → open detail dialog → **"Download Signed Declaration"** butto
 | **Engagement** | `ICT General Controls Audit 2025/2026` |
 | **Title** | `ICT General Controls Audit Program — Q3 2025/2026` |
 | **Objectives** (`objectives`) | `["Assess adequacy of user access management controls", "Evaluate change management documentation and approval processes", "Verify backup and disaster recovery procedures", "Review network security configuration and monitoring"]` |
-| **Procedures** (`procedures`) | `ICT General Controls for the period January to March 2026. Procedures cover: (1) user access controls — inspect access review records for 42 sampled accounts; (2) change management — substantive testing of 12 sampled production changes; (3) backup verification — review restoration test records and procedures; (4) network security — walkthrough of firewall configuration and monitoring logs.` |
+| **Procedures** (`procedures`) | `[{"rcm_entry_id": null, "procedure": "Inspect access review records for 42 sampled user accounts", "sample_size": 42, "criteria": "Quarterly access review must be documented and signed off"}, {"rcm_entry_id": null, "procedure": "Substantive testing of 12 sampled production changes for completeness of documentation", "sample_size": 12, "criteria": "Change request, impact assessment, and approvals must all be present"}, {"rcm_entry_id": null, "procedure": "Review backup restoration test records", "sample_size": null, "criteria": "Restoration test must be conducted at least annually"}]` *(JSON array — each object has `rcm_entry_id` (UUID or null), `procedure`, `sample_size` (int or null), `criteria`)* |
 
 **Expected result:** Program created with status `draft`.
 
-### Status Workflow (SRS Steps 22–23):
+> **⚠️ Pre-condition:** The audit engagement must be in `planning` status to create an Audit Program. The create form enforces this.
 
-> **⚠️ Model note:** Status is `draft → under_review → approved`. There is no `submitted` status.
+### Status Workflow (2-stage WO workflow — SRS Steps 22–23):
 
-| Step | Action | Status | SRS Mapping |
+> **⚠️ Model note:** Status is `draft → under_review → approved`. There is NO Progress Update button — it uses a dedicated **Submit** button that starts a WO workflow.
+
+1. Click **Submit** (or Submit for Approval)
+   - Backend: `POST /audit-programs/{id}/submit/`
+   - Program status immediately set to `under_review` by the service
+   - Work Orchestration starts a 2-stage workflow
+2. In the **WO Workflow Console**, complete each stage:
+
+| # | WO stage_key | Stage Name | Action Button |
 |---|---|---|---|
-| 1 | Created | `draft` | LA prepares draft program |
-| 2 | Click **Progress Update** → `under_review` | `under_review` | Submitted to CIA for review |
-| 3 | Click **Progress Update** → `approved` | `approved` | CIA approves audit program |
+| 1 | `ia_program_review` | IA Review | **Approve** / Return to Lead Auditor |
+| 2 | `cia_program_approval` | CIA Approval | **Approve** / Return to IA |
+
+3. After WO final approval → Kafka event → GRC `program.status = approved`
+
+> **Rejection path:** Rejected/cancelled at any stage → GRC resets `program.status = draft`, clears `workflow_plan_id`.
 
 ### ✅ GAP 9 Stamp Verification:
 After status → `approved`:
@@ -568,30 +698,46 @@ After status → `approved`:
 
 > **⚠️ Navigation note:** Working Papers do NOT have their own sidebar entry. They are embedded inside the Audit Engagement **Detail** page. You must "View" an engagement first to see and manage its working papers.
 
+> **Note:** Reference Number is **auto-generated** by the backend (format: `WP-{engagement_ref}-{sequence:03d}`, e.g. `WP-ENG-2025-001-001`). The creation form only accepts Title, Paper Type, and Document — do not attempt to enter a reference number manually.
+
 ### Working Paper 1
 
 | Field | Value |
 |---|---|
 | **Title** | `ICT Access Control Assessment` |
-| **Reference Number** | `WP-001` |
-| **Paper Type** | `fieldwork` |
-| **File Upload** | *(optional — drag or click to attach a document, max 25MB)* |
+| **Paper Type** | `fieldwork` *(choices: `planning` \| `fieldwork` \| `analysis` \| `conclusion` \| `other`)* |
+| **Document** | *(required — upload a document file; stored in DRS; returns a `document_id` UUID)* |
 
 ### Working Paper 2
 
 | Field | Value |
 |---|---|
 | **Title** | `Change Management Procedures Review` |
-| **Reference Number** | `WP-002` |
 | **Paper Type** | `fieldwork` |
+| **Document** | *(required — upload a document file)* |
+
+> **⚠️ `document_id` is required** — working papers must have a DRS document attached. The file upload is **not optional**.
 
 ### Working Paper Approval (per paper):
 
+> The working paper review status field is `review_status` (not `status`). Values: `draft → pending → reviewed → approved`.
+
 1. Click on the working paper → detail page at `/service/grc/working-papers/{id}`
 2. Click **Submit for Review**
-3. **Stage 1 — LA Review:** Approve
-4. **Stage 2 — CIA Approval:** Approve
-5. Review status → `approved`
+   - Backend: `POST /working-papers/{id}/review/`
+   - Only the `prepared_by` user can submit
+   - `review_status` immediately set to `pending`
+   - Work Orchestration starts a 2-stage workflow
+3. In the **WO Workflow Console**, complete each stage:
+
+| # | WO stage_key | Stage Name | Action Buttons |
+|---|---|---|---|
+| 1 | `working_paper_review` | Working Paper Review | **Approve** / Reject / Request Changes |
+| 2 | `working_paper_approval` | Working Paper Approval | **Final Approve** / Reject |
+
+4. After WO final approval → Kafka event → `review_status = approved`
+
+> **Rejection path:** `final_decision=rejected` → `review_status = reviewed` (with comments); `cancelled` → `review_status = draft`.
 
 ---
 
@@ -637,7 +783,27 @@ After status → `approved`:
 | **Cause** | `Change management process is manual and paper-based. Emergency change procedures are not clearly defined, leading to bypassing of normal approval workflow. Staff awareness of CM procedures is low.` |
 | **Effect** | `Increased risk of system instability from untested changes. Inability to perform root cause analysis when incidents occur. Audit trail gaps for regulatory compliance purposes.` |
 
-**Expected:** 2 findings created with status `draft`. Progress them: `draft` → `discussed` → `final`.
+**Expected:** 2 findings created with status `draft`. Progress each finding through its lifecycle:
+
+> **⚠️ Finalizing to `final` requires both responses.** The backend (`POST /findings/{id}/finalize/`) enforces that `auditee_response` AND `management_response` must both be non-empty before allowing the `discussed → final` transition. The UI **Finding Lifecycle** dialog (⋮ menu → **Lifecycle**) disables the **Finalize** button until both are saved.
+
+**For each finding:**
+
+| Step | Action | Result |
+|------|--------|--------|
+| 1 | Created | `draft` |
+| 2 | Click ⋮ → **Lifecycle** → **Mark as Discussed** | `discussed` |
+| 3 | In the Lifecycle dialog → enter **Auditee Response** → click **Save** | Response saved (✓ shown) |
+| 4 | Enter **Management Response** → click **Save** | Response saved; **Finalize** button enabled |
+| 5 | Click **Finalize** (target: `final`) | `final` |
+
+**Sample responses for Finding 1 (Inadequate ICT Access Controls):**
+- **Auditee Response:** `Management acknowledges the control gap. An immediate access review has been initiated and 15 over-privileged accounts have been identified for remediation. Terminated employee access will be revoked within 5 business days.`
+- **Management Response:** `ICT Director to implement quarterly automated access reviews by Q4 2026. HR termination notification process will be revised to include mandatory IT access revocation step.`
+
+**Sample responses for Finding 2 (Missing Change Management Documentation):**
+- **Auditee Response:** `IT Operations team acknowledges the documentation deficiency. Retrospective documentation is being prepared for the 7 incomplete change records identified.`
+- **Management Response:** `A digital change management tool will be procured by Q3 2026. Emergency change procedures will be formally documented and all IT staff will receive CM training by Q2 2026.`
 
 ---
 
@@ -672,7 +838,24 @@ After status → `approved`:
 | **Agreed Action** | `1. Procure and deploy digital change management tool\n2. Define and document emergency change procedures\n3. Conduct CM awareness training for all technical staff\n4. Establish monthly CM compliance reporting` |
 | **Target Date** | `2026-09-30` |
 
-**Expected:** 2 recommendations created with status `open`. Progress them: `open` → `in_progress` → `implemented` → `verified` → `closed`.
+**Expected:** 2 recommendations created with status `open`. Progress each through the status update dialog (⋮ → **Progress Update**):
+
+> **⚠️ Some transitions require additional fields.** The status update dialog shows conditional input fields that are mandatory before the **Update Status** button becomes active.
+
+| Step | Transition | Required Field in Dialog |
+|------|-----------|-------------------------|
+| 1 | `open → in_progress` | *(none)* |
+| 2 | `in_progress → implemented` | **Implementation Notes** *(mandatory — describe what was implemented and how)* |
+| 3 | `implemented → verified` | **Verification Evidence** *(mandatory — describe verification testing/results/evidence)* |
+| 4 | `verified → closed` | *(none)* |
+
+**Sample Implementation Notes (for both recommendations):**
+- Rec 1: `Automated access review tool deployed and integrated with HR termination workflow. Quarterly review schedule configured. All 42 over-privileged accounts remediated.`
+- Rec 2: `ServiceNow ITSM module activated for change management. All staff trained. Emergency change procedure documented and approved.`
+
+**Sample Verification Evidence (for both recommendations):**
+- Rec 1: `Post-implementation review conducted March 2026. Zero terminated employees with active access. Q1 2026 access review completed with 100% coverage. Automated alerts confirmed operational.`
+- Rec 2: `Testing of 15 changes post-implementation showed 100% documentation compliance. CM audit report Q1 2026 confirms zero undocumented production changes.`
 
 ---
 
@@ -680,22 +863,82 @@ After status → `approved`:
 
 **Page:** Sidebar → **Audit Monitoring** → Click **Create**
 
+> **What this is:** `ImplementationMonitoring` is a 1:1 header per recommendation that tracks implementation progress across multiple review cycles. Each cycle is an `AuditeeFollowUpResponse` record.
+
+> **Pre-condition:** The recommendation must be in `in_progress` status or later. Recommendations in `open` status cannot have monitoring created yet.
+
+### Step 1: Create the Monitoring Header
+
 | Field | Value |
 |---|---|
-| **Recommendation** | `REC-2025-001 (Implement Automated User Access Review)` |
-| **Implementation Progress** | `25` (percentage) |
-| **Progress Notes** | `Q3 2026 review: Vendor selected for access review tool. RFP issued and evaluation completed. HR-IT integration requirements documented. Implementation timeline on track.` |
-| **Next Review Date** | `2026-06-30` |
+| **Recommendation** (`recommendation_id`) | `REC-2025-001` *(select Implement Automated User Access Review)* |
+| **Next Review Date** (`next_review_date`) | `2026-06-30` *(optional — target date for first review)* |
 
-**Expected:** Monitoring record created. Update progress over time as implementation advances.
+**Expected:** Monitoring record created with `status: active`.
 
-### ✅ GAP 7 — 5-Day Deadline Enforcement Verification:
-When creating or editing a monitoring record, verify the backend enforces the 5-day review window:
-1. Set `next_review_date` to a date in the past (more than 5 days ago)
-2. The backend should raise a validation error: *"Next review date must be at least 5 days from today"* (or similar)
-3. Set `next_review_date` to today + 4 days → should also fail
-4. Set `next_review_date` to today + 5 days → should succeed
-5. This enforcement applies to both create and update operations (GAP 7 backend constraint in `AuditMonitoringSerializer`)
+> **⚠️ Model note:** The monitoring header status is `active | closed` only. Implementation progress is tracked in the **review cycle** (follow-up responses), not on the header directly.
+
+### Step 2: Create the First Review Cycle
+
+> **⚠️ UI Flow Diverges From Backend Design Here — Read Carefully.**
+
+The backend uses two separate endpoints to create cycles:
+
+- `POST /implementation-monitoring/{pk}/review/` — the "official" cycle-open endpoint. **Requires `implementation_progress` (0–100).** Updates header snapshot fields (`latest_progress`, `last_review_date`) and resets `notification_sent_at` to `null`. Used for cycle 2+.
+- `POST /implementation-monitoring/{pk}/responses/` — the raw list-create endpoint. Creates a cycle with `status=pending` without requiring or storing `implementation_progress`. Does not update header snapshots. Used by the **"Add Response" form in the detail dialog**.
+
+**To create the FIRST cycle in the UI:**
+1. Click **View** (eye icon) on the monitoring record → the detail dialog opens
+2. In the detail dialog, click **Add Response** → submit (no `implementation_progress` stored here)
+3. Cycle 1 is created via `POST /implementation-monitoring/{pk}/responses/` with `status=pending`
+
+> **⚠️ BUG — The "Record Review" dialog in Progress Update is broken:** When `notification_sent_at` is set, clicking **Progress Update** shows the "Record Review" form, which calls `POST /review/` — but the form is missing an `implementation_progress` input field. The backend requires it and returns `MISSING_PROGRESS` if absent. This applies to cycle 2+. **Workaround:** Call `POST /implementation-monitoring/{pk}/review/` directly via API with `{ "implementation_progress": 50 }` for subsequent cycles.
+
+### Step 3: Notify the Auditee (GAP 7)
+
+> **⚠️ Pre-condition for Notify:** The **Notify** action (`POST /implementation-monitoring/{pk}/notify-auditee/`) requires a pending cycle to already exist. The UI shows "Notify" whenever `notification_sent_at` is `null` (including on a fresh monitoring record) — but calling Notify before creating a cycle via Step 2 will fail with `"No open review cycle. Call /review/ first"`.
+>
+> **Correct order:** Complete Step 2 first (create cycle via "Add Response"), then proceed here.
+
+2. Click **Progress Update** on the monitoring record → action shown is **Notify Auditee** (since `notification_sent_at = null`)
+   - Backend: `POST /implementation-monitoring/{pk}/notify-auditee/`
+   - Sets `notified_at` and a **5-business-day response `response_deadline`** on the current cycle
+   - Also mirrors these on the monitoring header
+
+### ✅ GAP 7 — 5-Business-Day Response Window:
+
+GAP 7 is enforced when the **Notify Auditee** action is triggered:
+- Backend calculates: `deadline = notified_at + 5 business days`
+- The `response_deadline` field on the `AuditeeFollowUpResponse` cycle is set automatically
+- If the auditee does not respond by the deadline: `is_overdue = true`
+- This is **not** a validation on `next_review_date` — it's a deadline on the auditee's response window after notification
+
+### Step 4: Auditee Submission and Auditor Verification
+
+> **⚠️ BUG — No UI path for Auditee Submit:** The submit endpoint (`POST /follow-up-responses/{pk}/submit/`, which transitions cycle `pending → submitted`) has no corresponding button or form in the UI. To test this step, call the API directly:
+> ```json
+> POST /follow-up-responses/{cycle_pk}/submit/
+> Body: { "implementation_progress": 40, "progress_notes": "Vendor procurement 40% done" }
+> ```
+
+3. Auditee submits progress via `POST /follow-up-responses/{pk}/submit/` — **API only (no UI)**:
+   - `implementation_progress` (%), `progress_notes`, `evidence_documents`
+   - Transitions cycle status: `pending → submitted`
+   - Backend requires `cycle.status == 'pending'` — will fail with `CYCLE_NOT_PENDING` otherwise
+
+> **⚠️ BUG — Verify button always fails:** The UI's Verify button calls `POST /follow-up-responses/{pk}/verify/` but sends only `{ verification_notes }`. The backend **requires** `verdict` in `('verified', 'rejected')` — the UI is missing this field entirely and always receives `INVALID_VERDICT`. There is also no "Reject" button — only Verify is shown. **Workaround:** Call the verify API directly:
+> ```json
+> POST /follow-up-responses/{cycle_pk}/verify/
+> Body: { "verdict": "verified", "verification_notes": "Progress confirmed by system screenshot" }
+> ```
+> Note: verify also requires `cycle.status == 'submitted'` (from Step 3 above) — will fail with `CYCLE_NOT_SUBMITTED` if called before submit.
+
+4. Auditor verifies via `POST /follow-up-responses/{pk}/verify/` — **API only (no UI, bug as above)**:
+   - **Required:** `verdict` — must be `"verified"` or `"rejected"`
+   - **Optional:** `verification_notes`
+   - If `verdict=verified` AND `implementation_progress >= 100` → monitoring header `status` set to `closed`
+   - If `verdict=verified` AND progress < 100 → header `latest_progress` updated, header stays `active`
+   - If `verdict=rejected` → next cycle starts from Step 2 (call `/review/` again)
 
 ---
 
@@ -706,7 +949,10 @@ When creating or editing a monitoring record, verify the backend enforces the 5-
 **Verify:**
 - All module cards are present and show correct counts
 - Clicking each card navigates to the correct list page
-- The sidebar shows **10 Internal Audit items** (no Auditable Entities, no Working Papers list)
+- The sidebar shows **15 Internal Audit items** under the "Internal Audit" group: Audit Universe, Risk Assessments, Audit Plans, Audit Engagements, Audit Findings, Audit Recommendations, Audit Monitoring, Meetings, Audit Reports, Quarterly Reports, Audit Memos, Declarations, Audit Surveys, Risk Control Matrix, Audit Programs
+- **No "Working Papers" entry in the sidebar navigation** — Working Papers are accessed via the Audit Engagements detail page and via the dashboard card
+- **Working Papers card IS present on the GRC Dashboard** (path: `/service/grc/working-papers`)
+- **No "Auditable Entities" entry** — this concept exists in the Audit Universe, not as a separate sidebar item
 
 ---
 
@@ -715,7 +961,7 @@ When creating or editing a monitoring record, verify the backend enforces the 5-
 **Page:** Sidebar → GRC → **Audit Reports** → Click **Create**
 
 > **Pre-conditions:**
-> 1. The audit engagement must be in `reporting` status — see Phase 7 Step 3 (click **Start Reporting** in the WO Workflow Console)
+> 1. The audit engagement must be in `reporting` **or `completed`** status — see Phase 7 Step 3 (click **Start Reporting** in the WO Workflow Console). The backend allows report creation for both statuses: `engagement.status not in ('reporting', 'completed')` returns `INVALID_ENGAGEMENT_PHASE`.
 > 2. Findings must be in `final` status
 > 3. At least one Audit Opinion must be configured in GRC Configuration (e.g., "Qualified", "Unqualified", "Adverse")
 
@@ -742,9 +988,18 @@ When creating or editing a monitoring record, verify the backend enforces the 5-
 | Step | Action | Result |
 |---|---|---|
 | 1 | Create → status `draft` | Report created |
-| 2 | Click **Progress Update** → select `under_review` | CIA reviews the draft |
-| 3 | Click **Progress Update** → select `approved` | Report approved |
-| 4 | Click **Progress Update** → select `distributed` | Report distributed to auditee |
+| 2 | Click **Progress Update** → select `under_review` | Submitted for CIA review |
+| 2a | *(Optional revert)* Click **Progress Update** → select `draft` | Returns report to `draft` for revision |
+| 3 | Click **Progress Update** → select `approved` | Report approved (triggers GAP 12 inline) |
+| 4 | Click **Distribute** button *(separate dedicated action — NOT Progress Update)* | Report distributed to auditee → `distributed`; **`report_type` automatically set to `'final'`** |
+
+> **⚠️ `distributed` is NOT reachable via Progress Update.** A separate **Distribute** button/endpoint (`AuditReportDistributeView`) handles this final step, which can include setting distribution recipients. The Progress Update only covers `draft ↔ under_review ↔ approved` transitions.
+>
+> **⚠️ `under_review → draft` revert is allowed.** The valid transitions include `under_review → ['approved', 'draft']` — the CIA can return the report to `draft` for revision before approving.
+>
+> **⚠️ Distribution automatically sets `report_type = 'final'`** regardless of what was set during creation. Even if created as `draft` type, after distribution the `report_type` field will read `final`.
+>
+> **⚠️ GAP 12 fires immediately** inside `AuditReportStatusUpdateView` when the status transitions to `approved` — it publishes `finding.finalized` Kafka events inline (not from a Kafka consumer). This means the events fire synchronously as part of the approve action.
 
 ### ✅ GAP 9 — Audit Report Stamp Verification:
 After status → `approved`:
@@ -769,22 +1024,32 @@ Immediately after the report status transitions to `approved`:
 
 **Page:** Sidebar → GRC → **Meetings** → Click **Create**
 
-> Audit meetings track the formal discussions between the audit team and the auditee. Three key meetings are required by the SRS process flow: **Entry Conference** (Step 14), **Pre-Exit Conference** (Step 17), and **Exit Conference** (Step 24).
+> Audit meetings track the formal discussions between the audit team and the auditee. The SRS defines **four** meeting types across the audit lifecycle:
+> - **Entry Conference** (`entry`) — Step 14; engagement must be `planning` or `fieldwork`
+> - **Pre-Exit Conference** (`pre_exit`) — Step 17; engagement must be `fieldwork` or `reporting`
+> - **Audit Team Meeting** (`team`) — Step 20 (internal team consolidation); engagement must be `fieldwork` or `reporting`
+> - **Exit Conference** (`exit`) — Step 24; engagement must be `reporting` or `completed`
+>
+> This phase creates sample data for the three externally-facing meetings (Steps 14, 17, and 24). Step 20 (`team`) is an optional internal team meeting with the same flow.
 >
 > Per SRS Requirement 13: *"The system shall capture attendance and minutes."*
 > Documents (minutes file, attendance sheet) are uploaded to the **Document Records Service** — the same pattern used by Working Papers.
+>
+> **⚠️ API note:** The `meeting_type` field uses short API values: `entry`, `pre_exit`, `team`, `exit`. The UI shows display labels: "Entry Conference", "Pre-Exit Conference", "Audit Team Meeting", "Exit Conference".
+>
+> **⚠️ `scheduled_date`** — The UI shows **two separate inputs**: a **Date** field and a **Time** field. They are combined at submission into a single ISO DateTime (`2026-03-01T09:00:00`). The API field `scheduled_date` is a `DateTimeField` — it expects the combined value.
 
-### Meeting 1: Entry Conference
+### Meeting 1: Entry Conference (`entry` type)
 
 #### Step A — Create (Scheduled)
 
 | Field | Value |
 |---|---|
 | **Engagement** | `ICT General Controls Audit 2025/2026` |
-| **Meeting Type** | `Entry Conference` |
+| **Meeting Type** | `entry` *(API value — UI shows "Entry Conference")* |
 | **Meeting Title** | `ICT Audit Entry Conference — March 2026` |
-| **Scheduled Date** | `2026-03-01` |
-| **Scheduled Time** | `09:00` |
+| **Scheduled Date** | `2026-03-01` *(enter in the Date field)* |
+| **Scheduled Time** | `09:00` *(enter in the separate Time field — UI combines them into `2026-03-01T09:00:00` on submit)* |
 | **Location** | `ICT Directorate Board Room, HQ Building, 3rd Floor` |
 | **Agenda** | `1. Introduction of audit team members and scope of the engagement\n2. Presentation of audit objectives and methodology\n3. Overview of key risk areas identified during planning\n4. Discussion of audit timeline and key milestones\n5. Logistics: document requests, staff availability, access requirements\n6. Questions from ICT Directorate management` |
 
@@ -793,7 +1058,7 @@ Immediately after the report status transitions to `approved`:
 #### Step B — Progress to In Progress
 Click **Progress Update** → select `in_progress`.
 
-> **⚠️ Once in-progress, the structural fields (Engagement, Type, Title, Date, Location, Agenda) are LOCKED.** Only post-meeting fields are editable: Minutes, Key Discussions, Attendees, and document uploads.
+> **⚠️ Once in-progress, the structural fields (Engagement, Type, Title, Date, Location, Agenda) are LOCKED.** Only post-meeting fields are editable while `in_progress`: **Minutes**, **Key Discussions**, **Action Items**, **Attendees**, and document uploads (Minutes Doc, Attendance Sheet).
 
 #### Step C — Edit to Record Post-Meeting Data
 Click **⋮ menu** → **Edit** while meeting is `in_progress`:
@@ -812,6 +1077,8 @@ Click **⋮ menu** → **Edit** while meeting is `in_progress`:
 | `ICT Director` | `Director of ICT` | `Auditee` | ✅ Yes |
 | `ICT Systems Manager` | `Systems Manager` | `Auditee` | ✅ Yes |
 
+| **Action Items** | *(optional JSON list — can add action items arising from the meeting: `[{"description": "Designate liaison officer", "responsible_name": "ICT Director", "due_date": "2026-03-03", "status": "open"}]`)* |
+
 | Document Field | Value |
 |---|---|
 | **Minutes Document** | *(upload a PDF/DOCX file — stored in Document Records Service)* |
@@ -828,21 +1095,47 @@ Click **Progress Update** → select `completed`.
 
 ---
 
-### Meeting 2: Exit Conference
+### Meeting 2: Pre-Exit Conference (`pre_exit` type)
+
+> **SRS Step 17:** Before the exit conference, a pre-exit meeting is held between the audit team to review draft findings and align positions before presenting to the auditee.
+> Requires engagement in `fieldwork` or `reporting` phase.
 
 #### Step A — Create (Scheduled)
 
 | Field | Value |
 |---|---|
 | **Engagement** | `ICT General Controls Audit 2025/2026` |
-| **Meeting Type** | `Exit Conference` |
+| **Meeting Type** | `pre_exit` *(API value — UI shows "Pre-Exit Conference")* |
+| **Meeting Title** | `ICT Audit Pre-Exit Team Review — April 2026` |
+| **Scheduled Date** | `2026-04-20` *(Date field)* |
+| **Scheduled Time** | `10:00` *(Time field — UI combines into `2026-04-20T10:00:00`)* |
+| **Location** | `Internal Audit Directorate Conference Room` |
+| **Agenda** | `1. Review all draft findings for accuracy and completeness\n2. Align team positions on risk ratings\n3. Confirm recommendation wording and responsible parties\n4. Prepare presentation materials for Exit Conference` |
+
+**Expected result:** Second meeting created with status `scheduled`.
+
+#### Steps B–D — Same post-meeting flow as Meeting 1
+Progress → `in_progress` → Edit (add minutes, attendees, key discussions, upload docs) → Progress → `completed`.
+
+---
+
+### Meeting 3: Exit Conference (`exit` type)
+
+> **SRS Step 24:** The exit conference presents final findings and recommendations to auditee management. Requires engagement in `reporting` or `completed` phase.
+
+#### Step A — Create (Scheduled)
+
+| Field | Value |
+|---|---|
+| **Engagement** | `ICT General Controls Audit 2025/2026` |
+| **Meeting Type** | `exit` *(API value — UI shows "Exit Conference")* |
 | **Meeting Title** | `ICT Audit Exit Conference — April 2026` |
-| **Scheduled Date** | `2026-04-25` |
-| **Scheduled Time** | `14:00` |
+| **Scheduled Date** | `2026-04-25` *(Date field)* |
+| **Scheduled Time** | `14:00` *(Time field — UI combines into `2026-04-25T14:00:00`)* |
 | **Location** | `ICT Directorate Board Room, HQ Building, 3rd Floor` |
 | **Agenda** | `1. Presentation of draft audit findings and recommendations\n2. ICT Directorate management response to each finding\n3. Discussion of agreed action plans and target dates\n4. Confirmation of responsible parties for each recommendation\n5. Next steps: report finalization and distribution timeline` |
 
-**Expected result:** Second meeting created with status `scheduled`.
+**Expected result:** Third meeting created with status `scheduled`.
 
 #### Steps B–D — Same post-meeting flow as Meeting 1
 Progress → `in_progress` → Edit (add minutes, attendees, key discussions, upload docs) → Progress → `completed`.
@@ -854,12 +1147,15 @@ Progress → `in_progress` → Edit (add minutes, attendees, key discussions, up
 | Step | Action | Edit Fields Available | Result |
 |---|---|---|---|
 | 1 | **Create** | Engagement, Type, Title, Date, Time, Location, Agenda | `scheduled` |
+| 1a | *(Optional)* **Progress Update** → `cancelled` | — | `cancelled` *(terminal — cannot undo)* |
 | 2 | **Progress Update** → `in_progress` | — | `in_progress` |
-| 3 | **Edit** (⋮ menu) | Minutes, Key Discussions, Attendees, Minutes Doc, Attendance Sheet | Post-meeting data saved |
+| 2a | *(Optional)* **Progress Update** → `cancelled` | — | `cancelled` from `in_progress` *(terminal)* |
+| 3 | **Edit** (⋮ menu) | Minutes, Key Discussions, **Action Items**, Attendees, Minutes Doc, Attendance Sheet | Post-meeting data saved |
 | 4 | **Progress Update** → `completed` | — | `completed` (requires minutes) |
 
 > **⚠️ Backend validation:** Minutes field must be non-empty before `completed` is allowed (`MINUTES_REQUIRED` error otherwise).
 > **⚠️ Document uploads** go to the Document Records Service and return a UUID stored as `minutes_document_id` / `attendance_document_id` on the meeting record.
+> **⚠️ `cancelled` is terminal** — no transitions out of `cancelled` or `completed` are possible.
 
 ---
 
@@ -895,23 +1191,42 @@ Progress → `in_progress` → Edit (add minutes, attendees, key discussions, up
 ### Consolidate Data (Auto-Populate Summary):
 
 1. Open the quarterly report detail (click **View** → **⋮** action menu)
-2. While in `draft` status and not yet consolidated, a **Consolidate** button appears
-3. Click **Consolidate** — the system pulls findings/recommendations summaries from the Q3 engagements
-4. `is_consolidated` badge changes to **Yes**
-5. `findings_summary` and `recommendations_summary` are auto-populated from real data
+2. While in `draft` status, a **Consolidate** button appears
+3. Click **Consolidate** — the system finds `AuditReport` records in `approved` status whose engagement's planned date range overlaps with the reporting period (`2026-01-01` – `2026-03-31`). Counts findings/recommendations/implementation_rate — links them via `engagement_reports` M2M.
+4. Summary statistics (`total_engagements`, `total_findings`, `critical_findings`, `total_recommendations`, `implementation_rate`) are auto-populated from real data.
+
+> **⚠️ Pre-condition for Consolidate:** The ICT General Controls AuditReport (from Phase 13) **must be in `approved` or `distributed` status** before Consolidate can succeed. If no AuditReports with matching date range and eligible status exist, the backend returns `NO_ELIGIBLE_REPORTS` error. Complete Phase 13 first.
+>
+> **⚠️ There is NO `is_consolidated` field in the backend model or API response.** The frontend list page shows an "is_consolidated" badge column but the field is **never returned from the API** — it will always display **"No"** regardless of whether consolidation has occurred. This is a known frontend display bug. Verify actual consolidation by inspecting the `engagement_report_count` field (should be ≥ 1) and the `total_findings` / `total_recommendations` values (should be non-zero after consolidate).
 
 ### Status Workflow for Quarterly Reports:
+
+> **⚠️ Hybrid model:** The first step uses a dedicated **Submit for Approval** action (starts the 4-stage WO workflow). Subsequent transitions use **Progress Update** (which calls `QuarterlyReportStatusUpdateView` and requires an active `workflow_plan_id`).
 
 | Step | Action | Result |
 |---|---|---|
 | 1 | Create → status `draft` | Report in draft |
-| 2 | *(Optional)* Click **Consolidate** | Auto-fills summary data |
-| 3 | Click **Progress Update** → `cia_review` | CIA reviews the quarterly report |
-| 4 | Click **Progress Update** → `management_review` | Management reviews |
-| 5 | Click **Progress Update** → `committee_review` | Audit Committee reviews |
-| 6a | Click **Progress Update** → `improvement_required` | If revisions needed (returns for rework) |
+| 2 | *(Optional)* Click **Consolidate** | Auto-fills summary statistics and links engagement reports |
+| 3 | Click **Submit for Approval** *(dedicated button — starts WO workflow)* | WO created → `status: cia_review` |
+| 3a | *(Optional revert)* Click **Progress Update** → `draft` | CIA returns report to draft for revision |
+| 4 | Click **Progress Update** → `management_review` | CIA approves; management reviews |
+
+> **⚠️ Pre-condition for `management_review`:** The backend enforces two checks before this transition is allowed:
+> 1. At least one audit report must be linked to this quarterly report (satisfied after Consolidate in Step 2)
+> 2. `executive_summary` must be non-empty (satisfied by the data entered during creation)
+
+> **⚠️ BUG — `management_review` transitions are wrong in the UI:** The frontend Progress Update options from `management_review` are `['committee_review', 'draft']`. This is incorrect: the backend only allows `management_review → ['committee_review', 'improvement_required']`.
+> - Selecting **`draft`** from `management_review` in the UI → backend returns `INVALID_STATUS_TRANSITION`. *(Frontend bug: shows a transition the backend rejects.)*
+> - **`improvement_required`** from `management_review` is NOT offered by the UI dropdown. *(Frontend bug: missing option.)* **Workaround:** call `POST /quarterly-reports/{pk}/update-status/` with `{ "status": "improvement_required" }` directly.
+
+| 5 | Click **Progress Update** → `committee_review` | Management adopts; committee reviews |
+| 6a | Click **Progress Update** → `improvement_required` *(from `committee_review`)* | If revisions needed — returns to CIA. Works via UI from `committee_review` only. |
 | 6b | Click **Progress Update** → `approved` | Committee approves |
-| 7 | Click **Progress Update** → `submitted_to_commission` | Submitted to Commission for noting |
+| 7 | Click **Progress Update** → `submitted_to_commission` *(requires `submission_date` in body)* | Submitted to Commission for noting |
+
+> **⚠️ `submitted_to_commission`** requires the request body to include `submission_date` (a date value) **unless already set on the record from creation**. Without it the backend returns `SUBMISSION_DATE_REQUIRED`.
+>
+> **⚠️ `improvement_required → cia_review`** re-activates the WO for a second iteration; the report restarts the review pipeline.
 
 ---
 
@@ -923,12 +1238,12 @@ Progress → `in_progress` → Edit (add minutes, attendees, key discussions, up
 | **Risk Assessment** | `draft` → `submitted` → `reviewed` → `approved` |
 | **Audit Memo** | `draft` → `cia_review` → `dg_review` → `approved` → `transmitted` |
 | **Declaration** | `pending` → `signed` |
-| **Audit Survey** | `draft` → `active` → `closed` |
+| **Audit Survey** | `draft` → `completed` |
 | **Risk Control Matrix** | `draft` → `submitted` → `approved` |
-| **Audit Program** | `draft` → `submitted` → `approved` |
-| **Audit Plan** | `draft` → `cia_review` → `management_review` → `committee_review` → `approved` |
+| **Audit Program** | `draft` → `under_review` → `approved` *(WO 2-stage; submit sets `under_review` immediately)* |
+| **Audit Plan** | `draft` → `management_review` → `approved` *(GRC statuses; WO drives the internal review stages)* |
 | **Audit Engagement** | `planning` → `fieldwork` → `reporting` → `completed` |
-| **Working Paper** | `draft` → `pending` → `approved` |
+| **Working Paper** | `review_status: draft` → `pending` → `reviewed` → `approved` *(submit sets `pending`; WO 2-stage drives `reviewed`/`approved`)* |
 | **Audit Finding** | `draft` → `discussed` → `final` |
 | **Audit Recommendation** | `open` → `in_progress` → `implemented` → `verified` → `closed` |
 | **Audit Report** | `draft` → `under_review` → `approved` → `distributed` |
@@ -937,7 +1252,7 @@ Progress → `in_progress` → Edit (add minutes, attendees, key discussions, up
 
 ---
 
-## Execution Order (34 Steps)
+## Execution Order (35 Steps)
 
 ```
  1.  Login as admin@fcc.go.tz
@@ -949,38 +1264,40 @@ Progress → `in_progress` → Edit (add minutes, attendees, key discussions, up
  6.  Universe Detail → Submit for Approval → Approve via Workflow Console
  7.  GRC → Audit Plans → Create RBIAP-2025-001 (check for auto-generated draft from GAP 11)
  8.  Plan Detail → Submit → Approve through 4-stage workflow
- 9.  GRC → Audit Engagements → Create ENG-2025-001 (ICT audit, type=planned)
-10.  Engagement Detail → Start Engagement Workflow
-11.  GRC → Audit Memos → Create memo for ENG-2025-001 → Progress: draft → cia_review → dg_review → approved → transmitted (GAP 1)
-11a. Audit Memo → Verify GAP 9 stamp: stamped_document_url populated after approved
-12.  GRC → Declarations → Create Declaration 1 (no conflict) → Sign it (GAP 2)
-12a. GRC → Declarations → Create Declaration 2 (with conflict) for edge case
-12b. Declaration → Verify GAP 9 stamp: stamped_document_url populated after signed
-13.  GRC → Audit Surveys → Create preliminary survey for ENG-2025-001 → Progress: draft → active → closed (GAP 3)
-14.  GRC → Risk Control Matrix → Create RCM → Add 2 RCM Entries → Progress: draft → submitted → approved (GAP 4)
-15.  GRC → Audit Programs → Create program → Progress: draft → submitted → approved (GAP 5)
-15a. Audit Program → Verify GAP 9 stamp: stamped_document_url populated after approved
-16.  GRC → Meetings → Create Entry Conference meeting (scheduled → in_progress → completed)
-17.  Engagement Detail → Add 2 Working Papers (WP-001, WP-002)
-18.  Working Paper Detail → Submit → Approve through 2-stage workflow
+ 9.  GRC → Audit Engagements → Create ENG-2025-001 (ICT audit, type=planned) — status = `planning`
+10.  GRC → Audit Memos → Create memo for ENG-2025-001 → Submit (draft → cia_review) → WO Console: Stage 1 = cia_memo_review → Stage 2 = dg_memo_approval → approved (GAP 1) *(no engagement status constraint on memos)*
+10a. Audit Memo → Verify GAP 9 stamp: stamped_document_url populated after approved
+11.  GRC → Declarations → Create Declaration 1 (no conflict) → Sign it *(engagement still `planning`; signed before workflow start so guard passes)* (GAP 2)
+11a. Declaration → Verify GAP 9 stamp: stamped_document_url populated after signed
+12.  GRC → Audit Surveys → Create preliminary survey for ENG-2025-001 → Progress: draft → completed *(engagement must be `planning`)* (GAP 3)
+13.  GRC → Risk Control Matrix → Create RCM → Add 2 RCM Entries → Progress: draft → submitted → approved *(engagement must be `planning`)* (GAP 4)
+14.  GRC → Audit Programs → Create program *(engagement must be `planning`)* → Submit (draft → under_review) → WO Console: Stage 1 = ia_program_review → Stage 2 = cia_program_approval → approved (GAP 5)
+14a. Audit Program → Verify GAP 9 stamp: stamped_document_url populated after approved
+15.  Engagement Detail → **Start Engagement Workflow** *(Survey + RCM + Program all complete; Declaration 1 signed — all `planning`-locked steps done)* → status immediately `fieldwork` → WO Console: Stage 1 (planning) → click **"Start Fieldwork"** → WO advances to Stage 2
+15a. GRC → Declarations → Create Declaration 2 (with conflict, edge case test — declaration creation has no engagement status constraint; engagement now `fieldwork`)
+15b. Declaration 2 → note: NOT signed (edge case display only)
+16.  GRC → Meetings → Create Entry Conference (type=`entry`, engagement `planning`/`fieldwork`) → scheduled → in_progress → completed
+17.  Engagement Detail → Add 2 Working Papers (WP-001, WP-002) → each requires `document_id` (DRS upload)
+18.  Working Paper Detail → Submit (review_status: draft → pending) → WO Console: Stage 1 = working_paper_review → Stage 2 = working_paper_approval → approved
 19.  GRC → Audit Findings → Create FND-2025-001 (Access Controls)
 20.  GRC → Audit Findings → Create FND-2025-002 (Change Management)
 21.  Progress findings: draft → discussed → final
-22.  GRC → Meetings → Create Exit Conference meeting (scheduled → completed)
-23.  GRC → Audit Recommendations → Create REC-2025-001
-24.  GRC → Audit Recommendations → Create REC-2025-002
-25.  Progress recommendations: open → in_progress
-26.  Workflow Console → Start Reporting (engagement → reporting status)
-27.  GRC → Audit Reports → Create draft audit report
-28.  Audit Report → Progress: draft → under_review → approved (check GAP 12 logs) → distributed
-28a. Audit Report → Verify GAP 9 stamp + verify GAP 12 finding.finalized Kafka events in logs
-29.  GRC → Audit Monitoring → Create monitoring for REC-2025-001
-29a. Monitoring → Test GAP 7 deadline: next_review_date < today+5 days should fail validation
-30.  GRC → Quarterly Reports → Create Q3 2025/2026 quarterly report
-31.  Quarterly Report → Click Consolidate (auto-populate summary from real data)
-32.  Quarterly Report → Progress: draft → cia_review → management_review → committee_review → approved → submitted_to_commission
-33.  GRC → Dashboard → Verify all cards and navigation
-34.  Review GRC service logs for any GAP-related errors or warnings
+22.  GRC → Meetings → Create Pre-Exit Conference (type=`pre_exit`, engagement `fieldwork`/`reporting`) → scheduled → completed
+23.  GRC → Meetings → Create Exit Conference (type=`exit`, engagement `reporting`/`completed`) → scheduled → completed
+24.  GRC → Audit Recommendations → Create REC-2025-001
+25.  GRC → Audit Recommendations → Create REC-2025-002
+26.  Progress recommendations: open → in_progress
+27.  Workflow Console → Start Reporting (engagement → reporting status)
+28.  GRC → Audit Reports → Create draft audit report
+29.  Audit Report → Progress: draft → under_review → approved (check GAP 12 logs) → click Distribute button (separate action → distributed)
+29a. Audit Report → Verify GAP 9 stamp + verify GAP 12 finding.finalized Kafka events in logs
+30.  GRC → Audit Monitoring → Create monitoring for REC-2025-001 (recommendation must be `in_progress`)
+30a. Monitoring → POST /{pk}/review/ (progress=25) → POST /{pk}/notify-auditee/ → verify GAP 7 response_deadline set (5 business days)
+31.  GRC → Quarterly Reports → Create Q3 2025/2026 quarterly report
+32.  Quarterly Report → Click Consolidate (auto-fills stats + M2M links from approved AuditReports)
+33.  Quarterly Report → Submit for Approval (draft → cia_review via WO) → Progress Update: management_review → committee_review → approved → submitted_to_commission (with submission_date)
+34.  GRC → Dashboard → Verify all cards and navigation
+35.  Review GRC service logs for any GAP-related errors or warnings
 ```
 
 > **Estimated time:** 60–90 minutes for full end-to-end flow
