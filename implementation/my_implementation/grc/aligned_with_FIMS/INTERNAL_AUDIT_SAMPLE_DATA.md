@@ -120,8 +120,6 @@ Simply verify the above lookup data exists. No creation needed — the `seed_loo
 
 ---
 
-ME: I DID IT AND PASSED — Universe created successfully with correct fiscal year, description, and reviewer.
-
 ## Phase 3 — Add Auditable Entities
 
 **Page:** Sidebar → **Audit Universe** → find your universe row → click the **⋮ (three-dot) action menu** on the right → select **"View"** (Eye icon) → this opens the **Universe Detail page** → scroll down to the **Auditable Entities** section → click **Add Entity**
@@ -165,8 +163,6 @@ ME: I DID IT AND PASSED — Universe created successfully with correct fiscal ye
 | **Description** | `Corporate procurement process — covers tender management, vendor selection, and contract administration` |
 
 **Expected:** 4 entities visible in the Audit Universe detail page's embedded table.
-
-ME: I DID IT AND PASSED — Universe created successfully with correct fiscal year, description, and reviewer.
 
 ---
 
@@ -320,7 +316,7 @@ After saving each risk assessment, open the detail dialog (click **View**) and v
 
 | Field | Value |
 |---|---|
-| **Reference Number** | `RBIAP-2025-001` *(optional — leave empty to auto-generate as `RBIAP-{year_code}-{sequence}`)* |
+| **Reference Number** | *(optional — leave empty to auto-generate as `RBIAP-{year_code}-{sequence}`)* |
 | **Plan Title** | `Risk-Based Internal Audit Plan 2025/2026` |
 | **Plan Type** | `annual` *(API value — displayed in the form as "Annual Plan")* |
 | **Fiscal Year** | `2025/2026` |
@@ -386,7 +382,7 @@ This is **not** an auto-created plan on universe approval. It is a deliberate **
 | Field | Value |
 |---|---|
 | **Title** | `ICT General Controls Audit 2025/2026` |
-| **Reference Number** | `ENG-2025-001` |
+| **Reference Number** | *(optional — leave empty to auto-generate as)* |
 | **Engagement Type** | `planned` *(API value; other options: `unplanned`, `special_investigation`, `follow_up`)* |
 | **Audit Plan** | `RBIAP-2025-001` (select approved plan) |
 | **Auditable Entity** | `ICT Directorate (ICT-001)` |

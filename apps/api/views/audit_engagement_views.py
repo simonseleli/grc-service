@@ -133,11 +133,18 @@ class AuditEngagementListCreateView(APIView):
                 
                 # Verify auditable entity exists
                 entity = get_object_or_404(AuditableEntity, id=entity_id)
-                
+
+                # Auto-generate reference number if blank/not provided
+                if not reference_number:
+                    fiscal_year = plan.fiscal_year
+                    year_code = fiscal_year.year_code.replace('/', '')
+                    existing_count = AuditEngagement.objects.filter(
+                        audit_plan__fiscal_year=fiscal_year
+                    ).count()
+                    reference_number = f"ENG-{year_code}-{existing_count + 1:03d}"
+
                 # Check for duplicate reference number
-                if reference_number and AuditEngagement.objects.filter(
-                    reference_number=reference_number
-                ).exists():
+                if AuditEngagement.objects.filter(reference_number=reference_number).exists():
                     return Response(
                         {
                             "success": False,
@@ -148,7 +155,7 @@ class AuditEngagementListCreateView(APIView):
                         },
                         status=status.HTTP_400_BAD_REQUEST
                     )
-                
+
                 # FIMS pattern: always require authenticated user — no system user fallback
                 user_id = getattr(request.user, 'id', None)
                 if not user_id:
@@ -158,7 +165,10 @@ class AuditEngagementListCreateView(APIView):
                     )
 
                 with transaction.atomic():
-                    engagement = serializer.save(created_by=user_id)
+                    engagement = serializer.save(
+                        created_by=user_id,
+                        reference_number=reference_number,
+                    )
 
                 # Publish FIMS domain event — best-effort, never fails the request
                 try:

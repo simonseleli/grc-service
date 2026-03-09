@@ -122,6 +122,7 @@ class AuditPlanSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
         extra_kwargs = {
+            'reference_number': {'required': False, 'allow_blank': True},  # Auto-generated if blank
             'prepared_by': {'required': False}  # Set programmatically in view
         }
 
@@ -144,6 +145,9 @@ class AuditEngagementSerializer(serializers.ModelSerializer):
             'is_active', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'reference_number': {'required': False, 'allow_blank': True},  # Auto-generated if blank
+        }
 
 
 class AuditFindingSerializer(serializers.ModelSerializer):

@@ -137,11 +137,15 @@ class AuditPlanListCreateView(APIView):
                 
                 # Verify fiscal year exists
                 fiscal_year = get_object_or_404(FiscalYear, id=fiscal_year_id)
-                
+
+                # Auto-generate reference number if blank/not provided
+                if not reference_number:
+                    year_code = fiscal_year.year_code.replace('/', '')
+                    existing_count = AuditPlan.objects.filter(fiscal_year=fiscal_year).count()
+                    reference_number = f"RBIAP-{year_code}-{existing_count + 1:03d}"
+
                 # Check for duplicate reference number
-                if reference_number and AuditPlan.objects.filter(
-                    reference_number=reference_number
-                ).exists():
+                if AuditPlan.objects.filter(reference_number=reference_number).exists():
                     return Response(
                         {
                             "success": False,
@@ -164,8 +168,12 @@ class AuditPlanListCreateView(APIView):
                 with transaction.atomic():
                     # Set prepared_by if not provided
                     prepared_by = serializer.validated_data.get('prepared_by', user_id)
-                    
-                    audit_plan = serializer.save(created_by=user_id, prepared_by=prepared_by)
+
+                    audit_plan = serializer.save(
+                        created_by=user_id,
+                        prepared_by=prepared_by,
+                        reference_number=reference_number,
+                    )
 
                 # Publish FIMS domain event — best-effort, never fails the request
                 try:
