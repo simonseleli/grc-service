@@ -330,6 +330,125 @@ class AuditProgramSubmitView(APIView):
             )
 
 
+class AuditProgramApproveView(APIView):
+    """
+    CIA approves or returns an Audit Program (direct approval endpoint).
+
+    SRS Requirements: 23 — "CIA reviews and approves the draft audit program."
+    Workflow: draft → (submit) → under_review → (approve) → approved
+                                              → (return)  → draft
+
+    POST body: { "action": "approve" | "return", "comments": "..." }
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanApproveAuditProgram().has_permission(request, self):
+            self.permission_denied(request, message='grc:audit_program:approve required.')
+
+    def post(self, request, pk):
+        user_id = getattr(request.user, 'id', None)
+        if not user_id:
+            return error_response(
+                message="User not authenticated",
+                code="AUTH_REQUIRED",
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
+        try:
+            program = get_object_or_404(AuditProgram, pk=pk)
+
+            if program.status != 'under_review':
+                return error_response(
+                    message=f"Only programs under review can be approved or returned. Current status: '{program.status}'",
+                    code="INVALID_STATUS",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            action = request.data.get('action', 'approve')
+            if action not in ('approve', 'return'):
+                return error_response(
+                    message="Invalid action. Use 'approve' or 'return'.",
+                    code="INVALID_ACTION",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            with transaction.atomic():
+                if action == 'approve':
+                    program.status = 'approved'
+                    program.approved_by = user_id
+                    program.approval_date = timezone.now()
+                    program.save(update_fields=['status', 'approved_by', 'approval_date'])
+
+                    # GAP 9 — DRS integration guide §26 Pattern 2:
+                    # Delegate PDF stamping to DRS (CIA signature + QR code overlay).
+                    # Per FIMS Principle 2: GRC must never overlay PDFs itself.
+                    if program.document_id:
+                        try:
+                            from apps.infrastructure.external.document_service_client import DocumentServiceClient
+                            doc_client = DocumentServiceClient(auth_token=None)
+                            doc_client.generate_approved_stamp(
+                                document_id=str(program.document_id),
+                                approver_id=str(user_id),
+                                entity_type='audit_program',
+                                entity_id=str(program.id),
+                                service_token=getattr(settings, 'SERVICE_TO_SERVICE_TOKEN', None),
+                            )
+                            # DRS stamps in-place (§9): GET /documents/{id}/download/ now
+                            # serves the stamped PDF automatically. No URL change needed.
+                            logger.info(
+                                "GAP 9: DRS stamp triggered for AuditProgram %s by CIA %s",
+                                pk, user_id,
+                            )
+                        except Exception as stamp_err:
+                            # Best-effort: log but never block the approval
+                            logger.error(
+                                "GAP 9: DRS stamp failed for AuditProgram %s: %s",
+                                pk, stamp_err,
+                            )
+                else:  # return
+                    program.status = 'draft'
+                    program.workflow_plan_id = None
+                    program.workflow_stage = ''
+                    program.workflow_stage_id = None
+                    program.workflow_started_at = None
+                    program.save(update_fields=[
+                        'status', 'workflow_plan_id', 'workflow_stage',
+                        'workflow_stage_id', 'workflow_started_at',
+                    ])
+
+            if action == 'approve':
+                try:
+                    messaging_service.publish_audit_plan_event(
+                        event_type=AUDIT_PROGRAM_EVENTS['PROGRAM_APPROVED'],
+                        plan_id=program.audit_engagement.audit_plan_id,
+                        additional_data={
+                            'program_id': str(program.id),
+                            'engagement_id': str(program.audit_engagement_id),
+                            'approved_by': str(user_id),
+                        },
+                    )
+                except Exception as event_error:
+                    logger.error("Error publishing program approved event: %s", event_error)
+
+            message = (
+                "Audit program approved successfully"
+                if action == 'approve'
+                else "Audit program returned to draft for revision"
+            )
+            return success_response(
+                data=AuditProgramSerializer(program).data,
+                message=message,
+            )
+        except Exception as e:
+            logger.exception("Error processing approval for AuditProgram %s", pk)
+            return server_error_response(
+                message="Failed to process audit program approval",
+                details=str(e) if settings.DEBUG else None,
+            )
+
+
 class AuditProgramWorkflowStatusView(APIView):
     """Get current workflow status for an audit program from WO Service."""
 

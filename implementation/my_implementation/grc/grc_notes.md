@@ -6,6 +6,7 @@ These are some notes while dealing with **grc-service**.
 
 ## 1. How I do migrations
 
+NOTE:
 I usually run migrations without creating manual files. The workflow:
 
 ```bash
@@ -51,9 +52,9 @@ print('user_id:', d.get('user_id',''))
 
 
 Restarting grc-service:
-docker compose restart grc-service && sleep 5 && echo "Restarted"
+docker compose restart grc-service 2>&1 | tail -3
 
 or  
 
-docker compose restart grc-service 2>&1 | tail -3
+docker compose restart grc-service && sleep 5 && echo "Restarted"
 

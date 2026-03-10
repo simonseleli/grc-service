@@ -2566,6 +2566,16 @@ class AuditProgram(TimestampedModel, StatusMixin, WorkflowMixin):
             '"sample_size": 25, "criteria": "..."}]'
         )
     )
+    audit_scope = models.TextField(
+        blank=True,
+        null=True,
+        help_text=(
+            "Audit scope: areas in scope, areas excluded with justification. "
+            "SRS key data requirement (Process Flow §8): 'LA defines audit scope covering "
+            "areas of focus from the RCM — Areas in scope, Areas excluded with justification, "
+            "Audit objectives.'"
+        )
+    )
     prepared_by = models.UUIDField(
         help_text="LA who prepared the program (user ID from IAM)"
     )

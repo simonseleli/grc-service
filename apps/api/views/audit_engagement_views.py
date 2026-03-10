@@ -13,7 +13,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.core.models import AuditEngagement, AuditPlan, AuditableEntity, DeclarationOfIndependence
+from apps.core.models import AuditEngagement, AuditPlan, AuditableEntity, DeclarationOfIndependence, AuditProgram
 from apps.api.serializers.audit_serializers import AuditEngagementSerializer
 from apps.infrastructure.services.messaging_service import messaging_service
 from shared.constants.event_types import AUDIT_ENGAGEMENT_EVENTS
@@ -517,6 +517,33 @@ class AuditEngagementPhaseTransitionView(APIView):
                         },
                         status=status.HTTP_400_BAD_REQUEST,
                     )
+
+            # SRS Pre-condition (Req 22-23): Audit program must be approved by CIA
+            # before the engagement lifecycle workflow can be started.
+            # Ref: AUDT2_ext.md Process Flow §9 — "CIA approves the audit program
+            # and instructs LA to prepare Engagement Notification (EN)."
+            try:
+                has_approved_program = AuditProgram.objects.filter(
+                    audit_engagement=engagement, status='approved'
+                ).exists()
+            except Exception:
+                has_approved_program = False
+
+            if not has_approved_program:
+                return Response(
+                    {
+                        "success": False,
+                        "error": {
+                            "message": (
+                                "The audit program must be approved by the CIA before the engagement "
+                                "lifecycle workflow can be started. "
+                                "Please ensure the audit program is prepared and approved first."
+                            ),
+                            "code": "AUDIT_PROGRAM_NOT_APPROVED",
+                        },
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
             # Forward the user's JWT to WO so it can authenticate the plan creation request
             auth_header = request.META.get('HTTP_AUTHORIZATION', '')

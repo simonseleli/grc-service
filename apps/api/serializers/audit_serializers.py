@@ -695,7 +695,7 @@ class AuditProgramSerializer(serializers.ModelSerializer):
             'id', 'audit_engagement', 'audit_engagement_id', 'engagement_reference',
             'reference_number', 'title',
             'risk_control_matrix', 'risk_control_matrix_id',
-            'objectives', 'procedures',
+            'objectives', 'procedures', 'audit_scope',
             'prepared_by', 'reviewed_by', 'approved_by', 'approval_date',
             'document_id', 'stamped_document_url',
             'status', 'status_display',

@@ -123,6 +123,7 @@ from apps.api.views.audit_program_views import (
     AuditProgramListCreateView,
     AuditProgramDetailView,
     AuditProgramSubmitView,
+    AuditProgramApproveView,
     AuditProgramWorkflowStatusView,
 )
 from apps.api.views.engagement_notification_views import (   # P2-GAP 1
@@ -272,6 +273,7 @@ urlpatterns = [
     path("programs/", AuditProgramListCreateView.as_view(), name="audit-program-list-create"),
     path("programs/<uuid:pk>/", AuditProgramDetailView.as_view(), name="audit-program-detail"),
     path("programs/<uuid:pk>/submit/", AuditProgramSubmitView.as_view(), name="audit-program-submit"),
+    path("programs/<uuid:pk>/approve/", AuditProgramApproveView.as_view(), name="audit-program-approve"),
     path("programs/<uuid:pk>/workflow-status/", AuditProgramWorkflowStatusView.as_view(), name="audit-program-workflow-status"),
 
     # Engagement Notification endpoints (P2-GAP 1 — SRS Req 24, 25, 26)

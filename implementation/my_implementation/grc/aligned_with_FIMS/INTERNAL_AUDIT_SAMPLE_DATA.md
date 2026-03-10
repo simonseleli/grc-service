@@ -375,14 +375,14 @@ This is **not** an auto-created plan on universe approval. It is a deliberate **
 
 ## Phase 7 — Create Audit Engagement
 
-**Page:** Sidebar → **Audit Engagements** → Click **Create**
+**Page:** Sidebar → GRC → **Audit Engagements** → Click **Create**
 
 > **Pre-condition:** The Audit Plan must be in `approved` or `implementation` status. Engagements cannot be created against plans in any earlier status.
 
 | Field | Value |
 |---|---|
 | **Title** | `ICT General Controls Audit 2025/2026` |
-| **Reference Number** | *(optional — leave empty to auto-generate as)* |
+| **Reference Number** | *(optional — leave empty to auto-generate)* |
 | **Engagement Type** | `planned` *(API value; other options: `unplanned`, `special_investigation`, `follow_up`)* |
 | **Audit Plan** | `RBIAP-2025-001` (select approved plan) |
 | **Auditable Entity** | `ICT Directorate (ICT-001)` |
@@ -395,167 +395,23 @@ This is **not** an auto-created plan on universe approval. It is a deliberate **
 
 **Expected:** Engagement created with status `planning`.
 
-### Start Engagement Workflow:
-
-> **⚠️ CRITICAL ORDERING — do NOT start the workflow yet.** The backend enforces `engagement.status == 'planning'` for Survey (Phase 7c), RCM (Phase 7d), and Audit Program (Phase 7e) creation. Clicking **Start Engagement Workflow** immediately sets the engagement to `fieldwork`, which will cause all three to reject with `INVALID_ENGAGEMENT_STATUS`. **Complete phases 7a through 7e first**, then return here to start the workflow. Also ensure Declaration 1 is signed before starting (any existing unsigned declaration blocks the start).
-
-The engagement lifecycle is driven entirely by the **Work Orchestration (WO) Workflow Console**. Each stage action sends a Kafka event to GRC which updates the engagement status (FIMS Architecture Principle 2).
-
-**Step 1 — Start Engagement Workflow:**
-
-1. Open the engagement detail page
-2. Click the **Start Engagement Workflow** button in the page header
-   - This button only appears when `status = planning` AND no workflow is running yet
-   - Backend: `POST /engagements/{id}/phase-transition/`
-   - **Declaration prerequisite:** If any `DeclarationOfIndependence` records exist for this engagement and are not `signed`, the backend returns `DECLARATIONS_NOT_SIGNED` (400). All declarations must be signed before starting the workflow (see Phase 7b).
-3. On success: GRC engagement status immediately set to `fieldwork` by the service (for UX responsiveness — the WO Kafka event is canonical and will confirm this)
-4. **WO Workflow Console → Stage 1: Audit Planning → click "Start Fieldwork"**
-   - This completes Stage 1 in the WO and fires a `grc.stage.completed` Kafka event with `stage_key=planning, action=start_fieldwork`
-   - GRC Kafka consumer confirms `status = fieldwork` (canonical update)
-   - WO advances to Stage 2: Fieldwork — you can now see the **"Start Reporting"** action
-
-> **⚠️ Stage 1 must be completed in WO Console before Stage 2 is accessible.** If you skip clicking "Start Fieldwork", the WO stays on Stage 1 and the "Start Reporting" action will not be visible yet.
-
-**Step 2 — Fieldwork → Reporting:**
-
-5. Complete fieldwork: create working papers (Phase 8), findings (Phase 9), recommendations (Phase 10)
-6. In the **WO Workflow Console** → **Stage 2: Fieldwork** → click **Start Reporting**
-   - WO fires a `grc.stage.completed` Kafka event with `stage_key=fieldwork, action=start_reporting`
-   - GRC consumer updates engagement status to `reporting` ✓
-
-**Step 3 — Reporting → Completed:**
-
-7. *(After audit report is created and approved — Phase 13)*
-   In the **WO Workflow Console** → **Stage 3: Reporting** → click **Mark Complete**
-   - WO fires a `grc.workflow.completed` event with `final_decision=approved`
-   - GRC consumer updates engagement status to `completed`, sets `actual_end_date` ✓
-
-**Full WO stage sequence:**
-
-| # | WO stage_key | Stage Name | Action Button | GRC Status After |
-|---|---|---|---|---|
-| 1 | `planning` | Audit Planning | **Start Fieldwork** *(completes Stage 1 — GRC status already `fieldwork` from service, Kafka confirms)* | `fieldwork` |
-| 2 | `fieldwork` | Fieldwork | **Start Reporting** | `reporting` |
-| 3 | `reporting` | Reporting | **Mark Complete** | `completed` |
-
-> **Rejection path:** If cancelled at any stage, GRC resets engagement status to `planning` and clears `workflow_plan_id`.
-
-> **⚠️ Important:** After Step 1 (Start Engagement Workflow), all subsequent stage transitions are **only via the WO Console** — there are no further GRC-side buttons for fieldwork or reporting transitions.
-
-> **⚠️ Important:** You must complete Step 2 above (click **Start Reporting** in WO) before attempting Phase 13 (Create Audit Report). The Audit Report create form only shows engagements in `reporting` or `completed` status.
+> **⚠️ CRITICAL ORDERING — complete sub-phases 7a through 7e before starting the workflow.**
+> The backend enforces `engagement.status == 'planning'` for Survey (7a), RCM (7b), and Audit Program (7c). Clicking **Start Engagement Workflow** sets status to `fieldwork` immediately, which will cause those create forms to reject with `INVALID_ENGAGEMENT_STATUS`. Also, all Declarations must be `signed` before the workflow can start (Phase 7e). Follow the order below exactly:
+>
+> **7a → Survey → 7b → RCM → 7c → Audit Program → 7d → Engagement Notification → 7e → Declarations → Start Workflow**
 
 ---
 
-## Phase 7a — Create Audit Memo (GAP 1 — SRS Req 10–14, 18)
+## Phase 7a — Audit Survey / Preliminary Control Assessment (GAP 3 — SRS Req 19–21)
 
-**Page:** Sidebar → GRC → **Audit Memos** → Click **Create**
+**Page:** Sidebar → GRC → **Audit Engagements** → click your engagement row → **Engagement Detail page** → scroll to the **Audit Surveys** card → click **Add**
 
-> **SRS:** CIA appoints Lead Auditor and prepares an engagement memo. It goes through CIA review → DG review → approval → transmission to Lead Auditor.
-> **Model:** `AuditMemo` links to an **Audit Plan** + **Auditable Entity** (not an Engagement). The engagement is created *after* the memo is transmitted.
-> **GAP 9:** After status reaches `approved`, the memo is stamped with QR code + approver signature via DRS. The `stamped_document_url` field is populated automatically.
-
-| Field | Value |
-|---|---|
-| **Audit Plan** (`audit_plan_id`) | `RBIAP-2025-001` (select from SmartSelect — approved/implementation plans only) |
-| **Auditable Entity** (`auditable_entity_id`) | `ICT Directorate (ICT-001)` |
-| **Title** (`title`) | `Audit of ICT General Controls — Q3 FY 2025/2026` |
-| **Purpose** (`purpose`) | `This memo appoints the Lead Auditor and audit team for the ICT General Controls Audit scheduled for Q3 FY 2025/2026. The audit scope covers access management, change management, backup and recovery, and network security controls. The team is instructed to proceed as per the approved audit plan RBIAP-2025-001 and report progress weekly.` |
-| **Scope Summary** (`scope_summary`) | `ICT General Controls — access management, change management, backup and recovery, network security configuration.` |
-| **Lead Auditor** (`lead_auditor`) | *(auto-filled from logged-in user UUID)* |
-| **Audit Team** (`audit_team`) | `[]` *(optional JSON array — leave empty or add team member UUIDs)* |
-| **Timeline Start** (`timeline_start`) | `2026-03-01` |
-| **Timeline End** (`timeline_end`) | `2026-04-30` |
-
-**Expected result:** Memo created with status `draft`.
-
-### Status Workflow (2-stage WO workflow — SRS Steps 10–14):
-
-1. Click **Submit Memo for Review**
-   - Backend: `POST /memos/{id}/submit/`
-   - Memo status immediately set to `cia_review` by the service
-   - Work Orchestration starts a 2-stage workflow
-2. In the **WO Workflow Console**, complete each stage:
-
-| # | WO stage_key | Stage Name | Action Button |
-|---|---|---|---|
-| 1 | `cia_memo_review` | CIA Review | **Forward to DG** / Return to Lead Auditor |
-| 2 | `dg_memo_approval` | DG Approval | **Approve** / Return to CIA |
-
-3. After WO final approval → Kafka event → GRC `memo.status = approved`
-
-> **Rejection path:** Rejected/cancelled at any stage → GRC resets `memo.status = draft`, clears `workflow_plan_id`.
-
-> **⚠️ Note:** `dg_review` and `transmitted` statuses exist in the model but are **not set by the current WO-driven flow**. After DG approves in WO, GRC status jumps from `cia_review` directly to `approved`.
-
-### ✅ GAP 9 Stamp Verification:
-After status → `approved`:
-1. Open the memo detail dialog (click **View**)
-2. A **"Download Approved Memo"** button should appear (visible only when `stamped_document_url` is set)
-3. This requires the memo to have a `document_id` (uploaded via DRS first)
-4. Check GRC service logs for: `Stamp triggered for audit_memo {id}`
-
----
-
-## Phase 7b — Declaration of Independence (GAP 2 — SRS Req 16, 18, 38)
-
-**Page:** Sidebar → GRC → **Declarations** → Click **Create**
-
-> **SRS:** Each audit team member must sign a Declaration of Independence before participating in an engagement.
-> **How it works:** The create form auto-fills `declarant_name`, `declarant_role`, and `declarant_user_id` from the currently logged-in user (via auth context). The engagement dropdown shows all active engagements.
-> **GAP 9:** After a declaration is signed, it is stamped with QR code + signature via DRS. The `stamped_document_url` field is populated automatically.
-
-### Declaration 1 — No Conflict (Standard Case)
+> **SRS §1.8.3 Steps 4–7:** The audit team familiarises themselves with the auditable area (preliminary survey), assesses the design adequacy of controls, and documents fraud risk factors. The survey findings directly inform the RCM and audit program.
+> **Model:** `AuditSurvey` is OneToOneField per engagement — only one survey can exist per engagement. There is no `title` or `survey_type` field on the model.
 
 | Field | Value |
 |---|---|
-| **Engagement** | `ICT General Controls Audit 2025/2026` |
-| **I am independent** toggle | `ON` (default — has_conflict = false) |
-| **Conflict Details** | *(leave empty — only shown when toggle is OFF)* |
-| **Declaration Text** | *(pre-filled default text — do not change)* |
-
-**Expected result:** Declaration created with status `pending`, declarant_name auto-filled from auth.
-
-### Declaration 2 — With Conflict (Edge Case Test)
-
-| Field | Value |
-|---|---|
-| **Engagement** | `ICT General Controls Audit 2025/2026` |
-| **I am independent** toggle | `OFF` → conflict_details field appears |
-| **Conflict Details** | `I have a financial relationship with ICT Solutions Ltd, one of the vendors being reviewed in this engagement. I declare this conflict for CIA awareness and decision.` |
-
-**Expected result:** Declaration created with `has_conflict = true`, conflict_details populated.
-
-### Sign Declaration (SRS: "team member signs"):
-
-1. Find Declaration 1 in the list → click **⋮** → **Sign**
-2. Confirmation dialog: *"Are you sure you want to sign this declaration?"*
-3. Confirm → `status: pending → signed`, `is_signed = true`, `signed_at` timestamp set
-
-### ✅ List verification:
-- `engagement_reference` column shows engagement ref number (e.g. `ENG-2025-001`)
-- `declarant_name` column shows the logged-in user's name
-- `has_conflict` badge: green `Independent` or red `Has Conflict`
-
-### ✅ Detail dialog verification (click View):
-- Shows `declarant_name`, `declarant_role`, `has_conflict` status
-- Shows `conflict_details` section (only if has_conflict = true)
-- Shows `signed_at` timestamp (only after signed)
-
-### ✅ GAP 9 Stamp Verification:
-After signing → open detail dialog → **"Download Signed Declaration"** button appears if `stamped_document_url` is populated.
-
----
-
-## Phase 7c — Audit Survey / Fraud Risk Assessment (GAP 3 — SRS Req 19–21)
-
-**Page:** Sidebar → GRC → **Audit Surveys** → Click **Create**
-
-> **SRS:** LA conducts preliminary survey, assesses control environment, and evaluates fraud risk. The fraud risk assessment and control assessments inform the audit program design.
-> **Model:** `AuditSurvey` is one-per-engagement (OneToOneField). There is no `title` or `survey_type` field.
-
-| Field | Value |
-|---|---|
-| **Engagement** (`audit_engagement_id`) | `ICT General Controls Audit 2025/2026` |
+| **Engagement** (`audit_engagement_id`) | `ICT General Controls Audit 2025/2026` *(auto-populated from the engagement detail page)* |
 | **Surveyed By** (`surveyed_by`) | *(auto-filled from logged-in user UUID)* |
 | **Survey Date** (`survey_date`) | `2026-03-05` |
 | **Process Description** (`process_description`) | `Preliminary survey covering the ICT General Controls environment. Processes assessed include user access management, IT change management, backup and disaster recovery, and network security configuration.` |
@@ -565,7 +421,7 @@ After signing → open detail dialog → **"Download Signed Declaration"** butto
 | **Control Assessments** (`control_assessments`) | `[{"control_name": "Quarterly Access Reviews", "control_owner": "ICT Director", "design_adequate": false, "notes": "No quarterly reviews performed; access review process not documented", "test_strategy": "effectiveness"}, {"control_name": "Change Management Approval", "control_owner": "IT Operations Manager", "design_adequate": true, "notes": "Process well-designed but inconsistently followed", "test_strategy": "effectiveness"}, {"control_name": "Backup & Recovery", "control_owner": "IT Operations Manager", "design_adequate": false, "notes": "No recent restoration test conducted", "test_strategy": "impact"}]` *(JSON array — each object must have `control_name`, `control_owner`, `design_adequate` (boolean), `notes`, `test_strategy`)* |
 | **Preliminary Findings** (`preliminary_findings`) | `Access review process not documented; 15 of 42 accounts had excessive privileges. Change management bypassed for emergency changes. Backup restoration last tested 18 months ago.` |
 
-**Expected result:** Survey created with status `draft`.
+**Expected result:** Survey created with status `draft`. It appears in the **Audit Surveys** card on the Engagement Detail page.
 
 ### Status Workflow:
 
@@ -574,30 +430,32 @@ After signing → open detail dialog → **"Download Signed Declaration"** butto
 | Step | Action | Status |
 |---|---|---|
 | 1 | Created | `draft` |
-| 2 | Click **Progress Update** → `completed` | `completed` — survey finalized |
+| 2 | Click **Mark Complete** button on the survey row | `completed` — survey finalized |
+
+> **Navigation:** The **Mark Complete** button appears directly on the survey row in the **Audit Surveys** card (only visible when status is `draft`). There is no separate detail page for surveys.
 
 ---
 
-## Phase 7d — Risk Control Matrix (GAP 4 — SRS Req 22)
+## Phase 7b — Risk Control Matrix (GAP 4 — SRS Req 22)
 
-**Page:** Sidebar → GRC → **Risk Control Matrix** → Click **Create**
+**Page:** Sidebar → GRC → **Audit Engagements** → click your engagement row → **Engagement Detail page** → scroll to the **Risk Control Matrix** card → click **Add**
 
-> **SRS:** LA develops an RCM documenting all identified risks, associated controls, control design adequacy, and planned test approach for each control.
+> **SRS §1.8.3 Step 8:** Based on the preliminary survey, the Lead Auditor develops the RCM documenting all identified risks, associated controls, control design adequacy, and the planned test approach for each control.
 
 ### Step 1: Create the RCM Header
 
-> **⚠️ Model note:** `RiskControlMatrix` has no `title` or `description` field. The create form only needs the engagement.
+> **⚠️ Model note:** `RiskControlMatrix` has no `title` or `description` field. The create form only requires the engagement. `prepared_by` is auto-filled from the logged-in user.
 
 | Field | Value |
 |---|---|
-| **Engagement** (`audit_engagement_id`) | `ICT General Controls Audit 2025/2026` |
+| **Engagement** (`audit_engagement_id`) | `ICT General Controls Audit 2025/2026` *(auto-populated from the engagement detail page)* |
 | **Prepared By** (`prepared_by`) | *(auto-filled from logged-in user UUID)* |
 
-**Expected:** RCM created with status `draft`.
+**Expected:** RCM created with status `draft`. It appears in the **Risk Control Matrix** card on the Engagement Detail page.
 
 ### Step 2: Add RCM Entries
 
-> **Navigation:** Open the RCM detail → click **Add Entry** to add each row.
+**Navigation:** In the **Risk Control Matrix** card, click the RCM row → this navigates to the **RCM Detail page** (`/service/grc/engagements/{id}/rcm/{rcm_id}`) → click **Add Entry** to add each row.
 
 #### RCM Entry 1: Access Management
 
@@ -608,12 +466,12 @@ After signing → open detail dialog → **"Download Signed Declaration"** butto
 | **Risk Rating** (`risk_rating_id`) | `High Risk` (select from configured Risk Ratings) |
 | **Control Description** (`control_description`) | `Quarterly user access reviews to ensure least-privilege access` |
 | **Control Owner** (`control_owner`) | `ICT Director` |
-| **Control Type** (`control_type`) | `preventive` |
+| **Control Type** (`control_type`) | `preventive` *(API values: `preventive` \| `detective` \| `corrective` — no other values accepted)* |
 | **In Scope** (`in_scope`) | `Yes` (toggle ON) |
 | **Design Adequate** (`design_adequate`) | `No` (toggle OFF — control exists but design is flawed) |
 | **Design Assessment Notes** (`design_assessment_notes`) | `Access review process is not formally documented. No evidence of execution in the last 12 months. 15 of 42 sampled accounts had excessive privileges.` |
 | **Test Approach** (`test_approach`) | `effectiveness_test` *(API values: `effectiveness_test` \| `impact_test` \| `not_applicable` — NOT `walkthrough` or `substantive`)* |
-| **Priority** (`priority`) | `high` |
+| **Priority** (`priority`) | `high` *(API values: `high` \| `medium` \| `low`)* |
 
 > **⚠️ Note:** There is no `test_result` or `comments` field on `RCMEntry`. Test outcomes are captured in Working Papers and Audit Findings.
 
@@ -635,56 +493,212 @@ After signing → open detail dialog → **"Download Signed Declaration"** butto
 
 ### Step 3: Submit RCM for Approval
 
+> Both buttons are in the **top-right corner** of the RCM Detail page (`/engagements/{id}/rcm/{rcm_id}`). Only one button is visible at a time depending on current status.
+
 | Step | Action | Status | SRS Mapping |
 |---|---|---|---|
 | 1 | Created | `draft` | LA develops RCM |
-| 2 | Click **Progress Update** → `submitted` | `submitted` | Submitted to CIA |
-| 3 | Click **Progress Update** → `approved` | `approved` | CIA approves RCM |
+| 2 | Click **Submit for Approval** button (top-right) | `submitted` | Submitted to CIA |
+| 3 | Click **Approve RCM** button (top-right, appears after submit) | `approved` | CIA approves RCM |
 
 ---
 
-## Phase 7e — Audit Program (GAP 5 — SRS Req 22–23)
+## Phase 7c — Audit Program (GAP 5 — SRS Req 22–23)
 
-**Page:** Sidebar → GRC → **Audit Programs** → Click **Create**
+**Page:** Sidebar → GRC → **Audit Engagements** → click your engagement row → **Engagement Detail page** → scroll to the **Audit Programs** card → click **Add**
 
-> **SRS:** LA prepares the draft audit program based on the RCM. CIA reviews and approves the program before fieldwork begins.
+> **SRS §1.8.3 Steps 8–9:** The Lead Auditor prepares the draft audit program based on the approved RCM, defining the scope, objectives, and specific audit procedures. The CIA reviews and approves the program before fieldwork begins.
 > **GAP 9:** After status reaches `approved`, the program is stamped with QR code + approver signature via DRS.
 
 | Field | Value |
 |---|---|
-| **Engagement** | `ICT General Controls Audit 2025/2026` |
-| **Title** | `ICT General Controls Audit Program — Q3 2025/2026` |
+| **Engagement** (`audit_engagement_id`) | `ICT General Controls Audit 2025/2026` *(auto-populated from the engagement detail page)* |
+| **Title** (`title`) | `ICT General Controls Audit Program — Q3 2025/2026` |
 | **Objectives** (`objectives`) | `["Assess adequacy of user access management controls", "Evaluate change management documentation and approval processes", "Verify backup and disaster recovery procedures", "Review network security configuration and monitoring"]` |
 | **Procedures** (`procedures`) | `[{"rcm_entry_id": null, "procedure": "Inspect access review records for 42 sampled user accounts", "sample_size": 42, "criteria": "Quarterly access review must be documented and signed off"}, {"rcm_entry_id": null, "procedure": "Substantive testing of 12 sampled production changes for completeness of documentation", "sample_size": 12, "criteria": "Change request, impact assessment, and approvals must all be present"}, {"rcm_entry_id": null, "procedure": "Review backup restoration test records", "sample_size": null, "criteria": "Restoration test must be conducted at least annually"}]` *(JSON array — each object has `rcm_entry_id` (UUID or null), `procedure`, `sample_size` (int or null), `criteria`)* |
 
-**Expected result:** Program created with status `draft`.
+**Expected result:** Program created with status `draft`. It appears in the **Audit Programs** card on the Engagement Detail page.
 
-> **⚠️ Pre-condition:** The audit engagement must be in `planning` status to create an Audit Program. The create form enforces this.
+> **⚠️ Pre-condition:** The audit engagement must be in `planning` status. The create form enforces this.
 
 ### Status Workflow (2-stage WO workflow — SRS Steps 22–23):
 
-> **⚠️ Model note:** Status is `draft → under_review → approved`. There is NO Progress Update button — it uses a dedicated **Submit** button that starts a WO workflow.
+> **⚠️ Model note:** Status is `draft → under_review → approved`. To submit, click the program row in the **Audit Programs** card → the **Audit Program detail dialog** opens → click **Submit** inside the dialog. This starts the WO workflow.
 
-1. Click **Submit** (or Submit for Approval)
+1. In the **Audit Programs** card, click the program row → **Audit Program detail dialog** opens
+2. Click **Submit** in the dialog
    - Backend: `POST /audit-programs/{id}/submit/`
    - Program status immediately set to `under_review` by the service
    - Work Orchestration starts a 2-stage workflow
-2. In the **WO Workflow Console**, complete each stage:
+3. In the **WO Workflow Console**, complete each stage:
 
 | # | WO stage_key | Stage Name | Action Button |
 |---|---|---|---|
 | 1 | `ia_program_review` | IA Review | **Approve** / Return to Lead Auditor |
 | 2 | `cia_program_approval` | CIA Approval | **Approve** / Return to IA |
 
-3. After WO final approval → Kafka event → GRC `program.status = approved`
+4. After WO final approval → Kafka event → GRC `program.status = approved`
 
 > **Rejection path:** Rejected/cancelled at any stage → GRC resets `program.status = draft`, clears `workflow_plan_id`.
 
 ### ✅ GAP 9 Stamp Verification:
 After status → `approved`:
-1. Open program detail dialog (click **View**)
-2. A **"Download Approved Program"** button should appear
+1. Click the program row in the **Audit Programs** card → detail dialog opens
+2. A **"Download Approved Program"** button should appear (visible only when `stamped_document_url` is set)
 3. Check GRC service logs for: `Stamp triggered for audit_program {id}`
+
+---
+
+## Phase 7d — Engagement Notification (GAP 1 — SRS Req 10–14, 18)
+
+**Page:** Sidebar → GRC → **Audit Engagements** → click your engagement row → **Engagement Detail page** → scroll to the **Engagement Notification** card → click **Add**
+
+> **SRS §1.8.3 Steps 10–12:** After the audit program is approved, the Lead Auditor prepares the Engagement Notification (EN) — a formal notice to the auditable area. The CIA reviews it, the DG approves it, and it is then transmitted to the auditee.
+> **Model:** `EngagementNotification` is OneToOneField per engagement — only one EN can exist per engagement. The **Add** button only appears when no EN exists yet; once created, click the EN row to view or manage it.
+> **GAP 9:** After the EN reaches `approved` status, it is stamped with QR code + approver signature via DRS. The `stamped_document_url` field is populated automatically.
+
+| Field | Value |
+|---|---|
+| **Engagement** (`audit_engagement_id`) | `ICT General Controls Audit 2025/2026` *(auto-populated from the engagement detail page)* |
+| **Audit Period Start** (`audit_period_start`) | `2026-03-01` |
+| **Audit Period End** (`audit_period_end`) | `2026-04-30` |
+| **Notification Date** (`notification_date`) | `2026-02-14` *(date the EN is formally issued to the auditee)* |
+| **Scope Summary** (`scope_summary`) | `ICT General Controls — access management, change management, backup and recovery, network security configuration.` |
+| **Audit Team Snapshot** (`audit_team_snapshot`) | `[]` *(optional JSON array of team members — leave empty or add: `[{"user_id": "uuid", "role": "lead_auditor", "name": "Full Name"}]`)* |
+
+**Expected result:** EN created with status `draft`. It appears in the **Engagement Notification** card on the Engagement Detail page.
+
+### Status Workflow (2-stage WO workflow — SRS Steps 10–14):
+
+> **Note:** The EN detail dialog (opened by clicking the EN row) is read-only — no workflow buttons exist inside it. All workflow progression happens via the **WO Workflow Console** on the right side of the Engagement Detail page.
+
+1. Click **Submit** *(the Submit action is available on the EN detail view or via the WO Console)*
+   - Backend: `POST /engagement-notifications/{id}/submit/`
+   - EN status immediately set to `under_review` by the service
+   - Work Orchestration starts a 2-stage workflow
+2. In the **WO Workflow Console**, complete each stage:
+
+| # | WO stage_key | Stage Name | Action Button |
+|---|---|---|---|
+| 1 | `cia_memo_review` | CIA Review | **Forward to DG** / Return to Lead Auditor |
+| 2 | `dg_memo_approval` | DG Approval | **Approve** / Return to CIA |
+
+3. After WO final approval → Kafka event → GRC `notification.status = approved`
+4. Click **Transmit** to formally send the EN to the auditee
+   - Backend: `POST /engagement-notifications/{id}/transmit/`
+   - Status updates to `transmitted`
+
+**Full status progression:**
+
+| Status | Meaning |
+|---|---|
+| `draft` | EN created, not yet submitted |
+| `under_review` | Submitted — WO workflow running (CIA/DG review) |
+| `approved` | WO approved — ready to transmit |
+| `transmitted` | Formally sent to auditee |
+
+> **Rejection path:** Rejected/cancelled at any WO stage → GRC resets `notification.status = draft`, clears `workflow_plan_id`. The Submit action reappears.
+
+### ✅ GAP 9 Stamp Verification:
+After status → `approved`:
+1. Click the EN row in the **Engagement Notification** card → detail dialog opens
+2. A **"Download Approved Notification"** button should appear (visible only when `stamped_document_url` is set)
+3. Check GRC service logs for: `Stamp triggered for engagement_notification {id}`
+
+---
+
+## Phase 7e — Declaration of Independence (GAP 2 — SRS Req 16, 18, 38)
+
+**Page:** Sidebar → GRC → **Audit Engagements** → click your engagement row → **Engagement Detail page** → scroll to the **Declarations** card → click **Add**
+
+> **SRS:** Each audit team member must sign a Declaration of Independence before participating in an engagement. All declarations must be `signed` before the **Start Engagement Workflow** button will succeed — the backend returns `DECLARATIONS_NOT_SIGNED` (400) if any are still `pending`.
+> **How it works:** The create form auto-fills `declarant_name`, `declarant_role`, and `declarant_user_id` from the currently logged-in user (via auth context).
+> **GAP 9:** After a declaration is signed, it is stamped with QR code + signature via DRS. The `stamped_document_url` field is populated automatically.
+
+### Declaration 1 — No Conflict (Standard Case)
+
+| Field | Value |
+|---|---|
+| **Engagement** (`audit_engagement_id`) | `ICT General Controls Audit 2025/2026` *(auto-populated from the engagement detail page)* |
+| **I am independent** toggle | `ON` (default — has_conflict = false) |
+| **Conflict Details** | *(leave empty — only shown when toggle is OFF)* |
+| **Declaration Text** | *(pre-filled default text — do not change)* |
+
+**Expected result:** Declaration created with status `pending`, `declarant_name` auto-filled from auth.
+
+### Declaration 2 — With Conflict (Edge Case Test)
+
+| Field | Value |
+|---|---|
+| **Engagement** (`audit_engagement_id`) | `ICT General Controls Audit 2025/2026` |
+| **I am independent** toggle | `OFF` → conflict_details field appears |
+| **Conflict Details** | `I have a financial relationship with ICT Solutions Ltd, one of the vendors being reviewed in this engagement. I declare this conflict for CIA awareness and decision.` |
+
+**Expected result:** Declaration created with `has_conflict = true`, conflict_details populated.
+
+### Sign Declaration (SRS: "team member signs"):
+
+1. In the **Declarations** card, click a declaration row → **Declaration detail dialog** opens
+2. Click **Sign** inside the dialog
+3. Status updates: `pending → signed`, `is_signed = true`, `signed_at` timestamp set
+
+> **⚠️ Sign is inside the detail dialog** — not in a ⋮ menu. Click the declaration row to open the dialog, then click Sign.
+
+### ✅ Verification:
+- Each declaration row shows `declarant_name` and `has_conflict` badge (green Independent / red Has Conflict)
+- After signing, the row shows a `signed` badge
+- `signed_at` timestamp is visible in the detail dialog after signing
+
+### ✅ GAP 9 Stamp Verification:
+After signing → open detail dialog → a **"Download Signed Declaration"** button appears if `stamped_document_url` is populated.
+
+---
+
+### Start Engagement Workflow
+
+> **⚠️ Pre-conditions before clicking Start:**
+> - All sub-phases 7a through 7e above must be complete
+> - All `DeclarationOfIndependence` records for this engagement must have `status = signed` (any `pending` declaration blocks the start with `DECLARATIONS_NOT_SIGNED` error)
+
+The engagement lifecycle is driven entirely by the **Work Orchestration (WO) Workflow Console** on the right side of the Engagement Detail page.
+
+**Step 1 — Start Engagement Workflow:**
+
+1. Open the Engagement Detail page (Sidebar → GRC → **Audit Engagements** → click your engagement)
+2. Click the **Start Engagement Workflow** button in the page header
+   - This button only appears when `status = planning` AND no workflow is running yet
+   - Backend: `POST /engagements/{id}/phase-transition/`
+3. On success: GRC engagement status immediately set to `fieldwork` by the service (for UX responsiveness — the WO Kafka event confirms canonically)
+4. **WO Workflow Console → Stage 1: Audit Planning → click "Start Fieldwork"**
+   - Fires a `grc.stage.completed` Kafka event with `stage_key=planning, action=start_fieldwork`
+   - GRC Kafka consumer confirms `status = fieldwork`
+   - WO advances to Stage 2: Fieldwork
+
+> **⚠️ Stage 1 must be completed in the WO Console before Stage 2 is accessible.** If you skip clicking "Start Fieldwork", the WO stays on Stage 1 and the "Start Reporting" action will not appear.
+
+**Step 2 — Fieldwork → Reporting:**
+
+5. Complete fieldwork: create working papers (Phase 8), findings (Phase 9), recommendations (Phase 10)
+6. **WO Workflow Console → Stage 2: Fieldwork** → click **Start Reporting**
+   - GRC consumer updates engagement status to `reporting` ✓
+
+**Step 3 — Reporting → Completed:**
+
+7. *(After audit report created and approved — Phase 13)*
+   **WO Workflow Console → Stage 3: Reporting** → click **Mark Complete**
+   - GRC consumer updates engagement status to `completed`, sets `actual_end_date` ✓
+
+**Full WO stage sequence:**
+
+| # | WO stage_key | Stage Name | Action Button | GRC Status After |
+|---|---|---|---|---|
+| 1 | `planning` | Audit Planning | **Start Fieldwork** | `fieldwork` |
+| 2 | `fieldwork` | Fieldwork | **Start Reporting** | `reporting` |
+| 3 | `reporting` | Reporting | **Mark Complete** | `completed` |
+
+> **Rejection path:** If cancelled at any stage, GRC resets engagement status to `planning` and clears `workflow_plan_id`.
+
+> **⚠️ Important:** You must click **Start Reporting** in WO (Step 2) before attempting Phase 13 (Create Audit Report). The Audit Report create form only shows engagements in `reporting` or `completed` status.
 
 ---
 

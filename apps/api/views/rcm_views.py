@@ -163,10 +163,9 @@ class RCMDetailView(APIView):
             ).get(pk=pk)
             return success_response(
                 data=RiskControlMatrixSerializer(rcm).data,
-                resource="risk_control_matrix",
             )
         except RiskControlMatrix.DoesNotExist:
-            return not_found_response(resource="risk_control_matrix")
+            return not_found_response("Risk control matrix not found")
 
     def put(self, request, pk):
         try:
@@ -185,7 +184,6 @@ class RCMDetailView(APIView):
                     serializer.save(modified_by=user_id)
                 return success_response(
                     data=RiskControlMatrixSerializer(rcm).data,
-                    resource="risk_control_matrix",
                 )
             return validation_error_response(serializer.errors)
         except Exception as e:
@@ -430,7 +428,7 @@ class RCMEntryDetailView(APIView):
             entry = RCMEntry.objects.select_related('risk_rating', 'risk_control_matrix').get(pk=pk)
             return success_response(data=RCMEntrySerializer(entry).data)
         except RCMEntry.DoesNotExist:
-            return not_found_response(resource="rcm_entry")
+            return not_found_response("RCM entry not found")
 
     def put(self, request, pk):
         try:
@@ -468,6 +466,9 @@ class RCMEntryDetailView(APIView):
                 message="Failed to update RCM entry",
                 details=str(e) if settings.DEBUG else None,
             )
+
+    # Accept PATCH as well as PUT (both do partial updates)
+    patch = put
 
     def delete(self, request, pk):
         try:
