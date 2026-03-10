@@ -78,3 +78,13 @@ docker compose restart grc-service && sleep 5 && echo "Restarted"
 docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}"
 
 
+
+6. deleting audit reports:
+
+cd /home/simons/Coding/FIMS/grc-service && docker compose exec grc-service python manage.py shell -c "
+from apps.core.models.audit_entities import AuditReport
+count = AuditReport.objects.count()
+AuditReport.objects.all().delete()
+print(f'Deleted {count} audit report(s). Remaining: {AuditReport.objects.count()}')
+"
+

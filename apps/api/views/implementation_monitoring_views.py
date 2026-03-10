@@ -58,15 +58,14 @@ class ImplementationMonitoringListCreateView(APIView):
             reviewed_by = request.query_params.get('reviewed_by')
             progress_min = request.query_params.get('progress_min')
             progress_max = request.query_params.get('progress_max')
-            is_active = request.query_params.get('is_active')
-            
+
             # Build query with related data
             queryset = ImplementationMonitoring.objects.select_related(
                 'recommendation',
                 'recommendation__finding',
                 'recommendation__finding__engagement'
             ).all()
-            
+
             # Apply filters
             if recommendation_id:
                 queryset = queryset.filter(recommendation_id=recommendation_id)
@@ -76,8 +75,6 @@ class ImplementationMonitoringListCreateView(APIView):
                 queryset = queryset.filter(latest_progress__gte=float(progress_min))
             if progress_max:
                 queryset = queryset.filter(latest_progress__lte=float(progress_max))
-            if is_active is not None:
-                queryset = queryset.filter(is_active=is_active.lower() == 'true')
             
             # Apply ordering (FIMS standard)
             ordering = get_ordering_param(
@@ -364,35 +361,34 @@ class ImplementationMonitoringDetailView(APIView):
             )
     
     def delete(self, request, pk):
-        """Soft delete an implementation monitoring record"""
+        """Permanently delete an implementation monitoring record."""
         try:
             monitoring = get_object_or_404(ImplementationMonitoring, pk=pk)
-            
-            # Prevent deletion if recommendation is verified or closed
+
+            # Prevent deletion if recommendation is verified or closed (SRS §4 tamper-proof)
             if monitoring.recommendation.status in ['verified', 'closed']:
                 return Response(
                     {
                         "success": False,
                         "error": {
-                            "message": f"Cannot delete monitoring for {monitoring.recommendation.status} recommendation",
+                            "message": f"Cannot delete monitoring for a {monitoring.recommendation.status} recommendation.",
                             "code": "RECOMMENDATION_LOCKED"
                         }
                     },
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            
+
             with transaction.atomic():
-                monitoring.is_active = False
-                monitoring.save(update_fields=['is_active'])
-            
+                monitoring.delete()  # Hard delete — removes the row and all cascade follow-up cycles
+
             return Response(
                 {
                     "success": True,
-                    "message": "Implementation monitoring record deleted successfully"
+                    "message": "Implementation monitoring record deleted."
                 },
                 status=status.HTTP_200_OK
             )
-                
+
         except Exception as e:
             return Response(
                 {

@@ -954,82 +954,172 @@ The engagement lifecycle is driven entirely by the **Work Orchestration (WO) Wor
 
 **Page:** Sidebar → **Audit Monitoring** → Click **Create**
 
-> **What this is:** `ImplementationMonitoring` is a 1:1 header per recommendation that tracks implementation progress across multiple review cycles. Each cycle is an `AuditeeFollowUpResponse` record.
+---
 
-> **Pre-condition:** The recommendation must be in `in_progress` status or later. Recommendations in `open` status cannot have monitoring created yet.
+### How This Works — Read First
 
-### Step 1: Create the Monitoring Header
+Audit Monitoring has **two separate layers** that you need to understand before you start:
+
+| Layer | Model | What it stores |
+|---|---|---|
+| **Monitoring Header** | `ImplementationMonitoring` | One record per recommendation. Stores `latest_progress` (a snapshot %), `next_review_date`, overall `status` (active/closed). |
+| **Follow-Up Cycle** | `AuditeeFollowUpResponse` | Each review round. Stores the auditee's `implementation_progress` (%), `progress_notes`, and lifecycle `status` (pending → submitted → verified/rejected). |
+
+**The full lifecycle for one review round is:**
+
+```
+[Create Header] → [Open a Cycle] → [Notify Auditee] → [Auditee Submits Progress] → [Auditor Verifies]
+     Step 1            Step 2            Step 3                  Step 4                   Step 5
+```
+
+If the auditor **rejects** at Step 5, the whole cycle repeats from Step 2 for the next round.
+
+---
+
+### Pre-condition
+
+The recommendation must be in `in_progress` status before monitoring can be created.
+
+**✅ DB cleared and ready:**
+- `REC-FND-ENG-2026-001-001-002` — *Strengthen User Access Controls* — `in_progress`, no monitoring record
+
+---
+
+### Step 1 — Create the Monitoring Header
+
+**Page:** Sidebar → **Audit Monitoring** → Click **Create**
 
 | Field | Value |
 |---|---|
-| **Recommendation** (`recommendation_id`) | `REC-2025-001` *(select Implement Automated User Access Review)* |
-| **Next Review Date** (`next_review_date`) | `2026-06-30` *(optional — target date for first review)* |
+| **Recommendation** | Select `REC-FND-ENG-2026-001-001-002` — *Strengthen User Access Controls* |
+| **Implementation Progress (%)** | `25` |
+| **Next Review Date** | `2026-03-16` *(at least 5 days from today — March 10)* |
 
-**Expected:** Monitoring record created with `status: active`.
+Click **Create**.
 
-> **⚠️ Model note:** The monitoring header status is `active | closed` only. Implementation progress is tracked in the **review cycle** (follow-up responses), not on the header directly.
+**Expected result:** The monitoring record appears in the table showing `25%` and `Active`.
 
-### Step 2: Create the First Review Cycle
+> **⚠️ No Progress Notes field here.** Notes are entered in Step 4 when the auditee submits their response — not at creation time.
 
-> **⚠️ UI Flow Diverges From Backend Design Here — Read Carefully.**
+---
 
-The backend uses two separate endpoints to create cycles:
+### Step 2 — Open the First Review Cycle
 
-- `POST /implementation-monitoring/{pk}/review/` — the "official" cycle-open endpoint. **Requires `implementation_progress` (0–100).** Updates header snapshot fields (`latest_progress`, `last_review_date`) and resets `notification_sent_at` to `null`. Used for cycle 2+.
-- `POST /implementation-monitoring/{pk}/responses/` — the raw list-create endpoint. Creates a cycle with `status=pending` without requiring or storing `implementation_progress`. Does not update header snapshots. Used by the **"Add Response" form in the detail dialog**.
+The monitoring header is just a container. Before the auditee can submit anything, you must open a review cycle.
 
-**To create the FIRST cycle in the UI:**
-1. Click **View** (eye icon) on the monitoring record → the detail dialog opens
-2. In the detail dialog, click **Add Response** → submit (no `implementation_progress` stored here)
-3. Cycle 1 is created via `POST /implementation-monitoring/{pk}/responses/` with `status=pending`
+1. Find the monitoring record in the table
+2. Click the **👁 View** (eye icon) → the Detail Dialog opens
+3. Click **Record Response**
+4. A small panel appears — click **Confirm Create Cycle**
 
-> **⚠️ BUG — The "Record Review" dialog in Progress Update is broken:** When `notification_sent_at` is set, clicking **Progress Update** shows the "Record Review" form, which calls `POST /review/` — but the form is missing an `implementation_progress` input field. The backend requires it and returns `MISSING_PROGRESS` if absent. This applies to cycle 2+. **Workaround:** Call `POST /implementation-monitoring/{pk}/review/` directly via API with `{ "implementation_progress": 50 }` for subsequent cycles.
+**Expected result:** A follow-up cycle (Cycle 1) appears in the dialog with status `Pending`.
 
-### Step 3: Notify the Auditee (GAP 7)
+> **Why this step exists:** The backend requires a cycle to be open before Notify Auditee will work. If you click Notify without a cycle, the backend returns `"No open review cycle"`.
 
-> **⚠️ Pre-condition for Notify:** The **Notify** action (`POST /implementation-monitoring/{pk}/notify-auditee/`) requires a pending cycle to already exist. The UI shows "Notify" whenever `notification_sent_at` is `null` (including on a fresh monitoring record) — but calling Notify before creating a cycle via Step 2 will fail with `"No open review cycle. Call /review/ first"`.
->
-> **Correct order:** Complete Step 2 first (create cycle via "Add Response"), then proceed here.
+---
 
-2. Click **Progress Update** on the monitoring record → action shown is **Notify Auditee** (since `notification_sent_at = null`)
-   - Backend: `POST /implementation-monitoring/{pk}/notify-auditee/`
-   - Sets `notified_at` and a **5-business-day response `response_deadline`** on the current cycle
-   - Also mirrors these on the monitoring header
+### Step 3 — Notify the Auditee
 
-### ✅ GAP 7 — 5-Business-Day Response Window:
+This starts the official 5-business-day response clock (GAP 7).
 
-GAP 7 is enforced when the **Notify Auditee** action is triggered:
-- Backend calculates: `deadline = notified_at + 5 business days`
-- The `response_deadline` field on the `AuditeeFollowUpResponse` cycle is set automatically
-- If the auditee does not respond by the deadline: `is_overdue = true`
-- This is **not** a validation on `next_review_date` — it's a deadline on the auditee's response window after notification
+1. Close the Detail Dialog (or stay on the list)
+2. Find your monitoring record → click **Progress Update**
+3. The action shown is **Notify Auditee** (because `notification_sent_at` is currently null)
+4. Click it
 
-### Step 4: Auditee Submission and Auditor Verification
+**Expected result:**
+- `notification_sent_at` is set on the cycle
+- `response_deadline` is set to `notified_at + 5 business days`
+- The **"Progress Update" button label does NOT change** — it always says "Progress Update"
+- However, clicking it again will now open the **"Record Review"** dialog instead of the "Notify Auditee" panel (the dialog content changes based on `notification_sent_at`)
 
-> **⚠️ BUG — No UI path for Auditee Submit:** The submit endpoint (`POST /follow-up-responses/{pk}/submit/`, which transitions cycle `pending → submitted`) has no corresponding button or form in the UI. To test this step, call the API directly:
-> ```json
-> POST /follow-up-responses/{cycle_pk}/submit/
-> Body: { "implementation_progress": 40, "progress_notes": "Vendor procurement 40% done" }
-> ```
+> **✅ GAP 7:** The 5-business-day window is enforced here — not on `next_review_date`. The `response_deadline` on the cycle tracks when the auditee must respond.
 
-3. Auditee submits progress via `POST /follow-up-responses/{pk}/submit/` — **API only (no UI)**:
-   - `implementation_progress` (%), `progress_notes`, `evidence_documents`
-   - Transitions cycle status: `pending → submitted`
-   - Backend requires `cycle.status == 'pending'` — will fail with `CYCLE_NOT_PENDING` otherwise
+---
 
-> **⚠️ BUG — Verify button always fails:** The UI's Verify button calls `POST /follow-up-responses/{pk}/verify/` but sends only `{ verification_notes }`. The backend **requires** `verdict` in `('verified', 'rejected')` — the UI is missing this field entirely and always receives `INVALID_VERDICT`. There is also no "Reject" button — only Verify is shown. **Workaround:** Call the verify API directly:
-> ```json
-> POST /follow-up-responses/{cycle_pk}/verify/
-> Body: { "verdict": "verified", "verification_notes": "Progress confirmed by system screenshot" }
-> ```
-> Note: verify also requires `cycle.status == 'submitted'` (from Step 3 above) — will fail with `CYCLE_NOT_SUBMITTED` if called before submit.
+### Step 4 — Auditee Submits Progress
 
-4. Auditor verifies via `POST /follow-up-responses/{pk}/verify/` — **API only (no UI, bug as above)**:
-   - **Required:** `verdict` — must be `"verified"` or `"rejected"`
-   - **Optional:** `verification_notes`
-   - If `verdict=verified` AND `implementation_progress >= 100` → monitoring header `status` set to `closed`
-   - If `verdict=verified` AND progress < 100 → header `latest_progress` updated, header stays `active`
-   - If `verdict=rejected` → next cycle starts from Step 2 (call `/review/` again)
+This is the auditee recording how far implementation has progressed.
+
+1. Click the **👁 View** (eye icon) on the monitoring record → Detail Dialog opens
+2. Find **Cycle 1** in the Follow-Up Cycles section (status shows `Pending`)
+3. Click **Submit Progress** on that cycle card
+4. Fill in:
+   - **Implementation Progress (%)**: `40`
+   - **Response Notes** *(optional)*: `Initial procurement process started. RFQ issued to 3 vendors. Vendor evaluation in progress.`
+5. Click **Submit Progress**
+
+**Expected result:** Cycle 1 transitions from `Pending` → `Submitted`. The `submitted_at` timestamp appears on the cycle card.
+
+> **Why separate from Step 1?** Progress notes and auditee progress belong to the *cycle*, not the header. Each review round can have different progress values and notes — the header just shows the latest snapshot.
+
+---
+
+### Step 5 — Auditor Verifies the Response
+
+1. Stay in the Detail Dialog (or re-open it via **View**)
+2. Find Cycle 1 — it now shows status `Submitted` and a **Verify Response** button
+3. Click **Verify Response**
+4. Optionally enter **Verification Notes**: `Progress confirmed. Vendor evaluation documentation reviewed. 40% progress accepted.`
+5. Click **Confirm Verify** (or **Reject** if the evidence is insufficient)
+
+**Expected result (if Verified):**
+- Cycle 1 status → `Verified`
+- Header `latest_progress` updated to `40%` (synced from the cycle)
+- If progress reaches `100%` → header status automatically set to `Closed`
+
+**Expected result (if Rejected):**
+- Cycle 1 status → `Rejected`
+- A new cycle must be opened → repeat from **Step 2** below using the **Record Review** action in Progress Update (NOT "Record Response" from the detail dialog)
+
+---
+
+### Summary of UI Actions — Cycle 1
+
+| Step | Where | Button/Action | Result |
+|---|---|---|---|
+| 1 | Monitoring list → **Create** | Fill form + Create | Header created, `latest_progress=25%` |
+| 2 | List → **👁 View** → Detail Dialog | **Record Response** → **Confirm Create Cycle** | Cycle 1 created, status=`pending` |
+| 3 | List → **Progress Update** | **Notify Auditee** | 5-day deadline set on cycle |
+| 4 | **👁 View** → Cycle 1 card | **Submit Progress** | Cycle status → `submitted`, notes saved |
+| 5 | **👁 View** → Cycle 1 card | **Verify Response** → **Confirm Verify** | Cycle status → `verified`, header progress updated |
+
+> **⚠️ Critical ordering rule — do NOT submit before notifying.**  
+> Steps 3 and 4 must happen in order: **Notify first, then Submit**. If you click "Submit Progress" (Step 4) on a cycle that has not yet been notified, the cycle moves to `submitted` and the "Notify Auditee" button will then fail with `NO_OPEN_CYCLE` (no pending cycle remains). Always complete Step 3 before Step 4.
+
+---
+
+### Starting Cycle 2+ (After Verification or Rejection)
+
+After Cycle 1 is **verified** or **rejected**, the flow for opening the next cycle is **different** from Cycle 1.
+
+> **Do NOT use "Record Response" from the Detail Dialog for Cycle 2+.** That button creates a bare pending cycle but does **not** reset `notification_sent_at` on the header, so the "Notify Auditee" action will not reappear.
+
+**Correct flow for Cycle 2 (and all subsequent cycles):**
+
+| Step | Where | Button/Action | What Happens |
+|---|---|---|---|
+| 2b | List → **Progress Update** | **Record Review** dialog | Calls `/review/` — creates Cycle 2, resets `notification_sent_at` to null |
+| 3 | List → **Progress Update** | **Notify Auditee** now appears | Deadline set on Cycle 2 |
+| 4 | **👁 View** → Cycle 2 card | **Submit Progress** | Cycle 2 → `submitted` |
+| 5 | **👁 View** → Cycle 2 card | **Verify Response** | Cycle 2 → `verified`, header progress updated |
+
+**Detailed steps for Step 2b:**
+
+1. Find the monitoring record in the table → click **Progress Update**
+2. The dialog now shows **Record Review** (because `notification_sent_at` is set from the previous cycle)
+3. Fill in:
+   - **Implementation Progress (%)**: e.g., `60`
+   - **Progress Notes** *(optional)*: `Cycle 2 started`
+   - **Next Review Date** *(optional)*: e.g., `2026-03-24`
+4. Click **Save Review**
+
+**Expected result:**
+- Cycle 2 is created with status `Pending`
+- `notification_sent_at` is reset to `null` on the header
+- Header `latest_progress` updated to `60%`  
+
+Now go back to Step 3 — click **Progress Update** again → **"Notify Auditee"** will now appear.
 
 ---
 
@@ -1062,10 +1152,10 @@ GAP 7 is enforced when the **Notify Auditee** action is triggered:
 
 | Field | Value |
 |---|---|
+| **Report Title** | `ICT General Controls Audit Report — Q3 2025/2026` |
 | **Engagement** | `ICT General Controls Audit 2025/2026` (select — only `reporting` engagements appear) |
 | **Audit Opinion** | `Qualified Opinion` (select — findings were found but audit was completable) |
 | **Report Type** | `draft` |
-| **Report Title** | `ICT General Controls Audit Report — Q3 2025/2026` |
 | **Executive Summary** | `The audit of ICT General Controls for the period January–March 2026 identified significant deficiencies in access control management and change management documentation. Overall, the ICT control environment requires substantial improvement in access governance and change management discipline.` |
 | **Scope & Objectives** | `The audit covered ICT general controls including: (1) User access management and quarterly access reviews, (2) Change management documentation and approval workflows, (3) Backup and disaster recovery procedures, and (4) Network security configuration for the ICT Directorate.` |
 | **Methodology** | `The audit was conducted using a risk-based approach aligned to COBIT 2019 framework. Procedures included: document review of ICT policies, interviews with 8 ICT staff members, system walkthroughs of the access management and change management modules, and substantive testing of 42 user accounts and 12 system changes.` |
