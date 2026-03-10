@@ -145,6 +145,7 @@ class EngagementNotificationListCreateView(APIView):
                     audit_engagement=engagement,
                     reference_number=reference,
                     prepared_by=prepared_by,
+                    created_by=user_id,
                     status='draft',
                 )
 

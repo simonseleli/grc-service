@@ -474,21 +474,37 @@ class AuditEngagementPhaseTransitionView(APIView):
         try:
             engagement = get_object_or_404(AuditEngagement, pk=pk)
 
-            if engagement.status != 'planning':
+            # A workflow can be started if engagement is 'planning' or 'fieldwork'
+            # (fieldwork is set by EN transmit, which may fire before the workflow is started).
+            # Block if a workflow is already running, or status is beyond these phases.
+            if engagement.workflow_plan_id:
+                return Response(
+                    {
+                        "success": False,
+                        "error": {
+                            "message": (
+                                f"An engagement workflow is already running (plan {engagement.workflow_plan_id}). "
+                                "Subsequent phase transitions are managed by Work Orchestration Service."
+                            ),
+                            "code": "WORKFLOW_MANAGED_BY_WO",
+                            "workflow_plan_id": str(engagement.workflow_plan_id),
+                        },
+                    },
+                    status=status.HTTP_409_CONFLICT,
+                )
+            if engagement.status not in ('planning', 'fieldwork'):
                 return Response(
                     {
                         "success": False,
                         "error": {
                             "message": (
                                 f"Cannot start engagement workflow from status '{engagement.status}'. "
-                                "The workflow can only be started while the engagement is in 'planning' status. "
-                                "Subsequent phase transitions are managed by Work Orchestration Service."
+                                "The workflow can only be started from 'planning' or 'fieldwork' status."
                             ),
-                            "code": "WORKFLOW_MANAGED_BY_WO" if engagement.workflow_plan_id else "INVALID_STATUS",
-                            "workflow_plan_id": str(engagement.workflow_plan_id) if engagement.workflow_plan_id else None,
+                            "code": "INVALID_STATUS",
                         },
                     },
-                    status=status.HTTP_409_CONFLICT if engagement.workflow_plan_id else status.HTTP_400_BAD_REQUEST,
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
             # SRS Requirement 16: All declarations of independence must be signed

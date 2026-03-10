@@ -47,14 +47,34 @@ print('user_id:', d.get('user_id',''))
 ```
 
 
+unlocking admi account:
+
+cd /home/simons/Coding/FIMS/iam-service && docker compose exec iam-service python manage.py shell -c "
+from django.contrib.auth import get_user_model
+User = get_user_model()
+u = User.objects.get(email='admin@fcc.go.tz')
+u.failed_login_attempts = 0
+u.locked_until = None
+u.save()
+print('Unlocked:', u.email)
+"
 
 
 
+
+## 4. restarting grc service
 
 Restarting grc-service:
 docker compose restart grc-service 2>&1 | tail -3
 
-or  
+or
 
 docker compose restart grc-service && sleep 5 && echo "Restarted"
+
+
+
+## 5. get running containers
+
+docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}"
+
 

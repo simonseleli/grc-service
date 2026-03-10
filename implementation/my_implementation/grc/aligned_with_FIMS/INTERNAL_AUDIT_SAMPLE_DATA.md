@@ -507,45 +507,120 @@ This is **not** an auto-created plan on universe approval. It is a deliberate **
 
 **Page:** Sidebar → GRC → **Audit Engagements** → click your engagement row → **Engagement Detail page** → scroll to the **Audit Programs** card → click **Add**
 
-> **SRS §1.8.3 Steps 8–9:** The Lead Auditor prepares the draft audit program based on the approved RCM, defining the scope, objectives, and specific audit procedures. The CIA reviews and approves the program before fieldwork begins.
-> **GAP 9:** After status reaches `approved`, the program is stamped with QR code + approver signature via DRS.
+> **SRS §1.8.3 Steps 8–9:** The Lead Auditor prepares the draft audit program based on the approved RCM, defining the scope, objectives, and specific audit procedures. The CIA reviews and approves the program through a 2-stage WO workflow before fieldwork begins.
+> **GAP 9:** After status reaches `approved`, GRC triggers DRS to stamp the document with the CIA signature + QR code overlay.
+
+### Create Form Fields
 
 | Field | Value |
 |---|---|
-| **Engagement** (`audit_engagement_id`) | `ICT General Controls Audit 2025/2026` *(auto-populated from the engagement detail page)* |
+| **Engagement** (`audit_engagement_id`) | `ICT General Controls Audit 2025/2026` *(auto-populated from the engagement detail page — not editable)* |
+| **RCM** (`risk_control_matrix_id`) | *(auto-populated from the engagement's most recent RCM — not shown as a separate field)* |
 | **Title** (`title`) | `ICT General Controls Audit Program — Q3 2025/2026` |
-| **Objectives** (`objectives`) | `["Assess adequacy of user access management controls", "Evaluate change management documentation and approval processes", "Verify backup and disaster recovery procedures", "Review network security configuration and monitoring"]` |
-| **Procedures** (`procedures`) | `[{"rcm_entry_id": null, "procedure": "Inspect access review records for 42 sampled user accounts", "sample_size": 42, "criteria": "Quarterly access review must be documented and signed off"}, {"rcm_entry_id": null, "procedure": "Substantive testing of 12 sampled production changes for completeness of documentation", "sample_size": 12, "criteria": "Change request, impact assessment, and approvals must all be present"}, {"rcm_entry_id": null, "procedure": "Review backup restoration test records", "sample_size": null, "criteria": "Restoration test must be conducted at least annually"}]` *(JSON array — each object has `rcm_entry_id` (UUID or null), `procedure`, `sample_size` (int or null), `criteria`)* |
+| **Audit Scope** (`audit_scope`) | `ICT General Controls covering user access management, IT change management, backup and disaster recovery, and network security configuration for FY 2025/2026 Q3.` |
+| **Objectives** (`objectives`) | Enter each objective on a new line in the textarea: `Assess adequacy of user access management controls` *(line 1)* `Evaluate change management documentation and approval processes` *(line 2)* `Verify backup and disaster recovery procedures` *(line 3)* `Review network security configuration and monitoring` *(line 4)* |
+| **Procedures** | Added one at a time via the **"Add Procedure"** button — see below |
+
+> **⚠️ Field format notes:**
+> - **Objectives** is a plain textarea — type one objective per line. The frontend converts lines to a JSON array on submit. Do NOT paste raw JSON.
+> - **Audit Scope** is a free-text textarea describing what is in scope for this program.
+> - **Procedures** are added row-by-row using the dynamic "Add Procedure" UI (not a JSON paste field).
+
+### Procedures to Add
+
+Click **"Add Procedure"** for each row below:
+
+#### Procedure 1 — Access Review Testing
+| Sub-field | Value |
+|---|---|
+| **RCM Entry** (`rcm_entry_id`) | Select **"User Access Management"** entry from the linked RCM *(dropdown shows RCM entries for this engagement)* |
+| **Procedure** | `Inspect access review records for 42 sampled user accounts` |
+| **Sample Size** | `42` |
+| **Criteria** | `Quarterly access review must be documented and signed off` |
+
+#### Procedure 2 — Change Management Testing
+| Sub-field | Value |
+|---|---|
+| **RCM Entry** (`rcm_entry_id`) | Select **"IT Change Management"** entry from the linked RCM |
+| **Procedure** | `Substantive testing of 12 sampled production changes for completeness of documentation` |
+| **Sample Size** | `12` |
+| **Criteria** | `Change request, impact assessment, and approvals must all be present` |
+
+#### Procedure 3 — Backup Verification
+| Sub-field | Value |
+|---|---|
+| **RCM Entry** (`rcm_entry_id`) | *(leave blank — no matching RCM entry)* |
+| **Procedure** | `Review backup restoration test records` |
+| **Sample Size** | *(leave blank)* |
+| **Criteria** | `Restoration test must be conducted at least annually` |
 
 **Expected result:** Program created with status `draft`. It appears in the **Audit Programs** card on the Engagement Detail page.
 
 > **⚠️ Pre-condition:** The audit engagement must be in `planning` status. The create form enforces this.
 
-### Status Workflow (2-stage WO workflow — SRS Steps 22–23):
+### Status Workflow (2-stage WO workflow — SRS Req 22–23)
 
-> **⚠️ Model note:** Status is `draft → under_review → approved`. To submit, click the program row in the **Audit Programs** card → the **Audit Program detail dialog** opens → click **Submit** inside the dialog. This starts the WO workflow.
+Status progression: `draft → under_review → approved`
 
+**Step 1 — Submit for IA/CIA review (Lead Auditor action):**
 1. In the **Audit Programs** card, click the program row → **Audit Program detail dialog** opens
-2. Click **Submit** in the dialog
-   - Backend: `POST /audit-programs/{id}/submit/`
-   - Program status immediately set to `under_review` by the service
-   - Work Orchestration starts a 2-stage workflow
-3. In the **WO Workflow Console**, complete each stage:
+2. Click **Submit** inside the dialog
+   - Backend: `POST /programs/{id}/submit/`
+   - Program status → `under_review`; WO 2-stage plan created
+3. The **WO Workflow Console** appears inside the dialog (or in the right panel) showing the active stage
 
-| # | WO stage_key | Stage Name | Action Button |
-|---|---|---|---|
-| 1 | `ia_program_review` | IA Review | **Approve** / Return to Lead Auditor |
-| 2 | `cia_program_approval` | CIA Approval | **Approve** / Return to IA |
+**Step 2 — Complete both WO stages:**
 
-4. After WO final approval → Kafka event → GRC `program.status = approved`
+| # | `definition_key` | Stage Name | Action | Button label |
+|---|---|---|---|---|
+| 1 | `ia_program_review` | IA Review | Approve | **Approve** |
+| 1 | `ia_program_review` | IA Review | Return to Lead Auditor | **Return** |
+| 2 | `cia_program_approval` | CIA Approval | Approve (final) | **Approve** |
+| 2 | `cia_program_approval` | CIA Approval | Return to IA | **Return** |
 
-> **Rejection path:** Rejected/cancelled at any stage → GRC resets `program.status = draft`, clears `workflow_plan_id`.
+After Stage 2 **Approve**: WO fires `grc.workflow.completed` Kafka event → GRC Kafka consumer sets `program.status = approved`, records `approval_date`, triggers DRS stamp (best-effort).
 
-### ✅ GAP 9 Stamp Verification:
-After status → `approved`:
-1. Click the program row in the **Audit Programs** card → detail dialog opens
-2. A **"Download Approved Program"** button should appear (visible only when `stamped_document_url` is set)
-3. Check GRC service logs for: `Stamp triggered for audit_program {id}`
+**Return path (from dialog — not via WO console):**
+
+The **Audit Program detail dialog** has a **Return** button visible when `status = under_review`. This calls:
+```
+POST /programs/{id}/approve/
+Body: { "action": "return", "comments": "..." }
+```
+Effect: `program.status = draft`, `workflow_plan_id` cleared. The program can be edited and resubmitted.
+
+> **⚠️ Rejection via WO console vs. Return button:**
+> - WO stage "Return" actions send the WO plan to `rejected` state → Kafka event → GRC resets `status = draft`
+> - The **Return** button in the dialog calls `POST /approve/` directly with `action=return` — same net effect
+> - Both paths reset the program to `draft` and clear `workflow_plan_id`
+
+**Alternative direct approval (CLI / testing only):**
+```
+POST /programs/{id}/approve/
+Body: { "action": "approve", "comments": "Approved by CIA" }
+```
+This bypasses WO and directly sets `status = approved`. Use only for testing without a running WO instance.
+
+### ✅ Engagement Workflow Guard
+
+> **⚠️ IMPORTANT:** The **Start Engagement Workflow** button on the Engagement Detail page is **disabled** until at least one Audit Program has `status = approved`.
+> - If no approved program exists: button shows tooltip *"An approved Audit Program is required before starting the engagement workflow."*
+> - Once a program reaches `approved`: button becomes active.
+
+This means: **you must complete the full 2-stage approval above before proceeding to Phase 7d and eventually starting the engagement workflow.**
+
+### ✅ GAP 9 Stamp Verification
+
+After `status = approved`:
+
+1. Check GRC service logs for:
+   ```
+   GAP 9: DRS stamp triggered for AuditProgram <id> by CIA <user_id>
+   ```
+2. DRS stamps the document **in-place** — the `GET /documents/{id}/download/` endpoint on DRS now serves the stamped PDF. The `stamped_document_url` field in GRC is not auto-populated (DRS owns the file).
+3. If `document_id` was set on the program, the stamp succeeds; if `document_id` is null, the log will show `Stamp skipped — no document_id`.
+
+> **⚠️ Note on "Download Approved Program" button:** The detail dialog shows a download button **only if** `stamped_document_url` is non-null. Since DRS stamps in-place (no URL returned to GRC), this button will not appear in the current implementation. Verify stamp success via GRC logs only.
 
 ---
 
@@ -553,9 +628,9 @@ After status → `approved`:
 
 **Page:** Sidebar → GRC → **Audit Engagements** → click your engagement row → **Engagement Detail page** → scroll to the **Engagement Notification** card → click **Add**
 
-> **SRS §1.8.3 Steps 10–12:** After the audit program is approved, the Lead Auditor prepares the Engagement Notification (EN) — a formal notice to the auditable area. The CIA reviews it, the DG approves it, and it is then transmitted to the auditee.
+> **SRS §1.8.3 Steps 10–12:** After the audit program is approved, the Lead Auditor prepares the Engagement Notification (EN) — a formal notice to the auditable area. The CIA approves it (single-stage WO workflow), and it is then transmitted to the auditee by the Lead Auditor.
 > **Model:** `EngagementNotification` is OneToOneField per engagement — only one EN can exist per engagement. The **Add** button only appears when no EN exists yet; once created, click the EN row to view or manage it.
-> **GAP 9:** After the EN reaches `approved` status, it is stamped with QR code + approver signature via DRS. The `stamped_document_url` field is populated automatically.
+> **GAP 9:** After the EN reaches `approved` status, DRS stamps the document in-place with QR code + CIA signature. The `stamped_document_url` field is **not** returned by DRS to GRC, so the "View Stamped Document" link will likely not appear in the UI — verify via GRC service logs.
 
 | Field | Value |
 |---|---|
@@ -564,24 +639,27 @@ After status → `approved`:
 | **Audit Period End** (`audit_period_end`) | `2026-04-30` |
 | **Notification Date** (`notification_date`) | `2026-02-14` *(date the EN is formally issued to the auditee)* |
 | **Scope Summary** (`scope_summary`) | `ICT General Controls — access management, change management, backup and recovery, network security configuration.` |
-| **Audit Team Snapshot** (`audit_team_snapshot`) | `[]` *(optional JSON array of team members — leave empty or add: `[{"user_id": "uuid", "role": "lead_auditor", "name": "Full Name"}]`)* |
 
 **Expected result:** EN created with status `draft`. It appears in the **Engagement Notification** card on the Engagement Detail page.
 
-### Status Workflow (2-stage WO workflow — SRS Steps 10–14):
+### Status Workflow (1-stage WO workflow — CIA approval — SRS Steps 10–14):
 
-> **Note:** The EN detail dialog (opened by clicking the EN row) is read-only — no workflow buttons exist inside it. All workflow progression happens via the **WO Workflow Console** on the right side of the Engagement Detail page.
+> **Note:** The EN detail dialog (opened by clicking the EN row) contains all lifecycle action buttons:
+> - **Edit** — visible in `draft` status
+> - **Submit for Approval** — visible in `draft` status; triggers the WO workflow
+> - **Transmit to Auditee** — visible in `approved` status; finalises the EN
+>
+> The CIA approver uses the **WO Workflow Console** (accessible from the WO side of the system) to complete their approval stage.
 
-1. Click **Submit** *(the Submit action is available on the EN detail view or via the WO Console)*
+1. Click the EN row → EN detail dialog opens → click **Submit for Approval**
    - Backend: `POST /engagement-notifications/{id}/submit/`
    - EN status immediately set to `under_review` by the service
-   - Work Orchestration starts a 2-stage workflow
-2. In the **WO Workflow Console**, complete each stage:
+   - Work Orchestration starts a **1-stage** CIA approval workflow
+2. In the **WO Workflow Console**, complete the single approval stage:
 
 | # | WO stage_key | Stage Name | Action Button |
 |---|---|---|---|
-| 1 | `cia_memo_review` | CIA Review | **Forward to DG** / Return to Lead Auditor |
-| 2 | `dg_memo_approval` | DG Approval | **Approve** / Return to CIA |
+| 1 | `cia_approval` | CIA Approval | **Approve** / Return to Lead Auditor |
 
 3. After WO final approval → Kafka event → GRC `notification.status = approved`
 4. Click **Transmit** to formally send the EN to the auditee
@@ -593,17 +671,19 @@ After status → `approved`:
 | Status | Meaning |
 |---|---|
 | `draft` | EN created, not yet submitted |
-| `under_review` | Submitted — WO workflow running (CIA/DG review) |
+| `under_review` | Submitted — WO workflow running (CIA review) |
 | `approved` | WO approved — ready to transmit |
 | `transmitted` | Formally sent to auditee |
 
-> **Rejection path:** Rejected/cancelled at any WO stage → GRC resets `notification.status = draft`, clears `workflow_plan_id`. The Submit action reappears.
+> **Return path:** If the CIA returns/rejects at the `cia_approval` stage → Kafka event → GRC resets `notification.status = draft`, clears `workflow_plan_id`. The **Submit for Approval** button reappears in the EN detail dialog.
 
 ### ✅ GAP 9 Stamp Verification:
 After status → `approved`:
 1. Click the EN row in the **Engagement Notification** card → detail dialog opens
-2. A **"Download Approved Notification"** button should appear (visible only when `stamped_document_url` is set)
-3. Check GRC service logs for: `Stamp triggered for engagement_notification {id}`
+2. A **"View Stamped Document"** link appears in the dialog — but **only if** `stamped_document_url` is populated on the EN record.
+   > **Note:** Same DRS behaviour as the Audit Program (Phase 7c): DRS stamps the document in-place and does **not** return a URL back to GRC. As a result, `stamped_document_url` is likely **not** populated automatically, and the link will **not** appear in the UI.
+3. To confirm stamp occurred, check GRC service logs for: `Stamp triggered for engagement_notification {id}`
+4. If the link does not appear, that is expected — proceed to the Transmit step.
 
 ---
 
@@ -763,17 +843,17 @@ The engagement lifecycle is driven entirely by the **Work Orchestration (WO) Wor
 
 | Field | Value |
 |---|---|
-| **Title** | `Inadequate ICT Access Controls` |
-| **Engagement** | `ICT General Controls Audit 2025/2026` |
+| **Engagement** | `ICT General Controls Audit 2025/2026` | -- select from dropdown
 | **Fiscal Year** | `Fiscal Year 2025/2026` |
 | **Quarter** | `Q3 (Jan–Mar 2026)` |
-| **Severity** | `High` |
-| **Finding Type** | `Internal Control Deficiency` |
-| **Risk Rating** | `High Risk` |
+| **Title** | `Inadequate ICT Access Controls` |
 | **Condition** | `User access reviews are not performed regularly. 15 out of 42 sampled user accounts had excessive privileges beyond job requirements. 3 terminated employees still had active system access.` |
 | **Criteria** | `FCC ICT Policy Section 4.3 requires quarterly access reviews. ISO 27001 A.9.2.5 requires timely removal of access rights upon termination. Best practice requires least-privilege access principle.` |
 | **Cause** | `No automated process for periodic access review. HR termination process does not include mandatory IT notification. Access provisioning lacks documented approval workflow.` |
 | **Effect** | `Unauthorized access risk to sensitive FCC data and systems. Potential data breach exposure. Non-compliance with information security policy may result in regulatory findings.` |
+| **Severity** | `High` |
+| **Finding Type** | `Internal Control Deficiency` |
+| **Risk Rating** | `High Risk` |
 | **Auditee Response** | *(leave blank — auditee responds later)* |
 | **Management Response** | *(leave blank — management responds later)* |
 
@@ -781,17 +861,18 @@ The engagement lifecycle is driven entirely by the **Work Orchestration (WO) Wor
 
 | Field | Value |
 |-------|-------|
-| **Title** | `Missing Change Management Documentation` |
-| **Engagement** | `ICT General Controls Audit 2025/2026` |
+| **Engagement** | `ICT General Controls Audit 2025/2026` |  -- select from dropdown
 | **Fiscal Year** | `Fiscal Year 2025/2026` |
 | **Quarter** | `Q3 (Jan–Mar 2026)` |
-| **Severity** | `Medium` |
-| **Finding Type** | `Operational Inefficiency` |
-| **Risk Rating** | `Medium-High Risk` |
+| **Title** | `Missing Change Management Documentation` |
 | **Condition** | `7 out of 12 system changes in the review period lacked proper change request documentation. No evidence of impact assessment or rollback planning for 4 critical production changes.` |
 | **Criteria** | `FCC Change Management Policy requires documented change requests with impact assessment, testing evidence, and approval from system owner before implementation. ITIL best practice mandates complete change records.` |
 | **Cause** | `Change management process is manual and paper-based. Emergency change procedures are not clearly defined, leading to bypassing of normal approval workflow. Staff awareness of CM procedures is low.` |
 | **Effect** | `Increased risk of system instability from untested changes. Inability to perform root cause analysis when incidents occur. Audit trail gaps for regulatory compliance purposes.` |
+| **Severity** | `Medium` |
+| **Finding Type** | `Operational Inefficiency` |
+| **Risk Rating** | `Medium-High Risk` |
+
 
 **Expected:** 2 findings created with status `draft`. Progress each finding through its lifecycle:
 
@@ -799,13 +880,13 @@ The engagement lifecycle is driven entirely by the **Work Orchestration (WO) Wor
 
 **For each finding:**
 
-| Step | Action | Result |
-|------|--------|--------|
-| 1 | Created | `draft` |
-| 2 | Click ⋮ → **Lifecycle** → **Mark as Discussed** | `discussed` |
-| 3 | In the Lifecycle dialog → enter **Auditee Response** → click **Save** | Response saved (✓ shown) |
-| 4 | Enter **Management Response** → click **Save** | Response saved; **Finalize** button enabled |
-| 5 | Click **Finalize** (target: `final`) | `final` |
+| Step | Action  | Result |
+|------|---------|--------|
+| 1    | Created | `draft` |
+| 2    | Click ⋮ → **Lifecycle** → **Mark as Discussed** | `discussed` |
+| 3    | In the Lifecycle dialog → enter **Auditee Response** → click **Save** | Response saved (✓ shown) |
+| 4    | Enter **Management Response** → click **Save** | Response saved; **Finalize** button enabled |
+| 5    | Click **Finalize** (target: `final`) | `final` |
 
 **Sample responses for Finding 1 (Inadequate ICT Access Controls):**
 - **Auditee Response:** `Management acknowledges the control gap. An immediate access review has been initiated and 15 over-privileged accounts have been identified for remediation. Terminated employee access will be revoked within 5 business days.`

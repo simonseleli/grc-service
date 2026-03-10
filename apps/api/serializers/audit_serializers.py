@@ -783,6 +783,7 @@ class EngagementNotificationSerializer(serializers.ModelSerializer):
             'notification_date': {'required': False},
             'audit_team_snapshot': {'required': False},
             'scope_summary': {'required': False, 'allow_blank': True},
+            'prepared_by': {'required': False},  # Set programmatically in view (defaults to logged-in user)
             'approved_by_cia': {'required': False},
             'document_id': {'required': False},
         }
@@ -802,5 +803,10 @@ class EngagementNotificationListSerializer(serializers.ModelSerializer):
             'id', 'reference_number', 'engagement_reference',
             'status', 'status_display',
             'prepared_by', 'notification_date',
+            'audit_period_start', 'audit_period_end',
+            'scope_summary',
+            'workflow_plan_id', 'workflow_stage',
+            'approved_by_cia', 'cia_approval_date',
+            'transmitted_at', 'stamped_document_url',
             'created_at',
         ]
