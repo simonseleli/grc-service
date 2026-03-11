@@ -1,0 +1,35 @@
+user = "simon.seleli"
+metadatas.token = "i76irkcgdrycdc7o"
+
+serverAddr = "tunnel.ictpack.net"
+serverPort = 7000
+
+[[proxies]]
+name = "ecommerce"
+type = "http"
+localIP = "127.0.0.1"
+localPort = 9002
+subdomain = "ecommerce"
+
+[[proxies]]
+name = "api-ecommerce"
+type = "http"
+localIP = "127.0.0.1"
+localPort = 8000
+subdomain = "api-ecommerce"
+
+[[proxies]]
+name = "mailpit"
+type = "http"
+localIP = "127.0.0.1"
+localPort = 8025
+subdomain = "mailpit"
+
+[[proxies]]
+name = "payment-app"
+type = "http"
+localIP = "127.0.0.1"
+localPort = 3002
+subdomain = "payment-app"
+
+

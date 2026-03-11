@@ -19,6 +19,7 @@ ALLOWED_HOSTS: List[str] = [
     "0.0.0.0",
     "grc-service",
     "iam-service",  # Nginx proxy sometimes sends this as Host header
+    ".tunnel.ictpack.net",  # wildcard: matches all *.tunnel.ictpack.net subdomains
     os.getenv("TUNNEL_DOMAIN", "fcc.tunnel.ictpack.net"),
     os.getenv("EXTERNAL_DOMAIN", "fcc.tunnel.ictpack.net"),
 ]

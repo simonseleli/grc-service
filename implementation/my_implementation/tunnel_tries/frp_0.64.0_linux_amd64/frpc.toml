@@ -4,32 +4,44 @@ metadatas.token = "i76irkcgdrycdc7o"
 serverAddr = "tunnel.ictpack.net"
 serverPort = 7000
 
-# ============================================
-# FIMS Services Configuration
-# ============================================
+# =============================================================================
+# FIMS — Fair Competition Commission Integrated Management System
+# =============================================================================
+#
+# ALL traffic goes through the NGINX API Gateway on port 8080.
+# NGINX handles:
+#   - All /api/v1/* routes → backend services (IAM, Documents, WO, GRC, etc.)
+#   - Frontend routing by hostname:
+#       fcc-staff.tunnel.ictpack.net → staff-portal (internal :3000)
+#       fcc.tunnel.ictpack.net       → client-portal (internal :3000)
+#
+# So only ONE local port (8080) needs to be tunneled — under two subdomains.
+# =============================================================================
 
-# API Gateway - Main Entry Point (All APIs route here)
+# Client Portal + All APIs
+# Access: http://fcc.tunnel.ictpack.net/
+# APIs  : http://fcc.tunnel.ictpack.net/api/v1/auth/login/ etc.
 [[proxies]]
-name = "fims-api-gateway"
+name = "fims-client"
 type = "http"
 localIP = "127.0.0.1"
 localPort = 8080
-subdomain = "fims-api"
+subdomain = "fcc"
 
-# Staff Portal (Internal Staff Interface)
+# Staff Portal (same gateway port — NGINX routes by hostname match ~fims-staff)
+# Access: http://fims-staff.tunnel.ictpack.net/
 [[proxies]]
-name = "fims-staff-portal"
+name = "fims-staff"
 type = "http"
 localIP = "127.0.0.1"
-localPort = 3001
+localPort = 8080
 subdomain = "fims-staff"
 
-# Client Portal (External Client Interface)
+# Kafka UI — message broker monitoring dashboard
+# Access: http://fims-kafka.tunnel.ictpack.net/
 [[proxies]]
-name = "fims-client-portal"
+name = "fims-kafka-ui"
 type = "http"
 localIP = "127.0.0.1"
-localPort = 3001
-subdomain = "fims-client"
-
-
+localPort = 9093
+subdomain = "fims-kafka"

@@ -75,7 +75,10 @@ docker compose restart grc-service && sleep 5 && echo "Restarted"
 
 ## 5. get running containers
 
-docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}"
+just run: dps
+
+(for i have already set the alias for this: alias dps='docker ps --format "table {{.Names}}\t{{.Ports}}\t{{.Status}}\t{{.RunningFor}}"')
+
 
 
 
