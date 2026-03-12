@@ -5,7 +5,7 @@ Consumes events from IAM, Document Records, and other FIMS services
 import json
 import logging
 import time
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from django.conf import settings
 from kafka import KafkaConsumer
 from kafka.errors import KafkaError
@@ -58,7 +58,7 @@ class GRCKafkaConsumer:
                     bootstrap_servers=self.bootstrap_servers,
                     group_id='grc-service-consumer-group',
                     auto_offset_reset='earliest',
-                    enable_auto_commit=True,
+                    enable_auto_commit=False,
                     value_deserializer=lambda m: json.loads(m.decode('utf-8')),
                     key_deserializer=lambda m: m.decode('utf-8') if m else None,
                     session_timeout_ms=30000,
@@ -116,9 +116,10 @@ class GRCKafkaConsumer:
                 for message in self.consumer:
                     try:
                         self._process_message(message)
+                        self.consumer.commit()
                     except Exception as e:
                         logger.error(f"Error processing message from {message.topic}: {e}", exc_info=True)
-                        # Continue processing other messages even if one fails
+                        # Offset is NOT committed so the message will be redelivered
                         
             except KafkaError as e:
                 logger.error(f"Kafka consumer error: {e}")
@@ -296,6 +297,12 @@ class GRCKafkaConsumer:
         metadata = event_data.get('metadata', {})
 
         try:
+            # KafkaEventDispatcher publishes WorkflowStageUpdated on every stage action.
+            # Handle it first — it has a different structure (payload.planId vs top-level fields).
+            if event_type == 'WorkflowStageUpdated':
+                self._handle_stage_updated(event_data)
+                return
+
             # Handle both per-stage and full-workflow GRC events
             is_stage_event = event_type.endswith('.stage.completed')
             is_workflow_event = event_type.endswith('.workflow.completed')
@@ -340,6 +347,177 @@ class GRCKafkaConsumer:
 
         except Exception as e:
             logger.error(f"Error handling workflow event {event_type}: {e}", exc_info=True)
+
+    # ------------------------------------------------------------------ #
+    # WorkflowStageUpdated handler (KafkaEventDispatcher events)          #
+    # ------------------------------------------------------------------ #
+
+    # Maps template_code → Django model class name for stage sync
+    _STAGE_SYNC_MODEL_MAP: Dict[str, str] = {
+        'grc.working_paper_approval':           'WorkingPaper',
+        'grc.audit_universe_approval':          'AuditUniverse',
+        'grc.rbiap_approval':                   'AuditPlan',
+        'grc.engagement_lifecycle':             'AuditEngagement',
+        'grc.audit_report_approval':            'AuditReport',
+        'grc.audit_memo_approval':              'AuditMemo',
+        'grc.audit_program_approval':           'AuditProgram',
+        'grc.engagement_notification_approval': 'EngagementNotification',
+        'grc.quarterly_report_approval':        'QuarterlyAuditReport',
+    }
+
+    def _handle_stage_updated(self, event_data: Dict[str, Any]) -> None:
+        """
+        Handle WorkflowStageUpdated events published by WO's KafkaEventDispatcher.
+
+        Fired on every stage action (submit, approve, reject, return, etc.).
+        Keeps the GRC entity's workflow_stage / workflow_stage_id fields current
+        so the frontend always reflects the active WO stage.
+
+        Event structure (from advance_stage.py KafkaEventDispatcher.dispatch):
+            event_type : 'WorkflowStageUpdated'
+            payload    :
+                planId       – WO plan UUID
+                stageId      – UUID of the stage that was just acted upon
+                stageKey     – definition key (e.g. 'cia_review')
+                stageName    – display name (e.g. 'CIA Review')
+                action       – action taken (e.g. 'approve', 'reject', 'submit', 'return')
+                actorId      – UUID of the actor
+                newStatus    – new status of that stage ('in_progress', 'completed', 'rejected')
+                stageMetadata – stage-level metadata dict
+
+        Mirrors corporate-service WorkflowEventConsumer.process_workflow_stage_updated().
+        """
+        payload = event_data.get('payload', {})
+        plan_id = payload.get('planId')
+        action = payload.get('action', '')
+        new_status = payload.get('newStatus', '')
+
+        if not plan_id:
+            logger.warning("WorkflowStageUpdated missing planId — skipping")
+            return
+
+        # Only sync on meaningful transitions (matching corporate filter exactly)
+        revision_actions = ('return', 'resubmit', 'withdraw')
+        if new_status not in ('completed', 'rejected') and action not in revision_actions:
+            logger.debug(
+                f"WorkflowStageUpdated: skipping status={new_status!r} action={action!r}"
+            )
+            return
+
+        # Fetch plan to get entity metadata and current in_progress stage
+        from apps.infrastructure.external.orchestration_client import OrchestrationClient
+        client = OrchestrationClient()
+        plan = client.get_plan_status(plan_id)
+        if not plan:
+            logger.warning(f"WorkflowStageUpdated: could not fetch plan {plan_id}")
+            return
+
+        metadata = plan.get('metadata', {})
+        template_code = metadata.get('template_code', '')
+
+        # Only process GRC workflows
+        if not template_code.startswith('grc.'):
+            return
+
+        entity_id = metadata.get('entity_id') or metadata.get('subject_ref')
+        if not entity_id:
+            logger.warning(
+                f"WorkflowStageUpdated: plan {plan_id} missing entity_id/subject_ref in metadata"
+            )
+            return
+
+        # Locate the stage that is now in_progress (the next active stage)
+        stages = plan.get('stages', [])
+        current_stage = next(
+            (s for s in stages if s.get('status') == 'in_progress'),
+            None,
+        )
+        if not current_stage:
+            # All stages done or workflow is complete — nothing to track
+            logger.debug(
+                f"WorkflowStageUpdated: no in_progress stage for plan {plan_id} "
+                f"(workflow may be complete)"
+            )
+            return
+
+        new_stage_name = current_stage.get('name', '')
+        new_stage_id = current_stage.get('id')
+
+        # status_on_complete comes from the stage's own metadata embedded in the event payload
+        status_on_complete = payload.get('stageMetadata', {}).get('status_on_complete', '')
+
+        self._sync_workflow_stage(
+            entity_id=entity_id,
+            template_code=template_code,
+            new_stage_name=new_stage_name,
+            new_stage_id=str(new_stage_id) if new_stage_id else None,
+            status_on_complete=status_on_complete,
+        )
+
+    def _sync_workflow_stage(
+        self,
+        entity_id: str,
+        template_code: str,
+        new_stage_name: str,
+        new_stage_id: Optional[str],
+        status_on_complete: str = '',
+    ) -> None:
+        """
+        Update workflow_stage / workflow_stage_id on the GRC entity.
+        If status_on_complete is provided (from WO stage metadata), also updates
+        the entity's status field — mirroring corporate-service behaviour.
+
+        WorkingPaper is skipped for status updates because its workflow-driven
+        field is review_status (not status), which is handled by the completion handler.
+        """
+        model_name = self._STAGE_SYNC_MODEL_MAP.get(template_code)
+        if not model_name:
+            logger.warning(
+                f"_sync_workflow_stage: no model mapping for template_code={template_code!r}"
+            )
+            return
+
+        try:
+            from apps.core.models import (
+                WorkingPaper, AuditUniverse, AuditPlan, AuditEngagement,
+                AuditReport, AuditMemo, AuditProgram, EngagementNotification,
+                QuarterlyAuditReport,
+            )
+            _MODEL_CLASSES = {
+                'WorkingPaper':           WorkingPaper,
+                'AuditUniverse':          AuditUniverse,
+                'AuditPlan':              AuditPlan,
+                'AuditEngagement':        AuditEngagement,
+                'AuditReport':            AuditReport,
+                'AuditMemo':              AuditMemo,
+                'AuditProgram':           AuditProgram,
+                'EngagementNotification': EngagementNotification,
+                'QuarterlyAuditReport':   QuarterlyAuditReport,
+            }
+            model_cls = _MODEL_CLASSES[model_name]
+            entity = model_cls.objects.get(id=entity_id)
+            entity.workflow_stage = new_stage_name
+            entity.workflow_stage_id = new_stage_id
+            update_fields = ['workflow_stage', 'workflow_stage_id']
+
+            # Apply status_on_complete from WO stage metadata.
+            # Skip WorkingPaper — its workflow status is review_status, not status,
+            # and is managed exclusively by the completion event handler.
+            if status_on_complete and model_name != 'WorkingPaper':
+                entity.status = status_on_complete
+                update_fields.append('status')
+
+            entity.save(update_fields=update_fields)
+            logger.info(
+                f"WorkflowStageUpdated: synced {model_name} {entity_id} → "
+                f"stage={new_stage_name!r} stage_id={new_stage_id}"
+                + (f" status={status_on_complete!r}" if status_on_complete else "")
+            )
+        except Exception as exc:
+            logger.error(
+                f"_sync_workflow_stage: failed to update {model_name} {entity_id}: {exc}",
+                exc_info=True,
+            )
 
     # ------------------------------------------------------------------ #
     # Per-entity workflow completion handlers                              #
@@ -1101,7 +1279,3 @@ class GRCKafkaConsumer:
             logger.info("Closing GRC Kafka consumer...")
             self.consumer.close()
             logger.info("✅ GRC Kafka consumer closed")
-
-
-# Create singleton instance
-grc_kafka_consumer = GRCKafkaConsumer()

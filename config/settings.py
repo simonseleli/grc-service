@@ -189,6 +189,9 @@ KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 KAFKA_CONFIG = {
     "client_id": os.getenv("KAFKA_CLIENT_ID", SERVICE_NAME),
 }
+KAFKA_WORKFLOW_TEMPLATES_TOPIC = os.getenv("KAFKA_WORKFLOW_TEMPLATES_TOPIC", "workflow-templates")
+KAFKA_WORKFLOW_EVENTS_TOPIC = os.getenv("KAFKA_WORKFLOW_EVENTS_TOPIC", "workflow-events")
+KAFKA_WORKFLOW_EVENTS_CONSUMER_GROUP = os.getenv("KAFKA_WORKFLOW_EVENTS_CONSUMER_GROUP", "grc-service-workflow-consumer")
 
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", os.getenv("REDIS_URL", "redis://localhost:6379/1"))
 CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", os.getenv("REDIS_URL", "redis://localhost:6379/2"))

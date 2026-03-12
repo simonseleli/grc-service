@@ -64,19 +64,39 @@ class CoreConfig(AppConfig):
         return "test" in sys.argv or "pytest" in sys.argv
 
     def _load_workflow_templates(self) -> None:
-        """Load YAML workflow templates and log the result (non-fatal)."""
+        """Register workflow templates with Work Orchestration via Kafka.
+
+        Mirrors corporate-service/apps/core/apps.py _register_workflow_templates().
+        """
         try:
-            from apps.core.workflows.registry import WorkflowTemplateRegistry
-            registry = WorkflowTemplateRegistry()
-            templates = registry.list_templates()
-            if templates:
+            from .workflows.registry import workflow_template_registry
+
+            logger.info("Registering GRC workflow templates with Work Orchestration...")
+
+            loaded = workflow_template_registry.load_templates()
+            if loaded == 0:
+                logger.warning("No workflow templates loaded from YAML file")
+                return
+
+            success = workflow_template_registry.publish_templates()
+
+            if success:
+                summary = workflow_template_registry.get_registration_summary()
                 logger.info(
-                    "GRC: loaded %d workflow template(s) from YAML: %s",
-                    len(templates),
-                    [t["code"] for t in templates],
+                    "Successfully registered %d workflow templates "
+                    "(workflow_types: %s)",
+                    summary['total_templates'],
+                    list(summary['templates_by_workflow_type'].keys()),
                 )
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("GRC: failed to load workflow templates on startup: %s", exc)
+            else:
+                logger.warning("Some workflow templates failed to register (check Kafka connectivity)")
+
+        except Exception as exc:
+            logger.error(
+                "Could not register workflow templates: %s. "
+                "Service will continue without workflow template registration.",
+                exc, exc_info=True,
+            )
 
     def _register_permissions_on_startup(self) -> None:
         """Publish GRC permission catalog to IAM via Kafka — mirrors WO and Doc Records pattern."""

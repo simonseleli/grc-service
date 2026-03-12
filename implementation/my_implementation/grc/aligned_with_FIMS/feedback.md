@@ -1,328 +1,238 @@
-okay, but im so sorry, i hav two cases:
-
-case 1: i did by partially following the guide:
-
-i have create the record as:
-{recommendation_id: "3dd05a5a-477f-4c53-948f-ba1eff743bd2", latest_progress: "30",…}
-latest_progress
-: 
-"30"
-next_review_date
-: 
-"2026-03-11"
-recommendation_id
-: 
-"3dd05a5a-477f-4c53-948f-ba1eff743bd2"
-reviewed_by
-: 
-"fb680f30-398b-4b86-865b-455a35c3c8d9"
-
-
-response:
-{success: true, data: {id: "2b1cb8bc-d932-40de-a6fc-fc6b56b04843",…},…}
-data
-: 
-{id: "2b1cb8bc-d932-40de-a6fc-fc6b56b04843",…}
-message
-: 
-"Implementation monitoring record created successfully"
-success
-: 
-true
-
-1. 
-now, i click on view,  and click the update progress, and click send notification, and got No open review cycle. Call /review/ first to create a new cycle.
-
-2. so i decide to click view, and then clicked Record Response button, and confirm to add the response, o i added as
-Follow-Up Cycles (1)
-
-clicked submit progress, and put 45, notes "Implementation Progress", and click sumit progress, 
-
-payload:
-{implementation_progress: 45, progress_notes: "Implementation Progress"}
-implementation_progress
-: 
-45
-progress_notes
-: 
-"Implementation Progress"
-
-
-response:
-{success: true,…}
-data
-: 
-{id: "6ca9a3aa-f94e-4046-9c63-5fae8a8e4b01", cycle_number: 1, status: "submitted", notified_at: null,…}
-message
-: 
-"Response submitted successfully."
-success
-: 
-true
-
-
-again, i clik the Verify Response, and put notes as "Notes"
-payload:
-{verdict: "verified", verification_notes: "Notes"}
-verdict
-: 
-"verified"
-verification_notes
-: 
-"Notes"
-
-
-reposne:
-preview:
-{success: true,…}
-data
-: 
-{id: "6ca9a3aa-f94e-4046-9c63-5fae8a8e4b01", cycle_number: 1, status: "verified", notified_at: null,…}
-message
-: 
-"Response verified. Header latest_progress updated."
-success
-: 
-true
-
-now, i go back to the table, and see the startus is chanegd to "Responded"
-is this correct flow??
-
-and  again:
-i can repeat this steps by clicking the view, add Record Response and fill the percentage and coonfirms and real the system takes the one with maximam,
-
-
-but i again tried (with the status Responded), i click on update progess, then i see the send notification, 
-and got:
-{success: false,…}
-error
-: 
-{message: "No open review cycle. Call /review/ first to create a new cycle.", code: "NO_OPEN_CYCLE"}
-code
-: 
-"NO_OPEN_CYCLE"
-message
-: 
-"No open review cycle. Call /review/ first to create a new cycle."
-success
-: 
-false
-
-so i tried agian to go on view, and add the Record Response so i have now three cycles, and cofirm it and fill its percantage and save now when i come and click the send notification, still etting the No open review cycle. Call /review/ first to create a new cycle.
-
-
-
-case 2:
-i really followd the guide:
-by following your approach on the notes:
-i deleted the one, and then,
-i created as 
-{recommendation_id: "3dd05a5a-477f-4c53-948f-ba1eff743bd2", latest_progress: "25",…}
-latest_progress
-: 
-"25"
-next_review_date
-: 
-"2026-03-11"
-recommendation_id
-: 
-"3dd05a5a-477f-4c53-948f-ba1eff743bd2"
-reviewed_by
-: 
-"fb680f30-398b-4b86-865b-455a35c3c8d9"
-
-now as the document says:
-### Step 2 — Open the First Review Cycle
-
-so i did:
-1. Find the monitoring record in the table
-2. Click the **👁 View** (eye icon) → the Detail Dialog opens
-3. Click **Record Response**
-4. A small panel appears — click **Confirm Create Cycle**
-
-**Expected result:** A follow-up cycle (Cycle 1) appears in the dialog with status `Pending`.
-
-so from here, im able to do anything for i see this:
-Cycle 1
-Pending
-0.00%
-Submit Progress
-
-when i click the submit progress i can fill the percenatage, but according to notes, 
-
-so i close the dialog and proceed with ### Step 3 — Notify the Auditee
-
-so here i did,
-
-i go to the table, and on the item i click.
-
-2. Find your monitoring record → click **Progress Update**
-3. The action shown is **Notify Auditee** (because `notification_sent_at` is currently null)
-4. Click it
-
-
-and see this:
-
-{success: true, data: {id: "0bfcf616-26c9-48ad-8b6e-d0d7423d5122",…},…}
-data
-: 
-{id: "0bfcf616-26c9-48ad-8b6e-d0d7423d5122",…}
-auditee_responded_at
-: 
-null
-created_at
-: 
-"2026-03-10T18:02:08.251461+03:00"
-days_until_deadline
-: 
-6
-escalated
-: 
-false
-follow_up_responses
-: 
-[{id: "e2f5217f-8285-42ab-8438-64e6d4de71c9", cycle_number: 1, status: "pending",…}]
-id
-: 
-"0bfcf616-26c9-48ad-8b6e-d0d7423d5122"
-is_active
-: 
-true
-is_overdue
-: 
-false
-last_review_date
-: 
-null
-latest_progress
-: 
-"25.00"
-next_review_date
-: 
-"2026-03-11"
-notification_sent_at
-: 
-"2026-03-10T18:08:01.664368+03:00"
-recommendation
-: 
-{id: "3dd05a5a-477f-4c53-948f-ba1eff743bd2", reference_number: "REC-FND-ENG-2026-001-001-002",…}
-response_deadline
-: 
-"2026-03-17T18:08:01.664368+03:00"
-reviewed_by
-: 
-"fb680f30-398b-4b86-865b-455a35c3c8d9"
-status
-: 
-"active"
-updated_at
-: 
-"2026-03-10T18:02:08.251491+03:00"
-message
-: 
-"Auditee notified (cycle 1). Response deadline: 2026-03-17 15:08"
-success
-: 
-true
-
-
-
-
-now, to this""**Expected result:**
-- `notification_sent_at` is set on the cycle
-- `response_deadline` is set to `notified_at + 5 business days`
-- The Progress Update button will now show **Record Review** instead of **Notify Auditee**""
-
- i was still see the button named update progress, and when i click it, it opens:
- Record Review
-Record progress notes and set the next review date for this monitoring item.
-
-Implementation Progress (%) *
-25.00
-Progress Notes
-Describe the implementation progress...
-Next Review Date
-mm/dd/yyyy
-Cancel
-Save Review
-
-
-so i didnt see the Notify Auditee buttoon there, 
-
-
-so i go back on the table and proceed wih next step, 
-### Step 4 — Auditee Submits Progress
-
-so i did
-
-i did click the view button, and takes me to,
-Cycle 1
-Pending
-0.00%
-Deadline: 3/17/2026
-Submit Progress
-
-
-i did this exactly,
-This is the auditee recording how far implementation has progressed.
-
-1. Click the **👁 View** (eye icon) on the monitoring record → Detail Dialog opens
-2. Find **Cycle 1** in the Follow-Up Cycles section (status shows `Pending`)
-3. Click **Submit Progress** on that cycle card
-4. Fill in:
-   - **Implementation Progress (%)**: `40`
-   - **Response Notes** *(optional)*: `Initial procurement process started. RFQ issued to 3 vendors. Vendor evaluation in progress.`
-5. Click **Submit Progress**
-
-ans sees:
-
-{implementation_progress: 40,…}
-implementation_progress
-: 
-40
-progress_notes
-: 
-"Initial procurement process started. RFQ issued to 3 vendors. Vendor evaluation in progress."
-
-
-and ofcourse these appeared: Submitted: 3/10/2026
-Deadline: 3/17/2026
-
-now
-
-
-
-on stp 5, i did the same as:
-
-### Step 5 — Auditor Verifies the Response
-
-1. Stay in the Detail Dialog (or re-open it via **View**)
-2. Find Cycle 1 — it now shows status `Submitted` and a **Verify Response** button
-3. Click **Verify Response**
-4. Optionally enter **Verification Notes**: `Progress confirmed. Vendor evaluation documentation reviewed. 40% progress accepted.`
-5. Click **Confirm Verify** 
-
-**Expected result (if Verified):**
-- Cycle 1 status → `Verified`
-- Header `latest_progress` updated to `40%` (synced from the cycle)
-
-
-and now this was the summary of the cycle 1:Cycle 1
-Verified
-
-
-Cycle 1
-Verified
-40.00%
-Initial procurement process started. RFQ issued to 3 vendors. Vendor evaluation in progress.
-
-Submitted: 3/10/2026
-Verified 3/10/2026
-Deadline: 3/17/2026
-Verification notes: Progress confirmed. Vendor evaluation documentation reviewed. 40% progress accepted.
-
-
-
-
-
-so, between these, which on is correct, and where there is bugs or corrections?
+simons@IPS-DEV001:~/Coding/FIMS/frontend$ docker compose build --no-cache
+[+] Building 89.3s (17/18)                                                                                                                                                                    
+ => [internal] load local bake definitions                                                                                                                                               0.0s
+ => => reading from stdin 1.13kB                                                                                                                                                         0.0s
+ => [staff-portal internal] load build definition from Dockerfile.staff                                                                                                                  0.0s
+ => => transferring dockerfile: 1.20kB                                                                                                                                                   0.0s
+ => [client-portal internal] load build definition from Dockerfile.client                                                                                                                0.0s
+ => => transferring dockerfile: 1.15kB                                                                                                                                                   0.0s
+ => [staff-portal internal] load metadata for docker.io/library/node:18-alpine                                                                                                           1.6s
+ => [client-portal internal] load .dockerignore                                                                                                                                          0.0s
+ => => transferring context: 2B                                                                                                                                                          0.0s
+ => CACHED [client-portal base 1/6] FROM docker.io/library/node:18-alpine@sha256:8d6421d663b4c28fd3ebc498332f249011d118945588d0a35cb9bc4b8ca09d9e                                        0.0s
+ => => resolve docker.io/library/node:18-alpine@sha256:8d6421d663b4c28fd3ebc498332f249011d118945588d0a35cb9bc4b8ca09d9e                                                                  0.0s
+ => [client-portal internal] load build context                                                                                                                                          1.0s
+ => => transferring context: 2.50MB                                                                                                                                                      0.9s
+ => [client-portal base 2/6] RUN apk add --no-cache curl                                                                                                                                 3.3s
+ => [client-portal base 3/6] WORKDIR /app                                                                                                                                                0.0s
+ => [client-portal base 4/6] COPY package*.json ./                                                                                                                                       0.1s
+ => [client-portal base 5/6] RUN npm ci --only=production && npm cache clean --force                                                                                                    11.2s 
+ => [client-portal base 6/6] COPY . .                                                                                                                                                   19.7s 
+ => [client-portal production 1/3] RUN npm install                                                                                                                                       5.6s 
+ => ERROR [staff-portal production 2/3] RUN npm run build:staff                                                                                                                         47.3s 
+ => [client-portal production 2/3] RUN npm run build:client                                                                                                                             21.9s 
+ => [client-portal production 3/3] RUN npm install -g serve                                                                                                                              6.6s 
+ => CANCELED [client-portal] exporting to image                                                                                                                                         18.8s 
+ => => exporting layers                                                                                                                                                                 18.8s 
+------                                                                                                                                                                                        
+ > [staff-portal production 2/3] RUN npm run build:staff:                                                                                                                                     
+0.292                                                                                                                                                                                         
+0.292 > vite_react_shadcn_ts@0.0.0 build:staff                                                                                                                                                
+0.292 > NODE_OPTIONS='--max-old-space-size=2560' vite build --config apps/staff-portal/vite.config.ts                                                                                         
+0.292                                                                                                                                                                                         
+0.726 vite v5.4.19 building for production...                                                                                                                                                 
+0.726                                                                                                                                                                                         
+0.726 (!) outDir /app/dist-staff is not inside project root and will not be emptied.
+0.726 Use --emptyOutDir to override.
+0.726 
+0.764 transforming...
+15.97 ✓ 4463 modules transformed.
+25.48 rendering chunks...
+41.63 [plugin:vite:reporter] [plugin vite:reporter] 
+41.63 (!) /app/packages/shared/src/pages/NotFound.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+41.63 
+41.68 [plugin:vite:reporter] [plugin vite:reporter] 
+41.68 (!) /app/apps/staff-portal/src/pages/documents/DocumentCreationPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts, /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+41.68 
+41.68 [plugin:vite:reporter] [plugin vite:reporter] 
+41.68 (!) /app/apps/staff-portal/src/pages/documents/DocumentEditingPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+41.68 
+41.68 [plugin:vite:reporter] [plugin vite:reporter] 
+41.68 (!) /app/apps/staff-portal/src/pages/documents/DocumentSearchPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+41.68 
+41.68 [plugin:vite:reporter] [plugin vite:reporter] 
+41.68 (!) /app/apps/staff-portal/src/pages/documents/DocumentApprovalPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+41.68 
+41.68 [plugin:vite:reporter] [plugin vite:reporter] 
+41.68 (!) /app/apps/staff-portal/src/pages/documents/DocumentArchivalPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+41.68 
+41.69 [plugin:vite:reporter] [plugin vite:reporter] 
+41.69 (!) /app/apps/staff-portal/src/pages/documents/DocumentSigningPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+41.69 
+41.69 [plugin:vite:reporter] [plugin vite:reporter] 
+41.69 (!) /app/apps/staff-portal/src/pages/documents/RecordsAppraisalPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+41.69 
+41.69 [plugin:vite:reporter] [plugin vite:reporter] 
+41.69 (!) /app/apps/staff-portal/src/pages/documents/RecordsDecongestionPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+41.69 
+41.69 [plugin:vite:reporter] [plugin vite:reporter] 
+41.69 (!) /app/apps/staff-portal/src/pages/documents/RecordsDisposalPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+41.69 
+41.69 [plugin:vite:reporter] [plugin vite:reporter] 
+41.69 (!) /app/apps/staff-portal/src/pages/documents/ReportManagementPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+41.69 
+41.69 [plugin:vite:reporter] [plugin vite:reporter] 
+41.69 (!) /app/apps/staff-portal/src/pages/document/DocumentViewPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+41.69 
+41.69 [plugin:vite:reporter] [plugin vite:reporter] 
+41.69 (!) /app/apps/staff-portal/src/pages/documents/AutomationSettingsPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+41.69 
+41.69 [plugin:vite:reporter] [plugin vite:reporter] 
+41.69 (!) /app/apps/staff-portal/src/services/corporateService.ts is dynamically imported by /app/apps/staff-portal/src/pages/corporate/PropertyLossReportDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/PropertyLossReportDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/PropertyLossReportDetailPage.tsx but also statically imported by /app/apps/staff-portal/src/components/corporate/CreateAssetCategoryDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateAssetRegisterDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateBankBranchDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateContractManagementDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateContractPaymentDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateDepartmentDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateExternalPaymentDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateExtraDutyDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateExtraDutyRateConfigDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateFleetManagementDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateFuelRequestDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateGeneralStoreDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateGoodsDeliveryDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateImprestRequestDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateImprestRetirementDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateInternalMemoDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateInternalPaymentDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateLeaveAllowanceConfigDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateLeaveAllowanceRequestDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateLeaveApplicationDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateLeavePaymentDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateLeaveRosterEntryDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateLookupCategoryDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreatePerDiemRateDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreatePettyCashDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateProcurementPlanDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreatePropertyLossDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateRequisitionDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateRevenueCollectionDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateRevenueSourceDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateSafariApplicationDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateSalaryAdvanceDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateStaffDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateStaffPositionDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateStaffTrainingDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateVehicleMaintenanceRequestDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateVehicleScheduleDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateVehicleSchedulingDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateVendorInvoiceDialog.tsx, /app/apps/staff-portal/src/components/corporate/ExternalPaymentDetailDialog.tsx, /app/apps/staff-portal/src/components/corporate/LookupCategoryDetailDialog.tsx, /app/apps/staff-portal/src/components/corporate/organization-hierarchy/OrganizationTreeView.tsx, /app/apps/staff-portal/src/components/corporate/organization-hierarchy/ReportingChainView.tsx, /app/apps/staff-portal/src/components/corporate/organization-hierarchy/StaffHierarchyView.tsx, /app/apps/staff-portal/src/components/corporate/staff-detail/CreateLeaveBalanceDialog.tsx, /app/apps/staff-portal/src/components/corporate/staff-detail/CreateStaffDependantDialog.tsx, /app/apps/staff-portal/src/components/corporate/staff-detail/CreateStaffEmploymentHistoryDialog.tsx, /app/apps/staff-portal/src/components/corporate/staff-detail/CreateStaffQualificationDialog.tsx, /app/apps/staff-portal/src/components/corporate/staff-detail/StaffBenefitsTab.tsx, /app/apps/staff-portal/src/components/corporate/staff-detail/StaffDependantsTab.tsx, /app/apps/staff-portal/src/components/corporate/staff-detail/StaffEmploymentHistoryTab.tsx, /app/apps/staff-portal/src/components/corporate/staff-detail/StaffLeaveBalancesTab.tsx, /app/apps/staff-portal/src/components/corporate/staff-detail/StaffQualificationsTab.tsx, /app/apps/staff-portal/src/hooks/useCorporateWorkflows.ts, /app/apps/staff-portal/src/pages/corporate/AcquisitionApprovalPage.tsx, /app/apps/staff-portal/src/pages/corporate/AnnualProcurementPlanDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/AssetAssignedPage.tsx, /app/apps/staff-portal/src/pages/corporate/AssetCategoryPage.tsx, /app/apps/staff-portal/src/pages/corporate/AssetCustodianPage.tsx, /app/apps/staff-portal/src/pages/corporate/AssetDeploymentPage.tsx, /app/apps/staff-portal/src/pages/corporate/AssetDisposalDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/AssetDisposalPage.tsx, /app/apps/staff-portal/src/pages/corporate/AssetDisposalViewPage.tsx, /app/apps/staff-portal/src/pages/corporate/AssetMaintenanceDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/AssetMaintenancePage.tsx, /app/apps/staff-portal/src/pages/corporate/AssetRegisterPage.tsx, /app/apps/staff-portal/src/pages/corporate/AssetValuationPage.tsx, /app/apps/staff-portal/src/pages/corporate/AssetViewPage.tsx, /app/apps/staff-portal/src/pages/corporate/BankBranchesPage.tsx, /app/apps/staff-portal/src/pages/corporate/BanksPage.tsx, /app/apps/staff-portal/src/pages/corporate/BudgetAllocationPage.tsx, /app/apps/staff-portal/src/pages/corporate/BudgetTransferDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/BudgetTransferPage.tsx, /app/apps/staff-portal/src/pages/corporate/BudgetVerificationPage.tsx, /app/apps/staff-portal/src/pages/corporate/ContractDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/ContractManagementPage.tsx, /app/apps/staff-portal/src/pages/corporate/ContractPaymentsPage.tsx, /app/apps/staff-portal/src/pages/corporate/ContractViewPage.tsx, /app/apps/staff-portal/src/pages/corporate/CostCentersPage.tsx, /app/apps/staff-portal/src/pages/corporate/DepartmentsPage.tsx, /app/apps/staff-portal/src/pages/corporate/DepreciationRunsPage.tsx, /app/apps/staff-portal/src/pages/corporate/EmployeeBenefitsPage.tsx, /app/apps/staff-portal/src/pages/corporate/ExternalPaymentPage.tsx, /app/apps/staff-portal/src/pages/corporate/ExtraDutyDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/ExtraDutyPage.tsx, /app/apps/staff-portal/src/pages/corporate/ExtraDutyRateConfigsPage.tsx, /app/apps/staff-portal/src/pages/corporate/FeeManagementPage.tsx, /app/apps/staff-portal/src/pages/corporate/FleetManagementPage.tsx, /app/apps/staff-portal/src/pages/corporate/FuelRequestDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/FuelRequestPage.tsx, /app/apps/staff-portal/src/pages/corporate/FuelStationProvidersPage.tsx, /app/apps/staff-portal/src/pages/corporate/FuelWalletsPage.tsx, /app/apps/staff-portal/src/pages/corporate/GePGBillsPage.tsx, /app/apps/staff-portal/src/pages/corporate/GePGPaymentsPage.tsx, /app/apps/staff-portal/src/pages/corporate/GeneralStorePage.tsx, /app/apps/staff-portal/src/pages/corporate/GoodsDeliveryDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/GoodsDeliveryPage.tsx, /app/apps/staff-portal/src/pages/corporate/GoodsDeliveryViewPage.tsx, /app/apps/staff-portal/src/pages/corporate/GoodsIssueVoucherDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/GoodsIssueVoucherPage.tsx, /app/apps/staff-portal/src/pages/corporate/GoodsRequestPage.tsx, /app/apps/staff-portal/src/pages/corporate/ImprestRequestPage.tsx, /app/apps/staff-portal/src/pages/corporate/ImprestRetirementDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/ImprestRetirementPage.tsx, /app/apps/staff-portal/src/pages/corporate/InternalMemoDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/InternalMemoPage.tsx, /app/apps/staff-portal/src/pages/corporate/InternalPaymentPage.tsx, /app/apps/staff-portal/src/pages/corporate/InvoicesPage.tsx, /app/apps/staff-portal/src/pages/corporate/LeaveAllowanceConfigsPage.tsx, /app/apps/staff-portal/src/pages/corporate/LeaveAllowanceRequestsPage.tsx, /app/apps/staff-portal/src/pages/corporate/LeaveApplicationDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/LeaveApplicationPage.tsx, /app/apps/staff-portal/src/pages/corporate/LeavePaymentDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/LeavePaymentsPage.tsx, /app/apps/staff-portal/src/pages/corporate/LeaveReportsPage.tsx, /app/apps/staff-portal/src/pages/corporate/LeaveRosterDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/LeaveRosterPage.tsx, /app/apps/staff-portal/src/pages/corporate/LeaveTypesPage.tsx, /app/apps/staff-portal/src/pages/corporate/LookupCategoriesPage.tsx, /app/apps/staff-portal/src/pages/corporate/MyLeaveRosterDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/MyLeaveRosterPage.tsx, /app/apps/staff-portal/src/pages/corporate/PerDiemRatesPage.tsx, /app/apps/staff-portal/src/pages/corporate/PettyCashDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/PettyCashFloatPage.tsx, /app/apps/staff-portal/src/pages/corporate/PettyCashPage.tsx, /app/apps/staff-portal/src/pages/corporate/ProcurementMethodsPage.tsx, /app/apps/staff-portal/src/pages/corporate/ProcurementPlanPage.tsx, /app/apps/staff-portal/src/pages/corporate/ProcurementPlanViewPage.tsx, /app/apps/staff-portal/src/pages/corporate/PropertyLossPage.tsx, /app/apps/staff-portal/src/pages/corporate/PropertyLossReportDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/PurchaseOrderPage.tsx, /app/apps/staff-portal/src/pages/corporate/PurchaseOrderViewPage.tsx, /app/apps/staff-portal/src/pages/corporate/RanksPage.tsx, /app/apps/staff-portal/src/pages/corporate/RequisitionViewPage.tsx, /app/apps/staff-portal/src/pages/corporate/RevenueCollectionPage.tsx, /app/apps/staff-portal/src/pages/corporate/RevenueSourcesPage.tsx, /app/apps/staff-portal/src/pages/corporate/SafariApplicationDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/SafariApplicationPage.tsx, /app/apps/staff-portal/src/pages/corporate/SalaryAdvanceDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/SalaryAdvancesPage.tsx, /app/apps/staff-portal/src/pages/corporate/SalaryGradesPage.tsx, /app/apps/staff-portal/src/pages/corporate/StaffDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/StaffListingPage.tsx, /app/apps/staff-portal/src/pages/corporate/StaffPositionsPage.tsx, /app/apps/staff-portal/src/pages/corporate/StaffTrainingPage.tsx, /app/apps/staff-portal/src/pages/corporate/StockAdjustmentPage.tsx, /app/apps/staff-portal/src/pages/corporate/StockMovementPage.tsx, /app/apps/staff-portal/src/pages/corporate/StoreReceiptVoucherPage.tsx, /app/apps/staff-portal/src/pages/corporate/TenderCategoriesPage.tsx, /app/apps/staff-portal/src/pages/corporate/TrainingCalendarPage.tsx, /app/apps/staff-portal/src/pages/corporate/TrainingProgramsPage.tsx, /app/apps/staff-portal/src/pages/corporate/TrainingRequestDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/TrainingSessionDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/TrainingSessionsPage.tsx, /app/apps/staff-portal/src/pages/corporate/VehicleCalendarPage.tsx, /app/apps/staff-portal/src/pages/corporate/VehicleDisposalPage.tsx, /app/apps/staff-portal/src/pages/corporate/VehicleMaintenanceDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/VehicleMaintenancePage.tsx, /app/apps/staff-portal/src/pages/corporate/VehicleSchedulingDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/VehicleSchedulingPage.tsx, /app/apps/staff-portal/src/pages/corporate/VehicleViewPage.tsx, /app/apps/staff-portal/src/pages/corporate/VendorInvoicePage.tsx, /app/apps/staff-portal/src/pages/corporate/VendorPage.tsx, dynamic import will not move module into another chunk.
+41.69 
+41.72 [plugin:vite:reporter] [plugin vite:reporter] 
+41.72 (!) /app/apps/staff-portal/src/pages/work-orchestration/TasksPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+41.72 
+41.72 [plugin:vite:reporter] [plugin vite:reporter] 
+41.72 (!) /app/apps/staff-portal/src/pages/work-orchestration/PlansPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+41.72 
+41.72 [plugin:vite:reporter] [plugin vite:reporter] 
+41.72 (!) /app/apps/staff-portal/src/pages/work-orchestration/WorkflowsPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+41.72 
+41.73 [plugin:vite:reporter] [plugin vite:reporter] 
+41.73 (!) /app/apps/staff-portal/src/pages/work-orchestration/NotificationsPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+41.73 
+41.73 [plugin:vite:reporter] [plugin vite:reporter] 
+41.73 (!) /app/apps/staff-portal/src/pages/work-orchestration/RemindersPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+41.73 
+47.22 npm error path /app
+47.22 npm error command failed
+47.22 npm error signal SIGKILL
+47.22 npm error command sh -c NODE_OPTIONS='--max-old-space-size=2560' vite build --config apps/staff-portal/vite.config.ts
+47.22 npm error A complete log of this run can be found in: /root/.npm/_logs/2026-03-12T06_45_53_498Z-debug-0.log
+------
+Dockerfile.staff:45
+
+--------------------
+
+  43 |     
+
+  44 |     # Build the application
+
+  45 | >>> RUN npm run build:staff
+
+  46 |     
+
+  47 |     # Install serve for production
+
+--------------------
+
+target staff-portal: failed to solve: ResourceExhausted: process "/bin/sh -c npm run build:staff" did not complete successfully: cannot allocate memory
+
+simons@IPS-DEV001:~/Coding/FIMS/frontend$ docker compose build --no-cache staff-portal 
+[+] Building 74.3s (13/14)                                                                                                                                                                    
+ => [internal] load local bake definitions                                                                                                                                               0.0s
+ => => reading from stdin 605B                                                                                                                                                           0.0s
+ => [internal] load build definition from Dockerfile.staff                                                                                                                               0.0s
+ => => transferring dockerfile: 1.20kB                                                                                                                                                   0.0s
+ => [internal] load metadata for docker.io/library/node:18-alpine                                                                                                                        1.4s
+ => [internal] load .dockerignore                                                                                                                                                        0.0s
+ => => transferring context: 2B                                                                                                                                                          0.0s
+ => CACHED [base 1/6] FROM docker.io/library/node:18-alpine@sha256:8d6421d663b4c28fd3ebc498332f249011d118945588d0a35cb9bc4b8ca09d9e                                                      0.0s
+ => => resolve docker.io/library/node:18-alpine@sha256:8d6421d663b4c28fd3ebc498332f249011d118945588d0a35cb9bc4b8ca09d9e                                                                  0.0s
+ => [internal] load build context                                                                                                                                                        0.9s
+ => => transferring context: 2.50MB                                                                                                                                                      0.8s
+ => [base 2/6] RUN apk add --no-cache curl                                                                                                                                               1.8s
+ => [base 3/6] WORKDIR /app                                                                                                                                                              0.0s 
+ => [base 4/6] COPY package*.json ./                                                                                                                                                     0.1s 
+ => [base 5/6] RUN npm ci --only=production && npm cache clean --force                                                                                                                  14.7s 
+ => [base 6/6] COPY . .                                                                                                                                                                 10.0s 
+ => [production 1/3] RUN npm install                                                                                                                                                     5.4s 
+ => ERROR [production 2/3] RUN npm run build:staff                                                                                                                                      40.7s 
+------                                                                                                                                                                                        
+ > [production 2/3] RUN npm run build:staff:                                                                                                                                                  
+0.266                                                                                                                                                                                         
+0.266 > vite_react_shadcn_ts@0.0.0 build:staff                                                                                                                                                
+0.266 > NODE_OPTIONS='--max-old-space-size=2560' vite build --config apps/staff-portal/vite.config.ts                                                                                         
+0.266                                                                                                                                                                                         
+0.639 vite v5.4.19 building for production...
+0.640 
+0.640 (!) outDir /app/dist-staff is not inside project root and will not be emptied.
+0.640 Use --emptyOutDir to override.
+0.640 
+0.675 transforming...
+11.21 ✓ 4463 modules transformed.
+14.46 rendering chunks...
+28.23 [plugin:vite:reporter] [plugin vite:reporter] 
+28.23 (!) /app/packages/shared/src/pages/NotFound.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+28.23 
+28.31 [plugin:vite:reporter] [plugin vite:reporter] 
+28.31 (!) /app/apps/staff-portal/src/pages/documents/DocumentCreationPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts, /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+28.31 
+28.31 [plugin:vite:reporter] [plugin vite:reporter] 
+28.31 (!) /app/apps/staff-portal/src/pages/documents/DocumentEditingPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+28.31 
+28.31 [plugin:vite:reporter] [plugin vite:reporter] 
+28.31 (!) /app/apps/staff-portal/src/pages/documents/DocumentSearchPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+28.31 
+28.31 [plugin:vite:reporter] [plugin vite:reporter] 
+28.31 (!) /app/apps/staff-portal/src/pages/documents/DocumentApprovalPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+28.31 
+28.31 [plugin:vite:reporter] [plugin vite:reporter] 
+28.31 (!) /app/apps/staff-portal/src/pages/documents/DocumentArchivalPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+28.31 
+28.31 [plugin:vite:reporter] [plugin vite:reporter] 
+28.31 (!) /app/apps/staff-portal/src/pages/documents/DocumentSigningPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+28.31 
+28.31 [plugin:vite:reporter] [plugin vite:reporter] 
+28.31 (!) /app/apps/staff-portal/src/pages/documents/RecordsAppraisalPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+28.31 
+28.31 [plugin:vite:reporter] [plugin vite:reporter] 
+28.31 (!) /app/apps/staff-portal/src/pages/documents/RecordsDecongestionPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+28.31 
+28.31 [plugin:vite:reporter] [plugin vite:reporter] 
+28.31 (!) /app/apps/staff-portal/src/pages/documents/RecordsDisposalPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+28.31 
+28.31 [plugin:vite:reporter] [plugin vite:reporter] 
+28.31 (!) /app/apps/staff-portal/src/pages/documents/ReportManagementPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+28.31 
+28.31 [plugin:vite:reporter] [plugin vite:reporter] 
+28.31 (!) /app/apps/staff-portal/src/pages/document/DocumentViewPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+28.31 
+28.31 [plugin:vite:reporter] [plugin vite:reporter] 
+28.31 (!) /app/apps/staff-portal/src/pages/documents/AutomationSettingsPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+28.31 
+28.31 [plugin:vite:reporter] [plugin vite:reporter] 
+28.31 (!) /app/apps/staff-portal/src/services/corporateService.ts is dynamically imported by /app/apps/staff-portal/src/pages/corporate/PropertyLossReportDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/PropertyLossReportDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/PropertyLossReportDetailPage.tsx but also statically imported by /app/apps/staff-portal/src/components/corporate/CreateAssetCategoryDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateAssetRegisterDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateBankBranchDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateContractManagementDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateContractPaymentDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateDepartmentDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateExternalPaymentDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateExtraDutyDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateExtraDutyRateConfigDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateFleetManagementDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateFuelRequestDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateGeneralStoreDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateGoodsDeliveryDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateImprestRequestDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateImprestRetirementDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateInternalMemoDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateInternalPaymentDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateLeaveAllowanceConfigDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateLeaveAllowanceRequestDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateLeaveApplicationDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateLeavePaymentDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateLeaveRosterEntryDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateLookupCategoryDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreatePerDiemRateDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreatePettyCashDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateProcurementPlanDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreatePropertyLossDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateRequisitionDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateRevenueCollectionDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateRevenueSourceDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateSafariApplicationDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateSalaryAdvanceDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateStaffDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateStaffPositionDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateStaffTrainingDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateVehicleMaintenanceRequestDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateVehicleScheduleDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateVehicleSchedulingDialog.tsx, /app/apps/staff-portal/src/components/corporate/CreateVendorInvoiceDialog.tsx, /app/apps/staff-portal/src/components/corporate/ExternalPaymentDetailDialog.tsx, /app/apps/staff-portal/src/components/corporate/LookupCategoryDetailDialog.tsx, /app/apps/staff-portal/src/components/corporate/organization-hierarchy/OrganizationTreeView.tsx, /app/apps/staff-portal/src/components/corporate/organization-hierarchy/ReportingChainView.tsx, /app/apps/staff-portal/src/components/corporate/organization-hierarchy/StaffHierarchyView.tsx, /app/apps/staff-portal/src/components/corporate/staff-detail/CreateLeaveBalanceDialog.tsx, /app/apps/staff-portal/src/components/corporate/staff-detail/CreateStaffDependantDialog.tsx, /app/apps/staff-portal/src/components/corporate/staff-detail/CreateStaffEmploymentHistoryDialog.tsx, /app/apps/staff-portal/src/components/corporate/staff-detail/CreateStaffQualificationDialog.tsx, /app/apps/staff-portal/src/components/corporate/staff-detail/StaffBenefitsTab.tsx, /app/apps/staff-portal/src/components/corporate/staff-detail/StaffDependantsTab.tsx, /app/apps/staff-portal/src/components/corporate/staff-detail/StaffEmploymentHistoryTab.tsx, /app/apps/staff-portal/src/components/corporate/staff-detail/StaffLeaveBalancesTab.tsx, /app/apps/staff-portal/src/components/corporate/staff-detail/StaffQualificationsTab.tsx, /app/apps/staff-portal/src/hooks/useCorporateWorkflows.ts, /app/apps/staff-portal/src/pages/corporate/AcquisitionApprovalPage.tsx, /app/apps/staff-portal/src/pages/corporate/AnnualProcurementPlanDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/AssetAssignedPage.tsx, /app/apps/staff-portal/src/pages/corporate/AssetCategoryPage.tsx, /app/apps/staff-portal/src/pages/corporate/AssetCustodianPage.tsx, /app/apps/staff-portal/src/pages/corporate/AssetDeploymentPage.tsx, /app/apps/staff-portal/src/pages/corporate/AssetDisposalDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/AssetDisposalPage.tsx, /app/apps/staff-portal/src/pages/corporate/AssetDisposalViewPage.tsx, /app/apps/staff-portal/src/pages/corporate/AssetMaintenanceDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/AssetMaintenancePage.tsx, /app/apps/staff-portal/src/pages/corporate/AssetRegisterPage.tsx, /app/apps/staff-portal/src/pages/corporate/AssetValuationPage.tsx, /app/apps/staff-portal/src/pages/corporate/AssetViewPage.tsx, /app/apps/staff-portal/src/pages/corporate/BankBranchesPage.tsx, /app/apps/staff-portal/src/pages/corporate/BanksPage.tsx, /app/apps/staff-portal/src/pages/corporate/BudgetAllocationPage.tsx, /app/apps/staff-portal/src/pages/corporate/BudgetTransferDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/BudgetTransferPage.tsx, /app/apps/staff-portal/src/pages/corporate/BudgetVerificationPage.tsx, /app/apps/staff-portal/src/pages/corporate/ContractDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/ContractManagementPage.tsx, /app/apps/staff-portal/src/pages/corporate/ContractPaymentsPage.tsx, /app/apps/staff-portal/src/pages/corporate/ContractViewPage.tsx, /app/apps/staff-portal/src/pages/corporate/CostCentersPage.tsx, /app/apps/staff-portal/src/pages/corporate/DepartmentsPage.tsx, /app/apps/staff-portal/src/pages/corporate/DepreciationRunsPage.tsx, /app/apps/staff-portal/src/pages/corporate/EmployeeBenefitsPage.tsx, /app/apps/staff-portal/src/pages/corporate/ExternalPaymentPage.tsx, /app/apps/staff-portal/src/pages/corporate/ExtraDutyDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/ExtraDutyPage.tsx, /app/apps/staff-portal/src/pages/corporate/ExtraDutyRateConfigsPage.tsx, /app/apps/staff-portal/src/pages/corporate/FeeManagementPage.tsx, /app/apps/staff-portal/src/pages/corporate/FleetManagementPage.tsx, /app/apps/staff-portal/src/pages/corporate/FuelRequestDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/FuelRequestPage.tsx, /app/apps/staff-portal/src/pages/corporate/FuelStationProvidersPage.tsx, /app/apps/staff-portal/src/pages/corporate/FuelWalletsPage.tsx, /app/apps/staff-portal/src/pages/corporate/GePGBillsPage.tsx, /app/apps/staff-portal/src/pages/corporate/GePGPaymentsPage.tsx, /app/apps/staff-portal/src/pages/corporate/GeneralStorePage.tsx, /app/apps/staff-portal/src/pages/corporate/GoodsDeliveryDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/GoodsDeliveryPage.tsx, /app/apps/staff-portal/src/pages/corporate/GoodsDeliveryViewPage.tsx, /app/apps/staff-portal/src/pages/corporate/GoodsIssueVoucherDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/GoodsIssueVoucherPage.tsx, /app/apps/staff-portal/src/pages/corporate/GoodsRequestPage.tsx, /app/apps/staff-portal/src/pages/corporate/ImprestRequestPage.tsx, /app/apps/staff-portal/src/pages/corporate/ImprestRetirementDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/ImprestRetirementPage.tsx, /app/apps/staff-portal/src/pages/corporate/InternalMemoDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/InternalMemoPage.tsx, /app/apps/staff-portal/src/pages/corporate/InternalPaymentPage.tsx, /app/apps/staff-portal/src/pages/corporate/InvoicesPage.tsx, /app/apps/staff-portal/src/pages/corporate/LeaveAllowanceConfigsPage.tsx, /app/apps/staff-portal/src/pages/corporate/LeaveAllowanceRequestsPage.tsx, /app/apps/staff-portal/src/pages/corporate/LeaveApplicationDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/LeaveApplicationPage.tsx, /app/apps/staff-portal/src/pages/corporate/LeavePaymentDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/LeavePaymentsPage.tsx, /app/apps/staff-portal/src/pages/corporate/LeaveReportsPage.tsx, /app/apps/staff-portal/src/pages/corporate/LeaveRosterDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/LeaveRosterPage.tsx, /app/apps/staff-portal/src/pages/corporate/LeaveTypesPage.tsx, /app/apps/staff-portal/src/pages/corporate/LookupCategoriesPage.tsx, /app/apps/staff-portal/src/pages/corporate/MyLeaveRosterDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/MyLeaveRosterPage.tsx, /app/apps/staff-portal/src/pages/corporate/PerDiemRatesPage.tsx, /app/apps/staff-portal/src/pages/corporate/PettyCashDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/PettyCashFloatPage.tsx, /app/apps/staff-portal/src/pages/corporate/PettyCashPage.tsx, /app/apps/staff-portal/src/pages/corporate/ProcurementMethodsPage.tsx, /app/apps/staff-portal/src/pages/corporate/ProcurementPlanPage.tsx, /app/apps/staff-portal/src/pages/corporate/ProcurementPlanViewPage.tsx, /app/apps/staff-portal/src/pages/corporate/PropertyLossPage.tsx, /app/apps/staff-portal/src/pages/corporate/PropertyLossReportDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/PurchaseOrderPage.tsx, /app/apps/staff-portal/src/pages/corporate/PurchaseOrderViewPage.tsx, /app/apps/staff-portal/src/pages/corporate/RanksPage.tsx, /app/apps/staff-portal/src/pages/corporate/RequisitionViewPage.tsx, /app/apps/staff-portal/src/pages/corporate/RevenueCollectionPage.tsx, /app/apps/staff-portal/src/pages/corporate/RevenueSourcesPage.tsx, /app/apps/staff-portal/src/pages/corporate/SafariApplicationDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/SafariApplicationPage.tsx, /app/apps/staff-portal/src/pages/corporate/SalaryAdvanceDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/SalaryAdvancesPage.tsx, /app/apps/staff-portal/src/pages/corporate/SalaryGradesPage.tsx, /app/apps/staff-portal/src/pages/corporate/StaffDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/StaffListingPage.tsx, /app/apps/staff-portal/src/pages/corporate/StaffPositionsPage.tsx, /app/apps/staff-portal/src/pages/corporate/StaffTrainingPage.tsx, /app/apps/staff-portal/src/pages/corporate/StockAdjustmentPage.tsx, /app/apps/staff-portal/src/pages/corporate/StockMovementPage.tsx, /app/apps/staff-portal/src/pages/corporate/StoreReceiptVoucherPage.tsx, /app/apps/staff-portal/src/pages/corporate/TenderCategoriesPage.tsx, /app/apps/staff-portal/src/pages/corporate/TrainingCalendarPage.tsx, /app/apps/staff-portal/src/pages/corporate/TrainingProgramsPage.tsx, /app/apps/staff-portal/src/pages/corporate/TrainingRequestDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/TrainingSessionDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/TrainingSessionsPage.tsx, /app/apps/staff-portal/src/pages/corporate/VehicleCalendarPage.tsx, /app/apps/staff-portal/src/pages/corporate/VehicleDisposalPage.tsx, /app/apps/staff-portal/src/pages/corporate/VehicleMaintenanceDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/VehicleMaintenancePage.tsx, /app/apps/staff-portal/src/pages/corporate/VehicleSchedulingDetailPage.tsx, /app/apps/staff-portal/src/pages/corporate/VehicleSchedulingPage.tsx, /app/apps/staff-portal/src/pages/corporate/VehicleViewPage.tsx, /app/apps/staff-portal/src/pages/corporate/VendorInvoicePage.tsx, /app/apps/staff-portal/src/pages/corporate/VendorPage.tsx, dynamic import will not move module into another chunk.
+28.31 
+28.32 [plugin:vite:reporter] [plugin vite:reporter] 
+28.32 (!) /app/apps/staff-portal/src/pages/work-orchestration/TasksPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+28.32 
+28.32 [plugin:vite:reporter] [plugin vite:reporter] 
+28.32 (!) /app/apps/staff-portal/src/pages/work-orchestration/PlansPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+28.32 
+28.32 [plugin:vite:reporter] [plugin vite:reporter] 
+28.32 (!) /app/apps/staff-portal/src/pages/work-orchestration/WorkflowsPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+28.32 
+28.32 [plugin:vite:reporter] [plugin vite:reporter] 
+28.32 (!) /app/apps/staff-portal/src/pages/work-orchestration/NotificationsPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+28.32 
+28.32 [plugin:vite:reporter] [plugin vite:reporter] 
+28.32 (!) /app/apps/staff-portal/src/pages/work-orchestration/RemindersPage.tsx is dynamically imported by /app/packages/shared/src/hooks/usePrefetchRoutes.ts but also statically imported by /app/apps/staff-portal/src/App.tsx, dynamic import will not move module into another chunk.
+28.32 
+40.55 npm error path /app
+40.55 npm error command failed
+40.55 npm error signal SIGKILL
+40.55 npm error command sh -c NODE_OPTIONS='--max-old-space-size=2560' vite build --config apps/staff-portal/vite.config.ts
+40.57 npm error A complete log of this run can be found in: /root/.npm/_logs/2026-03-12T06_47_21_119Z-debug-0.log
+------
+Dockerfile.staff:45
+
+--------------------
+
+  43 |     
+
+  44 |     # Build the application
+
+  45 | >>> RUN npm run build:staff
+
+  46 |     
+
+  47 |     # Install serve for production
+
+--------------------
+
+failed to solve: ResourceExhausted: process "/bin/sh -c npm run build:staff" did not complete successfully: cannot allocate memory
+
+simons@IPS-DEV001:~/Coding/FIMS/frontend$ 
+

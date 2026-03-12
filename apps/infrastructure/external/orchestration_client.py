@@ -52,21 +52,6 @@ class OrchestrationClient:
         )
     """
 
-    # Maps GRC template_code → WO workflow_type (set in WO seed_workflow_templates.py).
-    # Used by _get_template_id_by_code() to look up the UUID from WO at runtime.
-    TEMPLATE_CODE_TO_WO_TYPE: Dict[str, str] = {
-        "grc.working_paper_approval":             "grc_working_paper_approval",
-        "grc.audit_universe_approval":            "grc_audit_universe_approval",
-        "grc.rbiap_approval":                     "grc_rbiap_approval",
-        "grc.engagement_lifecycle":               "grc_engagement_lifecycle",
-        "grc.engagement_notification_approval":   "grc_engagement_notification_approval",   # P2-GAP 1
-        "grc.audit_report_approval":              "grc_audit_report_approval",
-        # P2-GAP 2
-        "grc.audit_memo_approval":                "grc_audit_memo_approval",
-        "grc.audit_program_approval":             "grc_audit_program_approval",
-        "grc.quarterly_report_approval":          "grc_quarterly_report_approval",
-    }
-
     # Process-lifetime cache: template_code → UUID string.
     # Populated on first successful lookup; cleared by process restart.
     _template_id_cache: Dict[str, str] = {}
@@ -110,47 +95,49 @@ class OrchestrationClient:
         template_code: str,
         auth_token: Optional[str] = None,
     ) -> Optional[str]:
-        """
-        Look up WO template UUID by GRC template_code (guide §4.3 pattern).
+        """Look up WO template UUID by template code.
 
-        Maps template_code to WO workflow_type, queries WO's template list API,
-        and returns the matching template UUID. Results are cached for the
+        Queries WO's template list API with the code as a filter param and
+        returns the matching template UUID. Results are cached for the
         process lifetime so repeated start_workflow calls have no overhead.
 
-        Returns None if WO is unreachable or the template has not been seeded.
+        Mirrors corporate-service _get_template_id_by_code() exactly.
         """
         if template_code in self._template_id_cache:
             return self._template_id_cache[template_code]
 
-        wo_type = self.TEMPLATE_CODE_TO_WO_TYPE.get(template_code)
-        if not wo_type:
-            logger.debug("No WO workflow_type mapping for template_code=%s", template_code)
-            return None
-
         try:
             resp = requests.get(
                 self._templates_url(),
+                params={'code': template_code, 'is_active': 'true'},
                 headers=self._headers(auth_token),
                 timeout=5,
             )
             if resp.status_code == 200:
                 data = resp.json()
-                templates = data.get("data", data) if isinstance(data, dict) else data
-                for tpl in templates:
-                    if tpl.get("workflow_type") == wo_type and tpl.get("is_active", True):
-                        uid = tpl.get("id")
-                        if uid:
-                            self._template_id_cache[template_code] = uid
-                            logger.info(
-                                "Resolved template_id for %s (workflow_type=%s): %s",
-                                template_code, wo_type, uid,
-                            )
-                            return uid
-                logger.debug(
-                    "WO template workflow_type=%s not found — run: "
-                    "python manage.py seed_workflow_templates (in WO container)",
-                    wo_type,
-                )
+                # Handle both formats: direct array [...] or wrapped {"data": [...]}
+                if isinstance(data, list):
+                    templates = data
+                elif isinstance(data, dict) and 'data' in data:
+                    templates = data['data']
+                else:
+                    templates = []
+
+                if isinstance(templates, list):
+                    for tpl in templates:
+                        if tpl.get('code') == template_code:
+                            uid = tpl.get('id')
+                            if uid:
+                                self._template_id_cache[template_code] = str(uid)
+                                logger.info(
+                                    "Found template for code '%s': id=%s",
+                                    template_code, uid,
+                                )
+                                return str(uid)
+                    logger.warning(
+                        "No template found matching code '%s' in %d templates",
+                        template_code, len(templates),
+                    )
             else:
                 logger.warning("WO template list returned HTTP %s", resp.status_code)
         except Exception as exc:

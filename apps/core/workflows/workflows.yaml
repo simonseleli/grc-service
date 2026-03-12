@@ -28,6 +28,8 @@ templates:
           sla:
             durationMinutes: 2880
             breachStrategy: "notify"
+          metadata:
+            status_on_complete: "pending"
 
         - definitionKey: "working_paper_approval"
           name: "Working Paper Approval"
@@ -46,12 +48,16 @@ templates:
           sla:
             durationMinutes: 1440
             breachStrategy: "notify"
+          metadata:
+            status_on_complete: "approved"
 
         - definitionKey: "working_paper_completed"
           name: "Completed"
           order: 3
           assignees: []
           actions: []
+          metadata:
+            status_on_complete: "approved"
 
   - code: "grc.audit_universe_approval"
     name: "Audit Universe Approval"
@@ -80,6 +86,8 @@ templates:
           sla:
             durationMinutes: 4320
             breachStrategy: "notify"
+          metadata:
+            status_on_complete: "approved"
 
   - code: "grc.rbiap_approval"
     name: "RBIAP Approval"
@@ -108,6 +116,8 @@ templates:
           sla:
             durationMinutes: 4320
             breachStrategy: "notify"
+          metadata:
+            status_on_complete: "management_review"
 
         - definitionKey: "management_review"
           name: "Management Review"
@@ -123,6 +133,8 @@ templates:
           sla:
             durationMinutes: 10080
             breachStrategy: "notify"
+          metadata:
+            status_on_complete: "committee_review"
 
         - definitionKey: "committee_review"
           name: "Audit Committee Review"
@@ -138,6 +150,8 @@ templates:
           sla:
             durationMinutes: 14400
             breachStrategy: "notify"
+          metadata:
+            status_on_complete: "committee_review"
 
         - definitionKey: "commission_noting"
           name: "Commission Noting"
@@ -150,6 +164,8 @@ templates:
           sla:
             durationMinutes: 10080
             breachStrategy: "notify"
+          metadata:
+            status_on_complete: "approved"
 
   - code: "grc.engagement_lifecycle"
     name: "Audit Engagement Lifecycle"
@@ -175,6 +191,8 @@ templates:
           sla:
             durationMinutes: 7200
             breachStrategy: "notify"
+          metadata:
+            status_on_complete: "fieldwork"
 
         - definitionKey: "fieldwork"
           name: "Fieldwork"
@@ -187,6 +205,8 @@ templates:
           sla:
             durationMinutes: 28800
             breachStrategy: "notify"
+          metadata:
+            status_on_complete: "reporting"
 
         - definitionKey: "reporting"
           name: "Reporting"
@@ -199,6 +219,8 @@ templates:
           sla:
             durationMinutes: 14400
             breachStrategy: "notify"
+          metadata:
+            status_on_complete: "completed"
   # P2-GAP 1 — Engagement Notification
   - code: "grc.engagement_notification_approval"
     name: "Engagement Notification Approval"
@@ -227,6 +249,8 @@ templates:
           sla:
             durationMinutes: 2880
             breachStrategy: "notify"
+          metadata:
+            status_on_complete: "approved"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # P2-GAP 2 — Missing Workflow YAML Templates (SRS Req 11-14, 22-23, 36, QR)
@@ -259,6 +283,8 @@ templates:
           sla:
             durationMinutes: 4320
             breachStrategy: "notify"
+          metadata:
+            status_on_complete: "dg_review"
         - definitionKey: "dg_memo_approval"
           name: "DG Approval"
           order: 2
@@ -273,6 +299,8 @@ templates:
           sla:
             durationMinutes: 5760
             breachStrategy: "notify"
+          metadata:
+            status_on_complete: "approved"
 
   - code: "grc.audit_program_approval"
     name: "Audit Program Approval"
@@ -301,6 +329,8 @@ templates:
           sla:
             durationMinutes: 2880
             breachStrategy: "notify"
+          metadata:
+            status_on_complete: "under_review"
         - definitionKey: "cia_program_approval"
           name: "CIA Approval"
           order: 2
@@ -315,6 +345,8 @@ templates:
           sla:
             durationMinutes: 4320
             breachStrategy: "notify"
+          metadata:
+            status_on_complete: "approved"
 
   - code: "grc.audit_report_approval"
     name: "Audit Report Approval"
@@ -343,6 +375,8 @@ templates:
           sla:
             durationMinutes: 4320
             breachStrategy: "notify"
+          metadata:
+            status_on_complete: "under_review"
         - definitionKey: "cia_report_approval"
           name: "CIA Approval"
           order: 2
@@ -357,6 +391,8 @@ templates:
           sla:
             durationMinutes: 5760
             breachStrategy: "notify"
+          metadata:
+            status_on_complete: "approved"
 
   - code: "grc.quarterly_report_approval"
     name: "Quarterly Audit Report Approval"
@@ -385,6 +421,8 @@ templates:
           sla:
             durationMinutes: 4320
             breachStrategy: "notify"
+          metadata:
+            status_on_complete: "management_review"
         - definitionKey: "management_qr_review"
           name: "Management Review"
           order: 2
@@ -399,6 +437,8 @@ templates:
           sla:
             durationMinutes: 10080
             breachStrategy: "notify"
+          metadata:
+            status_on_complete: "committee_review"
         - definitionKey: "committee_qr_review"
           name: "Audit Committee Review"
           order: 3
@@ -413,6 +453,8 @@ templates:
           sla:
             durationMinutes: 14400
             breachStrategy: "notify"
+          metadata:
+            status_on_complete: "submitted_to_commission"
         - definitionKey: "commission_qr_noting"
           name: "Commission Noting"
           order: 4
@@ -424,3 +466,5 @@ templates:
           sla:
             durationMinutes: 10080
             breachStrategy: "notify"
+          metadata:
+            status_on_complete: "approved"

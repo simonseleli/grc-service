@@ -2,8 +2,18 @@
 
 > **Date:** 2026-02-26
 > **Base URL:** `http://localhost:3001` (Staff Portal)
-> **Login:** `admin@fcc.go.tz` / `admin123`
 > **Database:** Cleaned — all transactional data wiped, lookup data preserved
+
+> **Users referenced in this guide (all GRC-role passwords: `Pass@1234`):**
+>
+> | Email | Name | Role |
+> |---|---|---|
+> | `admin@fcc.go.tz` | System Administrator | Superuser (password: `admin123`) |
+> | `cia@fcc.go.tz` | John Mbwana | Chief Internal Auditor |
+> | `auditor@fcc.go.tz` | Mary Simba | Internal Auditor / Lead Auditor |
+> | `auditcommittee@fcc.go.tz` | Paul Kamau | Audit Committee |
+> | `management@fcc.go.tz` | Grace Mwangi | Management |
+> | `auditee@fcc.go.tz` | Ali Hassan | Auditee |
 
 ---
 
@@ -89,6 +99,8 @@
 
 ## Phase 1 — Configuration Verification
 
+> **Login as:** `admin@fcc.go.tz` / `admin123` *(superuser — manages system configuration)*
+
 **Page:** Sidebar → GRC → **Configuration**
 
 Simply verify the above lookup data exists. No creation needed — the `seed_lookup_data` management command pre-populated everything.
@@ -103,6 +115,8 @@ Simply verify the above lookup data exists. No creation needed — the `seed_loo
 ---
 
 ## Phase 2 — Create Audit Universe
+
+> **Login as:** `auditor@fcc.go.tz` / `Pass@1234` *(Internal Auditor — SRS §1.8.1 Step 1: "IA identify Audit Universe through consultation with Heads of directorates/units/zones and submit to CIA for review and approval")*
 
 **Page:** Sidebar → **Audit Universe** → Click **Create** (+)
 
@@ -121,6 +135,8 @@ Simply verify the above lookup data exists. No creation needed — the `seed_loo
 ---
 
 ## Phase 3 — Add Auditable Entities
+
+> **Login as:** `auditor@fcc.go.tz` / `Pass@1234` *(Internal Auditor — SRS §1.8.1 Step 1: IA identifies all auditable entities as part of the Audit Universe submission)*
 
 **Page:** Sidebar → **Audit Universe** → find your universe row → click the **⋮ (three-dot) action menu** on the right → select **"View"** (Eye icon) → this opens the **Universe Detail page** → scroll down to the **Auditable Entities** section → click **Add Entity**
 
@@ -167,6 +183,10 @@ Simply verify the above lookup data exists. No creation needed — the `seed_loo
 ---
 
 ## Phase 4 — Risk Assessments
+
+> **Login as:** `auditor@fcc.go.tz` / `Pass@1234` to **create** assessments *(Internal Auditor — SRS §1.8.1 Step 3: "IA conduct risk assessment, analyze and score risks, draft the RBIAP and submit to CIA for review")*
+>
+> **Then switch to:** `cia@fcc.go.tz` / `Pass@1234` to **review and approve** each assessment *(CIA — SRS §1.8.1 Step 2: "CIA reviews and approves the audit universe and assigns IA to conduct risk assessment")*
 
 **Page:** Sidebar → **Risk Assessments** → Click **Create**
 
@@ -290,6 +310,10 @@ After saving each risk assessment, open the detail dialog (click **View**) and v
 
 ## Phase 5 — Submit Universe for Approval
 
+> **Login as:** `auditor@fcc.go.tz` / `Pass@1234` to click **Submit for Approval** *(Internal Auditor submits the completed universe to CIA)*
+>
+> **Then switch to:** `cia@fcc.go.tz` / `Pass@1234` to **Approve** in the Workflow Console *(CIA — SRS §1.8.1 Step 2: "CIA reviews and approves the audit universe")*
+
 **Page:** Go back to the **Audit Universe** detail page
 
 1. Click **Submit for Approval**
@@ -309,6 +333,16 @@ After saving each risk assessment, open the detail dialog (click **View**) and v
 ---
 
 ## Phase 6 — Create Audit Plan (RBIAP)
+
+> **Login as:** `auditor@fcc.go.tz` / `Pass@1234` to **create** the plan *(Internal Auditor — SRS §1.8.1 Step 3: "IA draft the RBIAP and submit to CIA for review")*
+>
+> **Workflow approval stages — switch user per stage:**
+> | WO Stage | Login As | SRS Reference |
+> |---|---|---|
+> | `cia_review` — Approve | `cia@fcc.go.tz` | SRS Step 4: CIA reviews and submits to Management |
+> | `management_review` — Adopt | `management@fcc.go.tz` | SRS Step 5: Management reviews and makes recommendations |
+> | `committee_review` — Approve | `auditcommittee@fcc.go.tz` | SRS Step 7–9: Audit Committee reviews and approves |
+> | `commission_noting` — Note | `cia@fcc.go.tz` *(acting for Commission noting)* | SRS Step 10: Audit Committee submits to Commission for noting |
 
 **Page:** Sidebar → **Audit Plans** → Click **Create Audit Plan**
 
@@ -375,6 +409,8 @@ This is **not** an auto-created plan on universe approval. It is a deliberate **
 
 ## Phase 7 — Create Audit Engagement
 
+> **Login as:** `cia@fcc.go.tz` / `Pass@1234` *(Chief Internal Auditor — SRS §1.8.3 Pre-Conditions: CIA instructs LA to conduct the engagement; CIA is the process owner)*
+
 **Page:** Sidebar → GRC → **Audit Engagements** → Click **Create**
 
 > **Pre-condition:** The Audit Plan must be in `approved` or `implementation` status. Engagements cannot be created against plans in any earlier status.
@@ -403,6 +439,8 @@ This is **not** an auto-created plan on universe approval. It is a deliberate **
 ---
 
 ## Phase 7a — Audit Survey / Preliminary Control Assessment (GAP 3 — SRS Req 19–21)
+
+> **Login as:** `auditor@fcc.go.tz` / `Pass@1234` *(Internal Auditor / Audit Team Member — SRS §1.8.3 Steps 4–7: "The Audit Team familiarizes itself with the auditable area under review conducting preliminary review" and "Audit Team Members review adequacy of the process controls")*
 
 **Page:** Sidebar → GRC → **Audit Engagements** → click your engagement row → **Engagement Detail page** → scroll to the **Audit Surveys** card → click **Add**
 
@@ -437,6 +475,10 @@ This is **not** an auto-created plan on universe approval. It is a deliberate **
 ---
 
 ## Phase 7b — Risk Control Matrix (GAP 4 — SRS Req 22)
+
+> **Login as:** `auditor@fcc.go.tz` / `Pass@1234` to **create** and **submit** the RCM *(Lead Auditor — SRS §1.8.3 Step 8: "LA develops Risk and Control Matrix and prioritizes the auditable process areas")*
+>
+> **Then switch to:** `cia@fcc.go.tz` / `Pass@1234` to **Approve RCM** *(CIA — SRS §1.8.3 Step 9: "CIA approves the audit program")*
 
 **Page:** Sidebar → GRC → **Audit Engagements** → click your engagement row → **Engagement Detail page** → scroll to the **Risk Control Matrix** card → click **Add**
 
@@ -504,6 +546,14 @@ This is **not** an auto-created plan on universe approval. It is a deliberate **
 ---
 
 ## Phase 7c — Audit Program (GAP 5 — SRS Req 22–23)
+
+> **Login as:** `auditor@fcc.go.tz` / `Pass@1234` to **create** the program and click **Submit** *(Lead Auditor — SRS §1.8.3 Step 8: "LA prepares draft audit program and submits for vetting processing")*
+>
+> **Workflow approval stages — switch user per WO stage:**
+> | WO Stage | Login As | SRS Reference |
+> |---|---|---|
+> | `ia_program_review` — Approve | `auditor@fcc.go.tz` | IA vetting/review stage |
+> | `cia_program_approval` — Approve | `cia@fcc.go.tz` | SRS Step 9: "CIA approves the audit program" |
 
 **Page:** Sidebar → GRC → **Audit Engagements** → click your engagement row → **Engagement Detail page** → scroll to the **Audit Programs** card → click **Add**
 
@@ -626,6 +676,12 @@ After `status = approved`:
 
 ## Phase 7d — Engagement Notification (GAP 1 — SRS Req 10–14, 18)
 
+> **Login as:** `auditor@fcc.go.tz` / `Pass@1234` to **create** the EN and click **Submit for Approval** *(Lead Auditor — SRS §1.8.3 Step 10: "LA prepares EN and submits for vetting processing")*
+>
+> **Then switch to:** `cia@fcc.go.tz` / `Pass@1234` to **Approve** in the WO Workflow Console *(CIA — SRS §1.8.3 Step 11: "CIA approve — Signature and QR Code embedded automatically")*
+>
+> **Then back to:** `auditor@fcc.go.tz` / `Pass@1234` to click **Transmit** *(Lead Auditor — SRS §1.8.3 Step 12: "EN and notification is sent to auditee")*
+
 **Page:** Sidebar → GRC → **Audit Engagements** → click your engagement row → **Engagement Detail page** → scroll to the **Engagement Notification** card → click **Add**
 
 > **SRS §1.8.3 Steps 10–12:** After the audit program is approved, the Lead Auditor prepares the Engagement Notification (EN) — a formal notice to the auditable area. The CIA approves it (single-stage WO workflow), and it is then transmitted to the auditee by the Lead Auditor.
@@ -689,6 +745,12 @@ After status → `approved`:
 
 ## Phase 7e — Declaration of Independence (GAP 2 — SRS Req 16, 18, 38)
 
+> **Each audit team member declares and signs their own declaration while logged in as themselves:**
+> - **Declaration 1** — Login as `auditor@fcc.go.tz` / `Pass@1234` *(Lead Auditor / Internal Auditor signs their independence declaration)*
+> - **Declaration 2** (edge case with conflict) — Login as `auditor@fcc.go.tz` / `Pass@1234` *(same user, testing the conflict disclosure path)*
+>
+> *SRS §1.8.3: Each audit team member must sign a Declaration of Independence before participating in an engagement.*
+
 **Page:** Sidebar → GRC → **Audit Engagements** → click your engagement row → **Engagement Detail page** → scroll to the **Declarations** card → click **Add**
 
 > **SRS:** Each audit team member must sign a Declaration of Independence before participating in an engagement. All declarations must be `signed` before the **Start Engagement Workflow** button will succeed — the backend returns `DECLARATIONS_NOT_SIGNED` (400) if any are still `pending`.
@@ -735,6 +797,8 @@ After signing → open detail dialog → a **"Download Signed Declaration"** but
 ---
 
 ### Start Engagement Workflow
+
+> **Login as:** `cia@fcc.go.tz` / `Pass@1234` *(CIA — process owner who initiates the engagement lifecycle; SRS §1.8.3: CIA is the Process Owner)*
 
 > **⚠️ Pre-conditions before clicking Start:**
 > - All sub-phases 7a through 7e above must be complete
@@ -784,6 +848,14 @@ The engagement lifecycle is driven entirely by the **Work Orchestration (WO) Wor
 
 ## Phase 8 — Create Working Papers
 
+> **Login as:** `auditor@fcc.go.tz` / `Pass@1234` to **create** working papers and **Submit for Review** *(Audit Team Member — SRS §1.8.3 Step 15: "Audit Team Members perform tests, document results of fieldwork in the Working Paper and submit to LA for review")*
+>
+> **Workflow approval stages — switch user per WO stage:**
+> | WO Stage | Login As | SRS Reference |
+> |---|---|---|
+> | `working_paper_review` — Approve | `auditor@fcc.go.tz` | SRS Step 16: "LA reviews evidence gathered in Working Paper" |
+> | `working_paper_approval` — Final Approve | `cia@fcc.go.tz` | SRS Step 19: "CIA review and approve working paper forms" |
+
 **Page:** Sidebar → **Audit Engagements** → find your engagement row → click the **⋮ (three-dot) action menu** on the right → select **"View"** (Eye icon) → this opens the **Engagement Detail page** → scroll down to the **Working Papers** section → click **Add Working Paper**
 
 > **⚠️ Navigation note:** Working Papers do NOT have their own sidebar entry. They are embedded inside the Audit Engagement **Detail** page. You must "View" an engagement first to see and manage its working papers.
@@ -832,6 +904,14 @@ The engagement lifecycle is driven entirely by the **Work Orchestration (WO) Wor
 ---
 
 ## Phase 9 — Create Audit Findings
+
+> **Login as:** `auditor@fcc.go.tz` / `Pass@1234` to **create** findings and progress them to `discussed` *(Internal Auditor — SRS §1.8.3 Step 21: "IA documents draft Internal Audit Report findings")*
+>
+> **Auditee and Management responses:**
+> - To enter **Auditee Response**: login as `auditee@fcc.go.tz` / `Pass@1234` *(SRS: Auditee responds to findings — permission `grc:audit_finding:respond`)*
+> - To enter **Management Response**: login as `management@fcc.go.tz` / `Pass@1234` *(Management provides formal response)*
+>
+> **Then back to:** `auditor@fcc.go.tz` / `Pass@1234` to click **Finalize** once both responses are saved
 
 **Page:** Sidebar → **Audit Findings** → Click **Create**
 
@@ -900,6 +980,8 @@ The engagement lifecycle is driven entirely by the **Work Orchestration (WO) Wor
 
 ## Phase 10 — Create Audit Recommendations
 
+> **Login as:** `auditor@fcc.go.tz` / `Pass@1234` to **create** recommendations and progress them *(Internal Auditor — SRS §1.8.3 Step 18: "LA consolidates working paper forms (audit findings, results and observations)")*
+
 **Page:** Sidebar → **Audit Recommendations** → Click **Create**
 
 > **Note:** Reference Number is **auto-generated** by the backend (format: `REC-{finding_ref}-{sequence}`). Do not enter it manually.
@@ -951,6 +1033,15 @@ The engagement lifecycle is driven entirely by the **Work Orchestration (WO) Wor
 ---
 
 ## Phase 11 — Audit Monitoring
+
+> **Login as per step:**
+> | Step | Login As | Role | SRS Reference |
+> |---|---|---|---|
+> | Step 1 — Create Header | `auditor@fcc.go.tz` | Internal Auditor | SRS §1.8.6 Step 1: "IA identifies list of unimplemented previous audit Recommendations" |
+> | Step 2 — Open Cycle | `auditor@fcc.go.tz` | Internal Auditor | IA opens review cycle |
+> | Step 3 — Notify Auditee | `auditor@fcc.go.tz` | Internal Auditor | SRS §1.8.6 Step 2: "IA shares the list with the auditee for updating status" |
+> | Step 4 — Submit Progress | `auditee@fcc.go.tz` | Auditee | SRS §1.8.6 Step 3: "Auditee responds to the list within five days" |
+> | Step 5 — Verify Response | `auditor@fcc.go.tz` | Internal Auditor | SRS §1.8.6 Steps 4–6: "IA compiles, reviews and submits implementation status to CIA" |
 
 **Page:** Sidebar → **Audit Monitoring** → Click **Create**
 
@@ -1125,6 +1216,8 @@ Now go back to Step 3 — click **Progress Update** again → **"Notify Auditee"
 
 ## Phase 12 — Dashboard Verification
 
+> **Login as:** `cia@fcc.go.tz` / `Pass@1234` *(or any GRC user with `grc:audit_dashboard:view` permission — all GRC roles have this permission)*
+
 **Page:** Click **GRC** in the sidebar header (navigate to `/service/grc`)
 
 **Verify:**
@@ -1138,6 +1231,15 @@ Now go back to Step 3 — click **Progress Update** again → **"Notify Auditee"
 ---
 
 ## Phase 13 — Create Audit Report
+
+> **Login as:** `auditor@fcc.go.tz` / `Pass@1234` to **create** the report *(Internal Auditor — SRS §1.8.3 Step 21: "IA documents draft Internal Audit Report and submits to LA for review")*
+>
+> **Status workflow — switch user per step:**
+> | Step | Login As | Action | SRS Reference |
+> |---|---|---|---|
+> | `draft → under_review` | `auditor@fcc.go.tz` | Submit for CIA review | SRS Step 22: "LA reviews the draft report, forwards to CIA for review and approval" |
+> | `under_review → approved` | `cia@fcc.go.tz` | Approve | SRS Step 13 (reporting): "CIA reviews and approves the report for distribution" |
+> | `approved → distributed` | `auditor@fcc.go.tz` | Click **Distribute** | SRS Step 23: "LA arranges exit meeting sending draft audit report to auditee" |
 
 **Page:** Sidebar → GRC → **Audit Reports** → Click **Create**
 
@@ -1202,6 +1304,8 @@ Immediately after the report status transitions to `approved`:
 ---
 
 ## Phase 14 — Create Audit Meetings
+
+> **Login as:** `auditor@fcc.go.tz` / `Pass@1234` for all meeting steps *(Lead Auditor — SRS §1.8.3 Steps 14, 17, 20, 24: "LA arranges and conducts entry meeting", "LA and Audit Team Members conduct pre-exit meeting", "LA conducts exit meeting with the key personnel")*
 
 **Page:** Sidebar → GRC → **Meetings** → Click **Create**
 
@@ -1341,6 +1445,16 @@ Progress → `in_progress` → Edit (add minutes, attendees, key discussions, up
 ---
 
 ## Phase 15 — Create Quarterly Audit Report
+
+> **Login as per step:**
+> | Step | Login As | Action | SRS Reference |
+> |---|---|---|---|
+> | Create + Consolidate | `cia@fcc.go.tz` | Create report, click Consolidate | SRS §1.8.5 Step 3: "CIA approves and submits the Quarterly report to management" |
+> | `draft → cia_review` | `cia@fcc.go.tz` | Click **Submit for Approval** | CIA initiates the approval workflow |
+> | `cia_review → management_review` | `cia@fcc.go.tz` | Progress Update | SRS §1.8.5 Step 3: CIA approves and forwards to Management |
+> | `management_review → committee_review` | `management@fcc.go.tz` | Progress Update — Adopt | SRS §1.8.5 Step 4: "After Management adopt the quarterly reports, CIA submits to Audit Committee" |
+> | `committee_review → approved` | `auditcommittee@fcc.go.tz` | Progress Update — Approve | SRS §1.8.5 Step 5–7: Audit Committee reviews and approves |
+> | `approved → submitted_to_commission` | `cia@fcc.go.tz` | Progress Update | SRS §1.8.5 Step 7: Audit Committee recommends to Commission |
 
 **Page:** Sidebar → GRC → **Quarterly Reports** → Click **Create**
 
