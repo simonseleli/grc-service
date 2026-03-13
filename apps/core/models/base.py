@@ -93,3 +93,88 @@ class WorkflowMixin(models.Model):
 
     class Meta:
         abstract = True
+
+    @property
+    def has_workflow(self) -> bool:
+        """Check if this entity has an associated workflow."""
+        return self.workflow_plan_id is not None
+
+    @property
+    def has_active_workflow(self) -> bool:
+        """Check if this entity has an active (not completed) workflow."""
+        return self.workflow_plan_id is not None and self.workflow_completed_at is None
+
+    @property
+    def is_workflow_completed(self) -> bool:
+        """Check if the workflow has been completed."""
+        return self.workflow_completed_at is not None
+
+    def start_workflow(
+        self,
+        plan_id: str,
+        initial_stage: str = '',
+        stage_id=None,
+    ) -> None:
+        """Mark workflow as started. Sets all 5 workflow fields."""
+        self.workflow_plan_id = plan_id
+        self.workflow_stage = initial_stage
+        self.workflow_stage_id = stage_id
+        self.workflow_started_at = timezone.now()
+        self.workflow_completed_at = None
+
+    def update_workflow_stage(
+        self,
+        stage_name: str,
+        stage_id=None,
+    ) -> None:
+        """Update the current workflow stage."""
+        self.workflow_stage = stage_name
+        if stage_id:
+            self.workflow_stage_id = stage_id
+
+    def complete_workflow(self) -> None:
+        """Mark workflow as completed."""
+        self.workflow_completed_at = timezone.now()
+
+    def cancel_workflow(self) -> None:
+        """Mark workflow as cancelled (also sets completed time)."""
+        self.workflow_completed_at = timezone.now()
+
+    def clear_workflow(self) -> None:
+        """Clear all workflow fields."""
+        self.workflow_plan_id = None
+        self.workflow_stage = ''
+        self.workflow_stage_id = None
+        self.workflow_started_at = None
+        self.workflow_completed_at = None
+
+    def get_workflow_context(self) -> dict:
+        """
+        Return context variables for WO stage assignee resolution.
+        Override in subclasses to provide entity-specific variables.
+        Matches corporate-service WorkflowMixin default.
+        """
+        return {
+            'entity_type': self._meta.model_name,
+            'entity_id': str(self.pk),
+        }
+
+    def get_workflow_metadata(self) -> dict:
+        """
+        Return metadata to store with the WO plan (display data).
+        Override in subclasses to provide entity-specific metadata.
+        Matches corporate-service WorkflowMixin default.
+        """
+        return {
+            'entity_type': self._meta.model_name,
+            'entity_id': str(self.pk),
+            'entity_repr': str(self),
+        }
+
+    def log_workflow_action(self, action: str, actor_id: str, stage_name: str, comment: str = '', metadata: dict = None) -> None:
+        """
+        Hook for audit logging of workflow actions.
+        Override in subclasses to persist per-action audit records.
+        Matches corporate-service WorkflowMixin stub.
+        """
+        self.workflow_completed_at = None

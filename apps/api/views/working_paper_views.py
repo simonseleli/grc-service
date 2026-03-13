@@ -23,7 +23,6 @@ from apps.infrastructure.external.document_service_client import (
     DocumentServiceError
 )
 from apps.core.services.working_paper_service import WorkingPaperService
-from apps.infrastructure.external.orchestration_client import OrchestrationClient
 from apps.infrastructure.services.messaging_service import messaging_service
 from shared.constants.event_types import WORKING_PAPER_EVENTS
 from apps.api.permissions_jwt import (
@@ -527,16 +526,12 @@ class WorkingPaperReviewView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Forward the user's JWT to WO so it can authenticate the plan creation request.
-        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-        auth_token = auth_header.removeprefix('Bearer ').strip() or None
 
         try:
             service = WorkingPaperService()
             wp = service.submit_for_approval(
                 working_paper_id=str(paper_id),
                 submitter_id=str(user_id),
-                auth_token=auth_token,
             )
         except Exception as exc:
             logger.error("Error submitting working paper %s for review: %s", paper_id, exc, exc_info=True)
@@ -651,12 +646,9 @@ class WorkingPaperWorkflowStatusView(APIView):
                 status=status.HTTP_200_OK,
             )
 
-        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-        auth_token = auth_header.removeprefix('Bearer ').strip() or None
 
         try:
-            client = OrchestrationClient()
-            plan = client.get_plan_status(plan_id=str(working_paper.workflow_plan_id), auth_token=auth_token)
+            workflow_data = WorkingPaperService().get_workflow_status(str(paper_id))
         except Exception as exc:
             logger.error("Error fetching workflow status for WP %s: %s", paper_id, exc, exc_info=True)
             return Response(
@@ -664,20 +656,7 @@ class WorkingPaperWorkflowStatusView(APIView):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
-        return Response(
-            {
-                "success": True,
-                "data": {
-                    "has_workflow": True,
-                    "workflow_plan_id": str(working_paper.workflow_plan_id),
-                    "workflow_stage": working_paper.workflow_stage,
-                    "workflow_stage_id": str(working_paper.workflow_stage_id) if working_paper.workflow_stage_id else None,
-                    "status": working_paper.review_status,
-                    "plan": plan,
-                },
-            },
-            status=status.HTTP_200_OK,
-        )
+        return Response({"success": True, "data": workflow_data}, status=status.HTTP_200_OK)
 
 
 class WorkingPaperWorkflowHistoryView(APIView):
@@ -719,12 +698,9 @@ class WorkingPaperWorkflowHistoryView(APIView):
                 status=status.HTTP_200_OK,
             )
 
-        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-        auth_token = auth_header.removeprefix('Bearer ').strip() or None
 
         try:
-            client = OrchestrationClient()
-            activity = client.get_plan_activity(plan_id=str(working_paper.workflow_plan_id), auth_token=auth_token)
+            activity = WorkingPaperService().get_workflow_history(str(paper_id))
         except Exception as exc:
             logger.error("Error fetching workflow activity for WP %s: %s", paper_id, exc, exc_info=True)
             return Response(
@@ -741,6 +717,109 @@ class WorkingPaperWorkflowHistoryView(APIView):
                     "activity": activity,
                 },
             },
+            status=status.HTTP_200_OK,
+        )
+
+
+class WorkingPaperWorkflowActionView(APIView):
+    """
+    POST /audit/working-papers/<paper_id>/workflow-action/
+        Execute a workflow action (approve, reject, return, etc.).
+        Matches corporate-service workflow_action endpoint pattern.
+
+    Request body:
+    {
+        "action": "approve",  // Required
+        "comment": "..."      // Optional
+    }
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanManageWorkingPaper().has_permission(request, self):
+            self.permission_denied(request, message='grc:audit_working_paper:manage required.')
+
+    def post(self, request, paper_id):
+        user_id = getattr(request.user, 'id', None)
+        if not user_id:
+            return Response(
+                {"success": False, "error": {"message": "User not authenticated", "code": "AUTH_REQUIRED"}},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        action_name = request.data.get('action')
+        if not action_name:
+            return Response(
+                {"success": False, "error": {"message": "'action' is required", "code": "ACTION_REQUIRED"}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            result = WorkingPaperService().advance_workflow_stage(
+                paper_id=str(paper_id),
+                action=action_name,
+                actor_id=str(user_id),
+                comment=request.data.get('comment', ''),
+            )
+        except ValueError as exc:
+            return Response(
+                {"success": False, "error": {"message": str(exc), "code": "WORKFLOW_ACTION_FAILED"}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            logger.error("Error executing workflow action for WorkingPaper %s: %s", paper_id, exc, exc_info=True)
+            return Response(
+                {"success": False, "error": {"message": "Failed to execute workflow action", "details": str(exc)}},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response({"success": True, "data": result}, status=status.HTTP_200_OK)
+
+
+class WorkingPaperCancelWorkflowView(APIView):
+    """
+    POST /audit/working-papers/<paper_id>/cancel-workflow/
+        Cancel the active workflow for a working paper.
+        Matches corporate-service cancel_workflow endpoint pattern.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanManageWorkingPaper().has_permission(request, self):
+            self.permission_denied(request, message='grc:audit_working_paper:manage required.')
+
+    def post(self, request, paper_id):
+        user_id = getattr(request.user, 'id', None)
+        if not user_id:
+            return Response(
+                {"success": False, "error": {"message": "User not authenticated", "code": "AUTH_REQUIRED"}},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        try:
+            WorkingPaperService().cancel_workflow_plan(
+                paper_id=str(paper_id),
+                actor_id=str(user_id),
+                reason=request.data.get('reason', ''),
+            )
+        except ValueError as exc:
+            return Response(
+                {"success": False, "error": {"message": str(exc), "code": "CANCEL_WORKFLOW_FAILED"}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            logger.error("Error cancelling workflow for WorkingPaper %s: %s", paper_id, exc, exc_info=True)
+            return Response(
+                {"success": False, "error": {"message": "Failed to cancel workflow", "details": str(exc)}},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response(
+            {"success": True, "data": {"status": "workflow_cancelled"}},
             status=status.HTTP_200_OK,
         )
 

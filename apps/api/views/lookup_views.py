@@ -312,6 +312,68 @@ class RiskRatingListView(APIView):
             )
 
 
+class GRCUsersByRoleView(APIView):
+    """
+    Proxy endpoint: returns IAM users that have a specific GRC role assigned.
+
+    GET /audit/lookups/users/?role_code=<code>
+
+    Supported role_code values (GRC roles only):
+      - chief_internal_auditor
+      - internal_auditor
+      - audit_committee
+      - management
+      - auditee
+
+    Returns a flat list of user objects: [{id, email, first_name, last_name}]
+    Results are cached by the IAMClient for 5 minutes.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanViewAuditPlan().has_permission(request, self):
+            self.permission_denied(request, message='A valid GRC role is required.')
+
+    def get(self, request):
+        role_code = request.query_params.get('role_code', '').strip()
+        if not role_code:
+            return Response(
+                {'success': False, 'error': {'message': 'role_code query parameter is required', 'code': 'MISSING_PARAM'}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Only allow GRC role codes to prevent arbitrary IAM data exposure
+        allowed_roles = {
+            'chief_internal_auditor',
+            'internal_auditor',
+            'audit_committee',
+            'management',
+            'auditee',
+        }
+        if role_code not in allowed_roles:
+            return Response(
+                {'success': False, 'error': {'message': f'role_code must be one of: {sorted(allowed_roles)}', 'code': 'INVALID_ROLE_CODE'}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            from apps.infrastructure.external.iam_client import IAMClient
+            # Forward the caller's JWT so IAM can authenticate the request
+            auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+            token = auth_header.removeprefix('Bearer ').strip()
+            iam = IAMClient()
+            users = iam.get_users_by_role(role_code, token)
+            return Response({'success': True, 'results': users, 'count': len(users)})
+        except Exception as e:
+            logger.exception("GRCUsersByRoleView: failed to fetch users from IAM")
+            return server_error_response(
+                message="Failed to fetch users by role",
+                details=str(e) if settings.DEBUG else None,
+            )
+
+
 class AuditOpinionListView(APIView):
     """CRUD operations for AuditOpinion lookup table"""
 

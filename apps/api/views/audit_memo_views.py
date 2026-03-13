@@ -14,11 +14,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.models import AuditMemo, AuditPlan, AuditableEntity
+from apps.core.services.audit_memo_service import AuditMemoService
 from apps.api.serializers.audit_serializers import AuditMemoSerializer, AuditMemoListSerializer
 from apps.infrastructure.services.messaging_service import messaging_service
 from shared.constants.event_types import AUDIT_MEMO_EVENTS
 from apps.api.permissions_jwt import CanViewAuditMemo, CanManageAuditMemo, CanApproveAuditMemo
-from apps.infrastructure.external.orchestration_client import OrchestrationClient
 
 # FIMS standard utilities
 from apps.api.utils.pagination import paginate_queryset, get_ordering_param
@@ -280,23 +280,11 @@ class AuditMemoSubmitView(APIView):
                     code="WORKFLOW_ALREADY_STARTED",
                 )
 
-            auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-            auth_token = auth_header.removeprefix('Bearer ').strip() or None
 
             with transaction.atomic():
-                # Start workflow via Work Orchestration Service
-                client = OrchestrationClient()
-                context = memo.get_workflow_context()
-                metadata = memo.get_workflow_metadata()
-
-                result = client.start_workflow(
-                    "grc.audit_memo_approval",
-                    context,
-                    str(user_id),
-                    subject_ref=str(memo.id),
-                    metadata=metadata,
-                    stages=memo.get_workflow_stages(),
-                    auth_token=auth_token,
+                # Start workflow via service layer (FIMS corporate pattern)
+                result = AuditMemoService().start_workflow(
+                    str(memo.id), str(user_id)
                 )
 
                 if result and result.plan_id:
@@ -354,22 +342,116 @@ class AuditMemoWorkflowStatusView(APIView):
                     status_code=status.HTTP_404_NOT_FOUND,
                 )
 
-            auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-            auth_token = auth_header.removeprefix('Bearer ').strip() or None
 
-            client = OrchestrationClient()
-            wo_status = client.get_plan_status(str(memo.workflow_plan_id), auth_token=auth_token)
+            workflow_data = AuditMemoService().get_workflow_status(str(memo.id))
 
-            return success_response(data={
-                "memo_id": str(memo.id),
-                "workflow_plan_id": str(memo.workflow_plan_id),
-                "workflow_stage": memo.workflow_stage,
-                "memo_status": memo.status,
-                "wo_status": wo_status,
-            })
+            return success_response(data=workflow_data)
         except Exception as e:
             logger.exception("Error fetching workflow status for memo %s", pk)
             return server_error_response(
                 message="Failed to get memo workflow status",
                 details=str(e) if settings.DEBUG else None,
             )
+
+
+class AuditMemoWorkflowActionView(APIView):
+    """
+    POST /audit/memos/<pk>/workflow-action/
+        Execute a workflow action (approve, reject, return, etc.).
+        Matches corporate-service workflow_action endpoint pattern.
+
+    Request body:
+    {
+        "action": "approve",  // Required
+        "comment": "..."      // Optional
+    }
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanManageAuditMemo().has_permission(request, self):
+            self.permission_denied(request, message='grc:audit_memo:manage required.')
+
+    def post(self, request, pk):
+        user_id = getattr(request.user, 'id', None)
+        if not user_id:
+            return Response(
+                {'success': False, 'error': {'message': 'User not authenticated', 'code': 'AUTH_REQUIRED'}},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        action_name = request.data.get('action')
+        if not action_name:
+            return Response(
+                {'success': False, 'error': {'message': "'action' is required", 'code': 'ACTION_REQUIRED'}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            result = AuditMemoService().advance_workflow_stage(
+                memo_id=str(pk),
+                action=action_name,
+                actor_id=str(user_id),
+                comment=request.data.get('comment', ''),
+            )
+        except ValueError as exc:
+            return Response(
+                {'success': False, 'error': {'message': str(exc), 'code': 'WORKFLOW_ACTION_FAILED'}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            logger.error('Error executing workflow action for AuditMemo %s: %s', pk, exc, exc_info=True)
+            return Response(
+                {'success': False, 'error': {'message': 'Failed to execute workflow action', 'details': str(exc)}},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response({'success': True, 'data': result}, status=status.HTTP_200_OK)
+
+
+class AuditMemoCancelWorkflowView(APIView):
+    """
+    POST /audit/memos/<pk>/cancel-workflow/
+        Cancel the active workflow for an audit memo.
+        Matches corporate-service cancel_workflow endpoint pattern.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanManageAuditMemo().has_permission(request, self):
+            self.permission_denied(request, message='grc:audit_memo:manage required.')
+
+    def post(self, request, pk):
+        user_id = getattr(request.user, 'id', None)
+        if not user_id:
+            return Response(
+                {'success': False, 'error': {'message': 'User not authenticated', 'code': 'AUTH_REQUIRED'}},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        try:
+            AuditMemoService().cancel_workflow_plan(
+                memo_id=str(pk),
+                actor_id=str(user_id),
+                reason=request.data.get('reason', ''),
+            )
+        except ValueError as exc:
+            return Response(
+                {'success': False, 'error': {'message': str(exc), 'code': 'CANCEL_WORKFLOW_FAILED'}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            logger.error('Error cancelling workflow for AuditMemo %s: %s', pk, exc, exc_info=True)
+            return Response(
+                {'success': False, 'error': {'message': 'Failed to cancel workflow', 'details': str(exc)}},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response(
+            {'success': True, 'data': {'status': 'workflow_cancelled'}},
+            status=status.HTTP_200_OK,
+        )

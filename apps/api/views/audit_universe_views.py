@@ -23,7 +23,6 @@ from apps.api.permissions_jwt import (
     CanApproveAuditUniverse,
 )
 from apps.core.services.audit_universe_service import AuditUniverseService
-from apps.infrastructure.external.orchestration_client import OrchestrationClient
 
 # FIMS standard utilities (Phase 2)
 from apps.api.utils.pagination import paginate_queryset, get_ordering_param
@@ -112,9 +111,10 @@ class AuditUniverseListCreateView(APIView):
             
             fiscal_year_id = serializer.validated_data['fiscal_year_id']
             
-            # Check if universe already exists for this fiscal year
+            # Check if an active universe already exists for this fiscal year
             existing = AuditUniverse.objects.filter(
-                fiscal_year_id=fiscal_year_id
+                fiscal_year_id=fiscal_year_id,
+                is_active=True,
             ).exists()
             
             if existing:
@@ -344,8 +344,8 @@ class AuditUniverseApprovalView(APIView):
 
     def check_permissions(self, request):
         super().check_permissions(request)
-        if not CanApproveAuditUniverse().has_permission(request, self):
-            self.permission_denied(request, message='grc:audit_universe:approve required.')
+        if not CanManageAuditUniverse().has_permission(request, self):
+            self.permission_denied(request, message='grc:audit_universe:manage required.')
 
     def post(self, request, pk):
         """Submit audit universe for approval via Work Orchestration Service."""
@@ -384,15 +384,11 @@ class AuditUniverseApprovalView(APIView):
                     status=status.HTTP_409_CONFLICT,
                 )
 
-            # Forward the user's JWT to WO so it can authenticate the plan creation request
-            auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-            auth_token = auth_header.removeprefix('Bearer ').strip() or None
 
             service = AuditUniverseService()
             audit_universe = service.submit_for_approval(
                 universe_id=str(pk),
                 submitter_id=str(user_id),
-                auth_token=auth_token,
             )
 
             return Response(
@@ -458,12 +454,9 @@ class AuditUniverseWorkflowStatusView(APIView):
                 status=status.HTTP_200_OK,
             )
 
-        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-        auth_token = auth_header.removeprefix('Bearer ').strip() or None
 
         try:
-            client = OrchestrationClient()
-            plan = client.get_plan_status(plan_id=str(universe.workflow_plan_id), auth_token=auth_token)
+            workflow_data = AuditUniverseService().get_workflow_status(str(pk))
         except Exception as exc:
             logger.error('Error fetching workflow status for AuditUniverse %s: %s', pk, exc, exc_info=True)
             return Response(
@@ -471,20 +464,7 @@ class AuditUniverseWorkflowStatusView(APIView):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
-        return Response(
-            {
-                'success': True,
-                'data': {
-                    'has_workflow': True,
-                    'workflow_plan_id': str(universe.workflow_plan_id),
-                    'workflow_stage': universe.workflow_stage,
-                    'workflow_stage_id': str(universe.workflow_stage_id) if universe.workflow_stage_id else None,
-                    'status': universe.status,
-                    'plan': plan,
-                },
-            },
-            status=status.HTTP_200_OK,
-        )
+        return Response({'success': True, 'data': workflow_data}, status=status.HTTP_200_OK)
 
 
 class AuditUniverseWorkflowHistoryView(APIView):
@@ -520,18 +500,15 @@ class AuditUniverseWorkflowHistoryView(APIView):
                     'success': True,
                     'data': {
                         'has_workflow': False,
-                        'activity': [],
+                        'activities': [],
                     },
                 },
                 status=status.HTTP_200_OK,
             )
 
-        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-        auth_token = auth_header.removeprefix('Bearer ').strip() or None
 
         try:
-            client = OrchestrationClient()
-            activity = client.get_plan_activity(plan_id=str(universe.workflow_plan_id), auth_token=auth_token)
+            activity = AuditUniverseService().get_workflow_history(str(pk))
         except Exception as exc:
             logger.error('Error fetching workflow activity for AuditUniverse %s: %s', pk, exc, exc_info=True)
             return Response(
@@ -545,8 +522,111 @@ class AuditUniverseWorkflowHistoryView(APIView):
                 'data': {
                     'has_workflow': True,
                     'workflow_plan_id': str(universe.workflow_plan_id),
-                    'activity': activity,
+                    'activities': activity,
                 },
             },
+            status=status.HTTP_200_OK,
+        )
+
+
+class AuditUniverseWorkflowActionView(APIView):
+    """
+    POST /audit/universe/<pk>/workflow-action/
+        Execute a workflow action (approve, reject, return, etc.).
+        Matches corporate-service workflow_action endpoint pattern.
+
+    Request body:
+    {
+        "action": "approve",  // Required
+        "comment": "..."      // Optional
+    }
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanApproveAuditUniverse().has_permission(request, self):
+            self.permission_denied(request, message='grc:audit_universe:approve required.')
+
+    def post(self, request, pk):
+        user_id = getattr(request.user, 'id', None)
+        if not user_id:
+            return Response(
+                {'success': False, 'error': {'message': 'User not authenticated', 'code': 'AUTH_REQUIRED'}},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        action_name = request.data.get('action')
+        if not action_name:
+            return Response(
+                {'success': False, 'error': {'message': "'action' is required", 'code': 'ACTION_REQUIRED'}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            result = AuditUniverseService().advance_workflow_stage(
+                universe_id=str(pk),
+                action=action_name,
+                actor_id=str(user_id),
+                comment=request.data.get('comment', ''),
+            )
+        except ValueError as exc:
+            return Response(
+                {'success': False, 'error': {'message': str(exc), 'code': 'WORKFLOW_ACTION_FAILED'}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            logger.error('Error executing workflow action for AuditUniverse %s: %s', pk, exc, exc_info=True)
+            return Response(
+                {'success': False, 'error': {'message': 'Failed to execute workflow action', 'details': str(exc)}},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response({'success': True, 'data': result}, status=status.HTTP_200_OK)
+
+
+class AuditUniverseCancelWorkflowView(APIView):
+    """
+    POST /audit/universe/<pk>/cancel-workflow/
+        Cancel the active workflow for an audit universe.
+        Matches corporate-service cancel_workflow endpoint pattern.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanManageAuditUniverse().has_permission(request, self):
+            self.permission_denied(request, message='grc:audit_universe:manage required.')
+
+    def post(self, request, pk):
+        user_id = getattr(request.user, 'id', None)
+        if not user_id:
+            return Response(
+                {'success': False, 'error': {'message': 'User not authenticated', 'code': 'AUTH_REQUIRED'}},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        try:
+            AuditUniverseService().cancel_workflow_plan(
+                universe_id=str(pk),
+                actor_id=str(user_id),
+                reason=request.data.get('reason', ''),
+            )
+        except ValueError as exc:
+            return Response(
+                {'success': False, 'error': {'message': str(exc), 'code': 'CANCEL_WORKFLOW_FAILED'}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            logger.error('Error cancelling workflow for AuditUniverse %s: %s', pk, exc, exc_info=True)
+            return Response(
+                {'success': False, 'error': {'message': 'Failed to cancel workflow', 'details': str(exc)}},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response(
+            {'success': True, 'data': {'status': 'workflow_cancelled'}},
             status=status.HTTP_200_OK,
         )

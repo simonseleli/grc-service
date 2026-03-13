@@ -54,7 +54,9 @@ class ConfigFiscalYearView(APIView):
 
     def check_permissions(self, request):
         super().check_permissions(request)
-        if not CanManageFiscalYear().has_permission(request, self):
+        # GET is read-only — any authenticated GRC user may list fiscal years (needed for dropdowns)
+        # Write operations (POST/PUT/PATCH/DELETE) require the manage permission
+        if request.method != 'GET' and not CanManageFiscalYear().has_permission(request, self):
             self.permission_denied(request, message='grc:config:fiscal_year:manage required.')
 
     def get(self, request):
@@ -305,7 +307,8 @@ class ConfigQuarterView(APIView):
 
     def check_permissions(self, request):
         super().check_permissions(request)
-        if not CanManageFiscalYear().has_permission(request, self):
+        # Quarters are read-only; any authenticated GRC user may list them
+        if request.method != 'GET' and not CanManageFiscalYear().has_permission(request, self):
             self.permission_denied(request, message='grc:config:fiscal_year:manage required.')
 
     def get(self, request):

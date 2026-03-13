@@ -22,5 +22,5 @@ def get_entity_detail_path(entity_type: str):
 def add_entity_detail_path_to_metadata(metadata: dict, entity_type: str) -> dict:
     path = get_entity_detail_path(entity_type)
     if path:
-        metadata['entity_detail_path'] = path
+        metadata = {**metadata, 'entity_detail_path': path}
     return metadata

@@ -88,3 +88,33 @@ class IAMClient:
         """Get email address for a user."""
         profile = self.get_user_profile(user_id)
         return profile.get('email') if profile else None
+
+    def get_users_by_role(self, role_code: str, token: str) -> list:
+        """
+        Return active users that have the given role code assigned.
+        Calls IAM /users/lookup/?role_code=<code> using the caller's JWT so
+        the request is properly authenticated.
+        Results are cached for 5 minutes.
+        """
+        cache_key = f"grc_iam_users_by_role:{role_code}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        result = self._make_request(
+            'GET',
+            f'/users/lookup/?role_code={role_code}&page_size=500',
+            headers={'Authorization': f'Bearer {token}'},
+        )
+
+        users = []
+        if result:
+            # IAM lookup returns paginated: { data: { items: [...] } }
+            users = (
+                result.get('data', {}).get('items', [])
+                or result.get('results', [])
+                or []
+            )
+            cache.set(cache_key, users, self.cache_timeout)
+
+        return users

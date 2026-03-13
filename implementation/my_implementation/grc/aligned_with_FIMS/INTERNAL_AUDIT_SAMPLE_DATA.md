@@ -90,10 +90,15 @@
 
 ### Active Users
 
-| ID | Email | Name |
-|---|---|---|
-| `fb680f30-398b-4b86-865b-455a35c3c8d9` | admin@fcc.go.tz | System Administrator |
-| `a91c2a28-dd6e-4a7f-8ae9-82351a2e2ced` | test@fims.local | Test User |
+| ID | Email | Name | Role |
+|---|---|---|---|
+| `fb680f30-398b-4b86-865b-455a35c3c8d9` | admin@fcc.go.tz | System Administrator | Superuser |
+| `6cf919b4-8dbf-4f8a-8b48-885e1b9fb77c` | cia@fcc.go.tz | John Mbwana | Chief Internal Auditor |
+| `b5524372-f0f7-4cc3-b11f-462d84f0a592` | auditor@fcc.go.tz | Mary Simba | Internal Auditor / Lead Auditor |
+| `bb4fc467-3eb8-4e47-831b-87ca97f26951` | auditcommittee@fcc.go.tz | Paul Kamau | Audit Committee |
+| `ffd3ef58-063c-4106-8d2c-1ee1a4f66084` | management@fcc.go.tz | Grace Mwangi | Management |
+| `9e3fc62e-b405-42a0-9632-882ecc9a0023` | auditee@fcc.go.tz | Ali Hassan | Auditee |
+| `a91c2a28-dd6e-4a7f-8ae9-82351a2e2ced` | test@fims.local | Test User | — |
 
 ---
 
@@ -124,7 +129,7 @@ Simply verify the above lookup data exists. No creation needed — the `seed_loo
 |---|---|
 | **Fiscal Year** | `Fiscal Year 2025/2026` (select from dropdown) |
 | **Description** | `Annual Internal Audit Universe for FCC covering all directorates, units, zones, processes, and systems for the 2025/2026 fiscal year` |
-| **Reviewed By** | `System Administrator` (select admin@fcc.go.tz from dropdown) |
+| **Reviewed By** | `John Mbwana` (select `cia@fcc.go.tz` from dropdown — SRS §1.8.1 Step 2: "CIA reviews and approves the audit universe") |
 
 **Expected result:** Universe created with status `draft`.
 
@@ -148,7 +153,7 @@ Simply verify the above lookup data exists. No creation needed — the `seed_loo
 |---|---|
 | **Entity Type** | `directorate` |
 | **Name** | `ICT Directorate` |
-| **Code** | `ICT-001` |
+| **Code** | `ICT-001` | -- CODE is not auto generated like others, These are not tracking references (like audit engagement numbers which are auto-generated).
 | **Description** | `Information and Communication Technology Directorate — manages all ICT infrastructure, systems, and digital services` |
 
 ### Entity 2: Finance Unit
@@ -179,6 +184,70 @@ Simply verify the above lookup data exists. No creation needed — the `seed_loo
 | **Description** | `Corporate procurement process — covers tender management, vendor selection, and contract administration` |
 
 **Expected:** 4 entities visible in the Audit Universe detail page's embedded table.
+
+---
+
+## Phase 3.5 — Submit Audit Universe for CIA Approval
+
+> **SRS §1.8.1 Step 1 → Step 2:** *"IA identifies Audit Universe through consultation with Heads of directorates/units/zones and submits to CIA for review and approval"*
+
+This phase has **two actors**: the IA submits, then the CIA approves.
+
+---
+
+### Step A — IA Submits Universe for Approval
+
+> **Login as:** `auditor@fcc.go.tz` / `Pass@1234`
+
+**Page:** Sidebar → **Audit Universe** → ⋮ action menu → **View** → Universe Detail page
+
+1. Verify all 4 entities are listed in the Auditable Entities section.
+2. Click **"Submit for Approval"** button (visible only when status is `draft`).
+3. Confirm the submission in the dialog.
+
+**Expected result:**
+- Universe status changes from `draft` → `under_review`
+- Submit button disappears
+- Workflow Console panel appears showing the active WO stage: **"CIA Review"**
+- A notification email is sent to `cia@fcc.go.tz` (John Mbwana — the `reviewed_by` chosen in Phase 2)
+
+**Business rule:** Entities can still be added while status is `draft` or `under_review`. Once `approved`, the universe is locked — no new entities can be added.
+
+---
+
+### Step B — CIA Reviews and Approves Universe
+
+> **Login as:** `cia@fcc.go.tz` / `Pass@1234` *(Chief Internal Auditor — SRS §1.8.1 Step 2)*
+
+**Page:** Sidebar → **Audit Universe** → ⋮ action menu → **View** → Universe Detail page
+
+OR navigate via the Work Orchestration task notification.
+
+In the **Workflow Console** panel:
+1. Review the universe description and entity list.
+2. Click **"Approve"** action button.
+3. Optionally add a comment (e.g. `"Universe reviewed and approved for FY 2025/2026. Proceed with risk assessment."`).
+4. Confirm.
+
+**Expected result:**
+- Universe status changes from `under_review` → `approved`
+- Workflow plan status → `completed`
+- WO task is removed from CIA's pending tasks
+- The universe is now **locked** — no further edits to entities
+
+> **If CIA wants to return it for amendment:** Click **"Return"** instead of Approve. Universe status goes back to `draft`. The IA can edit entities and re-submit.
+>
+> **If CIA rejects entirely:** Click **"Reject"**. Universe status → `rejected`. A new universe must be created for the same fiscal year (the rejected one is soft-deleted first).
+
+**Business rule enforced:** Only a user with `grc:audit_universe:approve` permission (CIA role) can approve. An IA with only `grc:audit_universe:manage` cannot self-approve — the WO stage assignee is `role:chief_internal_auditor`.
+
+---
+
+**After this phase:**
+- Universe status: `approved` ✅
+- Workflow: `completed` ✅
+- CIA (John Mbwana) is recorded as the approver
+- IA can now proceed to Risk Assessments (Phase 4)
 
 ---
 
@@ -422,7 +491,7 @@ This is **not** an auto-created plan on universe approval. It is a deliberate **
 | **Engagement Type** | `planned` *(API value; other options: `unplanned`, `special_investigation`, `follow_up`)* |
 | **Audit Plan** | `RBIAP-2025-001` (select approved plan) |
 | **Auditable Entity** | `ICT Directorate (ICT-001)` |
-| **Lead Auditor** | `fb680f30-398b-4b86-865b-455a35c3c8d9` (admin) |
+| **Lead Auditor** | `b5524372-f0f7-4cc3-b11f-462d84f0a592` (`auditor@fcc.go.tz` — Mary Simba — SRS §1.8.3: CIA instructs LA to conduct the engagement) |
 | **Scope** | `Review of ICT general controls including access management, change management, backup and recovery, and network security` |
 | **Objectives** | `1. Assess adequacy of ICT access controls\n2. Evaluate change management procedures\n3. Test backup and disaster recovery plans\n4. Review network security configuration` |
 | **Methodology** | `Document review, interviews with ICT staff, system walkthrough, control testing using COBIT framework alignment` |
@@ -995,7 +1064,7 @@ The engagement lifecycle is driven entirely by the **Work Orchestration (WO) Wor
 | **Finding** | Select `Inadequate ICT Access Controls` (must be in `final` status) |
 | **Priority** | `high` |
 | **Description** | `Implement an automated quarterly user access review process integrated with the HR system for timely access revocation upon staff termination or role change.` |
-| **Responsible Party** | `System Administrator` *(select from user dropdown)* |
+| **Responsible Party** | `Ali Hassan` (select `auditee@fcc.go.tz` from dropdown — SRS §1.8.6 Step 3: Auditee is responsible for implementing recommendations) |
 | **Agreed Action** | `1. Deploy automated access review tool by Q4 2026\n2. Integrate HR termination notifications with IT access management\n3. Implement least-privilege access model across all critical systems\n4. Conduct training for all ICT staff on access management procedures` |
 | **Target Date** | `2026-06-30` |
 
@@ -1007,7 +1076,7 @@ The engagement lifecycle is driven entirely by the **Work Orchestration (WO) Wor
 | **Finding** | Select `Missing Change Management Documentation` (must be in `final` status) |
 | **Priority** | `medium` |
 | **Description** | `Implement a digital change management system with automated approval workflows, impact assessment templates, and mandatory documentation requirements before production deployment.` |
-| **Responsible Party** | `System Administrator` *(select from user dropdown)* |
+| **Responsible Party** | `Ali Hassan` (select `auditee@fcc.go.tz` from dropdown — SRS §1.8.6 Step 3: Auditee is responsible for implementing recommendations) |
 | **Agreed Action** | `1. Procure and deploy digital change management tool\n2. Define and document emergency change procedures\n3. Conduct CM awareness training for all technical staff\n4. Establish monthly CM compliance reporting` |
 | **Target Date** | `2026-09-30` |
 
@@ -1262,7 +1331,7 @@ Now go back to Step 3 — click **Progress Update** again → **"Notify Auditee"
 | **Scope & Objectives** | `The audit covered ICT general controls including: (1) User access management and quarterly access reviews, (2) Change management documentation and approval workflows, (3) Backup and disaster recovery procedures, and (4) Network security configuration for the ICT Directorate.` |
 | **Methodology** | `The audit was conducted using a risk-based approach aligned to COBIT 2019 framework. Procedures included: document review of ICT policies, interviews with 8 ICT staff members, system walkthroughs of the access management and change management modules, and substantive testing of 42 user accounts and 12 system changes.` |
 | **Conclusion** | `Based on our audit procedures, we conclude that the ICT General Controls environment carries HIGH risk. Inadequate access control reviews and missing change management documentation expose the organization to unauthorized access and system instability risks. Management should implement the agreed recommendations within the agreed timelines.` |
-| **Reviewed By** | *(leave empty or select reviewer from the user dropdown)* |
+| **Reviewed By** | `John Mbwana` (select `cia@fcc.go.tz` from dropdown — SRS §1.8.3 Step 22: "LA reviews the draft report, forwards to CIA for review and approval") |
 
 **Expected result:** Report created with status `draft`. Reference number auto-generated (format: `RPT-{engagement_ref}-{sequence}`).
 
@@ -1358,7 +1427,7 @@ Click **⋮ menu** → **Edit** while meeting is `in_progress`:
 
 | Name | Title/Position | Role | Present |
 |---|---|---|---|
-| `System Administrator` | `Lead Auditor` | `Auditor` | ✅ Yes |
+| `Mary Simba` (`auditor@fcc.go.tz`) | `Lead Auditor` | `Auditor` | ✅ Yes |
 | `ICT Director` | `Director of ICT` | `Auditee` | ✅ Yes |
 | `ICT Systems Manager` | `Systems Manager` | `Auditee` | ✅ Yes |
 
@@ -1478,7 +1547,7 @@ Progress → `in_progress` → Edit (add minutes, attendees, key discussions, up
 | **Management Action Status** | `REC-2025-001: Vendor selected for automated access review tool (25% complete).\nREC-2025-002: Digital change management tool procurement on track (0% implementation — planning phase).` |
 | **Next Quarter Plan** | `Q4 2026 planned activities: (1) Finance Unit Audit, (2) Follow-up review on ICT recommendations, (3) Quarterly report consolidation review.` |
 | **Conclusion** | `The Internal Audit Directorate executed its Q3 audit plan effectively. Key risk areas in ICT were identified and management has committed to timely remediation. Monitoring of recommendation implementation will continue in Q4.` |
-| **Reviewed By** | *(leave empty or enter reviewer)* |
+| **Reviewed By** | `John Mbwana` (select `cia@fcc.go.tz` from dropdown — SRS §1.8.5 Step 3: "CIA approves and submits the Quarterly report to management") |
 | **Submitted To** | `FCC Audit Committee` |
 
 **Expected result:** Quarterly report created with status `draft`.

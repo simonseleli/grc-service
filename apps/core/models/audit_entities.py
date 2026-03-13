@@ -58,7 +58,13 @@ class AuditUniverse(TimestampedModel, StatusMixin, WorkflowMixin):
     class Meta:
         db_table = 'grc_audit_universe'
         ordering = ['-fiscal_year__start_date']
-        unique_together = [['fiscal_year']]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['fiscal_year'],
+                condition=models.Q(is_active=True),
+                name='grc_audit_universe_active_fiscal_year_uniq',
+            )
+        ]
         verbose_name = 'Audit Universe'
         verbose_name_plural = 'Audit Universes'
         
@@ -99,7 +105,7 @@ class AuditUniverse(TimestampedModel, StatusMixin, WorkflowMixin):
                 "definition_key": "cia_review",
                 "name": "CIA Review",
                 "order": 0,
-                "assignees": [],
+                "assignees": ["role:chief_internal_auditor"],
                 "actions": [
                     {"name": "approve", "label": "Approve",  "next_state": "completed"},
                     {"name": "return",  "label": "Return",   "next_state": "rejected"},

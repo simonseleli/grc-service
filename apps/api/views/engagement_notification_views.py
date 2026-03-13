@@ -27,7 +27,6 @@ from apps.api.permissions_jwt import (
     CanApproveEngagementNotification,
 )
 from apps.core.services.engagement_notification_service import EngagementNotificationService
-from apps.infrastructure.external.orchestration_client import OrchestrationClient
 
 # FIMS standard utilities
 from apps.api.utils.pagination import paginate_queryset, get_ordering_param
@@ -301,15 +300,12 @@ class EngagementNotificationSubmitView(APIView):
                     code="WORKFLOW_ALREADY_STARTED",
                 )
 
-            auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-            auth_token = auth_header.removeprefix('Bearer ').strip() or None
 
             # Delegate to service — handles workflow start + WF field saves + notification
             service = EngagementNotificationService()
             en = service.submit_for_approval(
                 en_id=str(pk),
                 submitter_id=str(user_id),
-                auth_token=auth_token,
             )
 
             return success_response(
@@ -396,25 +392,116 @@ class EngagementNotificationWorkflowStatusView(APIView):
                     status_code=status.HTTP_404_NOT_FOUND,
                 )
 
-            auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-            auth_token = auth_header.removeprefix('Bearer ').strip() or None
 
-            client = OrchestrationClient()
-            wo_status = client.get_plan_status(
-                str(en.workflow_plan_id), auth_token=auth_token
-            )
+            workflow_data = EngagementNotificationService().get_workflow_status(str(pk))
 
-            return success_response(data={
-                "engagement_notification_id": str(en.id),
-                "reference_number": en.reference_number,
-                "workflow_plan_id": str(en.workflow_plan_id),
-                "workflow_stage": en.workflow_stage,
-                "en_status": en.status,
-                "wo_status": wo_status,
-            })
+            return success_response(data=workflow_data)
         except Exception as exc:
             logger.exception("Error fetching workflow status for EN %s", pk)
             return server_error_response(
                 message="Failed to get Engagement Notification workflow status",
                 details=str(exc) if settings.DEBUG else None,
             )
+
+
+class EngagementNotificationWorkflowActionView(APIView):
+    """
+    POST /audit/engagement-notifications/<pk>/workflow-action/
+        Execute a workflow action (approve, reject, return, etc.).
+        Matches corporate-service workflow_action endpoint pattern.
+
+    Request body:
+    {
+        "action": "approve",  // Required
+        "comment": "..."      // Optional
+    }
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanManageEngagementNotification().has_permission(request, self):
+            self.permission_denied(request, message='grc:engagement_notification:manage required.')
+
+    def post(self, request, pk):
+        user_id = getattr(request.user, 'id', None)
+        if not user_id:
+            return Response(
+                {'success': False, 'error': {'message': 'User not authenticated', 'code': 'AUTH_REQUIRED'}},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        action_name = request.data.get('action')
+        if not action_name:
+            return Response(
+                {'success': False, 'error': {'message': "'action' is required", 'code': 'ACTION_REQUIRED'}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            result = EngagementNotificationService().advance_workflow_stage(
+                notification_id=str(pk),
+                action=action_name,
+                actor_id=str(user_id),
+                comment=request.data.get('comment', ''),
+            )
+        except ValueError as exc:
+            return Response(
+                {'success': False, 'error': {'message': str(exc), 'code': 'WORKFLOW_ACTION_FAILED'}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            logger.error('Error executing workflow action for EngagementNotification %s: %s', pk, exc, exc_info=True)
+            return Response(
+                {'success': False, 'error': {'message': 'Failed to execute workflow action', 'details': str(exc)}},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response({'success': True, 'data': result}, status=status.HTTP_200_OK)
+
+
+class EngagementNotificationCancelWorkflowView(APIView):
+    """
+    POST /audit/engagement-notifications/<pk>/cancel-workflow/
+        Cancel the active workflow for an engagement notification.
+        Matches corporate-service cancel_workflow endpoint pattern.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanManageEngagementNotification().has_permission(request, self):
+            self.permission_denied(request, message='grc:engagement_notification:manage required.')
+
+    def post(self, request, pk):
+        user_id = getattr(request.user, 'id', None)
+        if not user_id:
+            return Response(
+                {'success': False, 'error': {'message': 'User not authenticated', 'code': 'AUTH_REQUIRED'}},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        try:
+            EngagementNotificationService().cancel_workflow_plan(
+                notification_id=str(pk),
+                actor_id=str(user_id),
+                reason=request.data.get('reason', ''),
+            )
+        except ValueError as exc:
+            return Response(
+                {'success': False, 'error': {'message': str(exc), 'code': 'CANCEL_WORKFLOW_FAILED'}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            logger.error('Error cancelling workflow for EngagementNotification %s: %s', pk, exc, exc_info=True)
+            return Response(
+                {'success': False, 'error': {'message': 'Failed to cancel workflow', 'details': str(exc)}},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response(
+            {'success': True, 'data': {'status': 'workflow_cancelled'}},
+            status=status.HTTP_200_OK,
+        )

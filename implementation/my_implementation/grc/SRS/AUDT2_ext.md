@@ -40,7 +40,7 @@ Quality Management System, Internal Audit System.
 |               |                                                      |
 |               | -   Management                                       |
 |               |                                                      |
-|               | -   Director General                                 |
+|               | -   Director General (DG)                            |
 |               |                                                      |
 |               | -   Commission                                       |
 +---------------+------------------------------------------------------+

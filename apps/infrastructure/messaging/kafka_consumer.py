@@ -407,12 +407,12 @@ class GRCKafkaConsumer:
         # Fetch plan to get entity metadata and current in_progress stage
         from apps.infrastructure.external.orchestration_client import OrchestrationClient
         client = OrchestrationClient()
-        plan = client.get_plan_status(plan_id)
+        plan = client.get_plan(plan_id)
         if not plan:
             logger.warning(f"WorkflowStageUpdated: could not fetch plan {plan_id}")
             return
 
-        metadata = plan.get('metadata', {})
+        metadata = plan.metadata
         template_code = metadata.get('template_code', '')
 
         # Only process GRC workflows
@@ -427,9 +427,8 @@ class GRCKafkaConsumer:
             return
 
         # Locate the stage that is now in_progress (the next active stage)
-        stages = plan.get('stages', [])
         current_stage = next(
-            (s for s in stages if s.get('status') == 'in_progress'),
+            (s for s in plan.stages if s.get('status') == 'in_progress'),
             None,
         )
         if not current_stage:
@@ -496,8 +495,7 @@ class GRCKafkaConsumer:
             }
             model_cls = _MODEL_CLASSES[model_name]
             entity = model_cls.objects.get(id=entity_id)
-            entity.workflow_stage = new_stage_name
-            entity.workflow_stage_id = new_stage_id
+            entity.update_workflow_stage(stage_name=new_stage_name, stage_id=new_stage_id)
             update_fields = ['workflow_stage', 'workflow_stage_id']
 
             # Apply status_on_complete from WO stage metadata.
@@ -578,7 +576,7 @@ class GRCKafkaConsumer:
         if final_decision == 'approved':
             universe.status = 'approved'
             universe.approved_at = timezone.now()
-            universe.workflow_completed_at = timezone.now()
+            universe.complete_workflow()
             universe.save(update_fields=['status', 'approved_at', 'workflow_completed_at'])
             logger.info(f"AuditUniverse {subject_ref} approved via WO workflow event")
 
@@ -589,10 +587,8 @@ class GRCKafkaConsumer:
 
         elif final_decision in ('rejected', 'cancelled'):
             universe.status = 'draft'
-            universe.workflow_plan_id = None
-            universe.workflow_stage = ''
-            universe.workflow_stage_id = None
-            universe.save(update_fields=['status', 'workflow_plan_id', 'workflow_stage', 'workflow_stage_id'])
+            universe.clear_workflow()
+            universe.save(update_fields=['status', 'workflow_plan_id', 'workflow_stage', 'workflow_stage_id', 'workflow_started_at', 'workflow_completed_at'])
             logger.info(f"AuditUniverse {subject_ref} returned to draft (decision: {final_decision})")
 
             # Notify the original submitter that the universe was returned
@@ -736,7 +732,7 @@ class GRCKafkaConsumer:
         if final_decision == 'approved':
             plan.status = 'approved'
             plan.committee_approved_at = timezone.now()
-            plan.workflow_completed_at = timezone.now()
+            plan.complete_workflow()
             plan.save(update_fields=['status', 'committee_approved_at', 'workflow_completed_at'])
             logger.info(f"AuditPlan {subject_ref} approved via WO RBIAP workflow event")
 
@@ -757,10 +753,8 @@ class GRCKafkaConsumer:
 
         elif final_decision in ('rejected', 'cancelled'):
             plan.status = 'draft'
-            plan.workflow_plan_id = None
-            plan.workflow_stage = ''
-            plan.workflow_stage_id = None
-            plan.save(update_fields=['status', 'workflow_plan_id', 'workflow_stage', 'workflow_stage_id'])
+            plan.clear_workflow()
+            plan.save(update_fields=['status', 'workflow_plan_id', 'workflow_stage', 'workflow_stage_id', 'workflow_started_at', 'workflow_completed_at'])
             logger.info(f"AuditPlan {subject_ref} returned to draft (decision: {final_decision})")
         else:
             logger.warning(
@@ -836,7 +830,7 @@ class GRCKafkaConsumer:
         if final_decision == 'approved':
             # Workflow fully completed — engagement is done
             engagement.status = 'completed'
-            engagement.workflow_completed_at = timezone.now()
+            engagement.complete_workflow()
             if not engagement.actual_end_date:
                 engagement.actual_end_date = timezone.now().date()
             engagement.save(update_fields=['status', 'workflow_completed_at', 'actual_end_date'])
@@ -844,10 +838,8 @@ class GRCKafkaConsumer:
         elif final_decision in ('rejected', 'cancelled'):
             # Workflow cancelled — reset to planning
             engagement.status = 'planning'
-            engagement.workflow_plan_id = None
-            engagement.workflow_stage = ''
-            engagement.workflow_stage_id = None
-            engagement.save(update_fields=['status', 'workflow_plan_id', 'workflow_stage', 'workflow_stage_id'])
+            engagement.clear_workflow()
+            engagement.save(update_fields=['status', 'workflow_plan_id', 'workflow_stage', 'workflow_stage_id', 'workflow_started_at', 'workflow_completed_at'])
             logger.info(f"AuditEngagement {subject_ref} workflow cancelled — reset to planning")
         else:
             logger.warning(
@@ -944,15 +936,13 @@ class GRCKafkaConsumer:
         elif final_decision == 'distributed':
             report.status = 'distributed'
             report.distributed_at = timezone.now()
-            report.workflow_completed_at = timezone.now()
+            report.complete_workflow()
             report.save(update_fields=['status', 'distributed_at', 'workflow_completed_at'])
             logger.info(f"AuditReport {subject_ref} marked distributed via WO workflow event")
         elif final_decision in ('rejected', 'cancelled'):
             report.status = 'draft'
-            report.workflow_plan_id = None
-            report.workflow_stage = ''
-            report.workflow_stage_id = None
-            report.save(update_fields=['status', 'workflow_plan_id', 'workflow_stage', 'workflow_stage_id'])
+            report.clear_workflow()
+            report.save(update_fields=['status', 'workflow_plan_id', 'workflow_stage', 'workflow_stage_id', 'workflow_started_at', 'workflow_completed_at'])
             logger.info(f"AuditReport {subject_ref} returned to draft (decision: {final_decision})")
         else:
             logger.warning(
@@ -1021,11 +1011,10 @@ class GRCKafkaConsumer:
 
         elif final_decision in ('rejected', 'cancelled'):
             memo.status = 'draft'
-            memo.workflow_plan_id = None
-            memo.workflow_stage = ''
-            memo.workflow_stage_id = None
+            memo.clear_workflow()
             memo.save(update_fields=[
-                'status', 'workflow_plan_id', 'workflow_stage', 'workflow_stage_id'
+                'status', 'workflow_plan_id', 'workflow_stage', 'workflow_stage_id',
+                'workflow_started_at', 'workflow_completed_at',
             ])
             logger.info(f"AuditMemo {subject_ref} returned to draft (decision: {final_decision})")
         else:
@@ -1095,11 +1084,10 @@ class GRCKafkaConsumer:
 
         elif final_decision in ('rejected', 'cancelled'):
             program.status = 'draft'
-            program.workflow_plan_id = None
-            program.workflow_stage = ''
-            program.workflow_stage_id = None
+            program.clear_workflow()
             program.save(update_fields=[
-                'status', 'workflow_plan_id', 'workflow_stage', 'workflow_stage_id'
+                'status', 'workflow_plan_id', 'workflow_stage', 'workflow_stage_id',
+                'workflow_started_at', 'workflow_completed_at',
             ])
             logger.info(
                 f"AuditProgram {subject_ref} returned to draft (decision: {final_decision})"
@@ -1198,11 +1186,10 @@ class GRCKafkaConsumer:
             )
 
             en.status = 'draft'
-            en.workflow_plan_id = None
-            en.workflow_stage = ''
-            en.workflow_stage_id = None
+            en.clear_workflow()
             en.save(update_fields=[
-                'status', 'workflow_plan_id', 'workflow_stage', 'workflow_stage_id'
+                'status', 'workflow_plan_id', 'workflow_stage', 'workflow_stage_id',
+                'workflow_started_at', 'workflow_completed_at',
             ])
             logger.info(
                 f"EngagementNotification {subject_ref} returned to draft "

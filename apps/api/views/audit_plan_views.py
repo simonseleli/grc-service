@@ -23,7 +23,6 @@ from apps.api.permissions_jwt import (
     CanApproveAuditPlan,
 )
 from apps.core.services.audit_plan_service import AuditPlanService
-from apps.infrastructure.external.orchestration_client import OrchestrationClient
 
 # FIMS standard utilities
 from apps.api.utils.pagination import paginate_queryset, get_ordering_param
@@ -480,15 +479,11 @@ class AuditPlanSubmitView(APIView):
                     status=status.HTTP_409_CONFLICT,
                 )
 
-            # Forward the user's JWT to WO so it can authenticate the plan creation request
-            auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-            auth_token = auth_header.removeprefix('Bearer ').strip() or None
 
             service = AuditPlanService()
             audit_plan = service.submit_for_approval(
                 plan_id=str(pk),
                 submitter_id=str(user_id),
-                auth_token=auth_token,
             )
 
             # Publish FIMS domain event — best-effort
@@ -604,12 +599,9 @@ class AuditPlanWorkflowStatusView(APIView):
                 status=status.HTTP_200_OK,
             )
 
-        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-        auth_token = auth_header.removeprefix('Bearer ').strip() or None
 
         try:
-            client = OrchestrationClient()
-            plan_status = client.get_plan_status(plan_id=str(plan.workflow_plan_id), auth_token=auth_token)
+            workflow_data = AuditPlanService().get_workflow_status(str(pk))
         except Exception as exc:
             logger.error('Error fetching workflow status for AuditPlan %s: %s', pk, exc, exc_info=True)
             return Response(
@@ -617,20 +609,7 @@ class AuditPlanWorkflowStatusView(APIView):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
-        return Response(
-            {
-                'success': True,
-                'data': {
-                    'has_workflow': True,
-                    'workflow_plan_id': str(plan.workflow_plan_id),
-                    'workflow_stage': plan.workflow_stage,
-                    'workflow_stage_id': str(plan.workflow_stage_id) if plan.workflow_stage_id else None,
-                    'status': plan.status,
-                    'plan': plan_status,
-                },
-            },
-            status=status.HTTP_200_OK,
-        )
+        return Response({'success': True, 'data': workflow_data}, status=status.HTTP_200_OK)
 
 
 class AuditPlanWorkflowHistoryView(APIView):
@@ -666,18 +645,15 @@ class AuditPlanWorkflowHistoryView(APIView):
                     'success': True,
                     'data': {
                         'has_workflow': False,
-                        'activity': [],
+                        'activities': [],
                     },
                 },
                 status=status.HTTP_200_OK,
             )
 
-        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-        auth_token = auth_header.removeprefix('Bearer ').strip() or None
 
         try:
-            client = OrchestrationClient()
-            activity = client.get_plan_activity(plan_id=str(plan.workflow_plan_id), auth_token=auth_token)
+            activity = AuditPlanService().get_workflow_history(str(pk))
         except Exception as exc:
             logger.error('Error fetching workflow activity for AuditPlan %s: %s', pk, exc, exc_info=True)
             return Response(
@@ -691,9 +667,117 @@ class AuditPlanWorkflowHistoryView(APIView):
                 'data': {
                     'has_workflow': True,
                     'workflow_plan_id': str(plan.workflow_plan_id),
-                    'activity': activity,
+                    'activities': activity,
                 },
             },
+            status=status.HTTP_200_OK,
+        )
+
+
+class AuditPlanWorkflowActionView(APIView):
+    """
+    POST /audit/plans/<pk>/workflow-action/
+        Execute a workflow action (approve, reject, return, etc.).
+        Matches corporate-service workflow_action endpoint pattern.
+
+    Request body:
+    {
+        "action": "approve",  // Required
+        "comment": "..."      // Optional
+    }
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanManageAuditPlan().has_permission(request, self):
+            self.permission_denied(request, message='grc:audit_plan:manage required.')
+
+    def post(self, request, pk):
+        user_id = getattr(request.user, 'id', None)
+        if not user_id:
+            return Response(
+                {'success': False, 'error': {'message': 'User not authenticated', 'code': 'AUTH_REQUIRED'}},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        action_name = request.data.get('action')
+        if not action_name:
+            return Response(
+                {'success': False, 'error': {'message': "'action' is required", 'code': 'ACTION_REQUIRED'}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            result = AuditPlanService().advance_workflow_stage(
+                plan_id=str(pk),
+                action=action_name,
+                actor_id=str(user_id),
+                comment=request.data.get('comment', ''),
+            )
+        except ValueError as exc:
+            return Response(
+                {'success': False, 'error': {'message': str(exc), 'code': 'WORKFLOW_ACTION_FAILED'}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            logger.error('Error executing workflow action for AuditPlan %s: %s', pk, exc, exc_info=True)
+            return Response(
+                {'success': False, 'error': {'message': 'Failed to execute workflow action', 'details': str(exc)}},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response({'success': True, 'data': result}, status=status.HTTP_200_OK)
+
+
+class AuditPlanCancelWorkflowView(APIView):
+    """
+    POST /audit/plans/<pk>/cancel-workflow/
+        Cancel the active workflow for an audit plan.
+        Matches corporate-service cancel_workflow endpoint pattern.
+
+    Request body (optional):
+    {
+        "reason": "..."   // Optional cancellation reason
+    }
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanManageAuditPlan().has_permission(request, self):
+            self.permission_denied(request, message='grc:audit_plan:manage required.')
+
+    def post(self, request, pk):
+        user_id = getattr(request.user, 'id', None)
+        if not user_id:
+            return Response(
+                {'success': False, 'error': {'message': 'User not authenticated', 'code': 'AUTH_REQUIRED'}},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        try:
+            AuditPlanService().cancel_workflow_plan(
+                plan_id=str(pk),
+                actor_id=str(user_id),
+                reason=request.data.get('reason', ''),
+            )
+        except ValueError as exc:
+            return Response(
+                {'success': False, 'error': {'message': str(exc), 'code': 'CANCEL_WORKFLOW_FAILED'}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            logger.error('Error cancelling workflow for AuditPlan %s: %s', pk, exc, exc_info=True)
+            return Response(
+                {'success': False, 'error': {'message': 'Failed to cancel workflow', 'details': str(exc)}},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response(
+            {'success': True, 'data': {'status': 'workflow_cancelled'}},
             status=status.HTTP_200_OK,
         )
 
