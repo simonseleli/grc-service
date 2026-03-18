@@ -46,7 +46,6 @@ from apps.api.views.audit_finding_views import (
     AuditFindingListCreateView,
     AuditFindingDetailView,
     AuditFindingFinalizeView,
-    AuditFindingStatusUpdateView,
     AuditFindingResponseView
 )
 from apps.api.views.audit_recommendation_views import (
@@ -91,6 +90,7 @@ from apps.api.views.audit_meeting_views import (
     AuditMeetingListCreateView,
     AuditMeetingDetailView,
     AuditMeetingStatusUpdateView,
+    AuditMeetingSendNotificationView,
 )
 from apps.api.views.audit_quarterly_report_views import (
     QuarterlyReportListCreateView,
@@ -202,7 +202,6 @@ urlpatterns = [
     path("findings/", AuditFindingListCreateView.as_view(), name="audit-finding-list-create"),
     path("findings/<uuid:pk>/", AuditFindingDetailView.as_view(), name="audit-finding-detail"),
     path("findings/<uuid:pk>/finalize/", AuditFindingFinalizeView.as_view(), name="audit-finding-finalize"),
-    path("findings/<uuid:pk>/update-status/", AuditFindingStatusUpdateView.as_view(), name="audit-finding-update-status"),
     path("findings/<uuid:pk>/responses/", AuditFindingResponseView.as_view(), name="audit-finding-responses"),
     
     # Audit Recommendation endpoints
@@ -250,6 +249,7 @@ urlpatterns = [
     path("meetings/", AuditMeetingListCreateView.as_view(), name="audit-meeting-list-create"),
     path("meetings/<uuid:pk>/", AuditMeetingDetailView.as_view(), name="audit-meeting-detail"),
     path("meetings/<uuid:pk>/update-status/", AuditMeetingStatusUpdateView.as_view(), name="audit-meeting-update-status"),
+    path("meetings/<uuid:pk>/send-notification/", AuditMeetingSendNotificationView.as_view(), name="audit-meeting-send-notification"),
 
     # Quarterly Audit Report endpoints
     path("quarterly-reports/", QuarterlyReportListCreateView.as_view(), name="quarterly-report-list-create"),

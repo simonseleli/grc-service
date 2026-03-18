@@ -18,7 +18,7 @@ from apps.core.services.audit_memo_service import AuditMemoService
 from apps.api.serializers.audit_serializers import AuditMemoSerializer, AuditMemoListSerializer
 from apps.infrastructure.services.messaging_service import messaging_service
 from shared.constants.event_types import AUDIT_MEMO_EVENTS
-from apps.api.permissions_jwt import CanViewAuditMemo, CanManageAuditMemo, CanApproveAuditMemo
+from apps.api.permissions_jwt import CanViewAuditMemo, CanManageAuditMemo, CanApproveAuditMemo, HasAnyPermission
 
 # FIMS standard utilities
 from apps.api.utils.pagination import paginate_queryset, get_ordering_param
@@ -371,8 +371,9 @@ class AuditMemoWorkflowActionView(APIView):
 
     def check_permissions(self, request):
         super().check_permissions(request)
-        if not CanManageAuditMemo().has_permission(request, self):
-            self.permission_denied(request, message='grc:audit_memo:manage required.')
+        # CIA (manage) and Director General (approve) both execute memo workflow actions
+        if not HasAnyPermission(['grc:audit_memo:manage', 'grc:audit_memo:approve']).has_permission(request, self):
+            self.permission_denied(request, message='grc:audit_memo:manage or grc:audit_memo:approve required.')
 
     def post(self, request, pk):
         user_id = getattr(request.user, 'id', None)

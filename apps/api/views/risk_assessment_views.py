@@ -674,11 +674,11 @@ class RiskAssessmentEvidenceView(APIView):
 
             assessment = get_object_or_404(RiskAssessment, pk=pk)
 
-            # Prevent uploads to approved assessments
-            if assessment.status == 'approved':
+            # Prevent uploads once assessment has been submitted for review
+            if assessment.status in ('submitted', 'reviewed', 'approved'):
                 return error_response(
-                    message="Cannot add evidence to an approved assessment",
-                    code="ASSESSMENT_APPROVED",
+                    message="Cannot add evidence to an assessment that has been submitted for review",
+                    code="ASSESSMENT_LOCKED",
                     status_code=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -795,10 +795,10 @@ class RiskAssessmentEvidenceDetailView(APIView):
 
             assessment = get_object_or_404(RiskAssessment, pk=pk)
 
-            if assessment.status == 'approved':
+            if assessment.status in ('submitted', 'reviewed', 'approved'):
                 return error_response(
-                    message="Cannot modify evidence on an approved assessment",
-                    code="ASSESSMENT_APPROVED",
+                    message="Cannot modify evidence on an assessment that has been submitted for review",
+                    code="ASSESSMENT_LOCKED",
                     status_code=status.HTTP_400_BAD_REQUEST,
                 )
 

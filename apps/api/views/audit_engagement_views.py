@@ -14,6 +14,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.models import AuditEngagement, AuditPlan, AuditableEntity, DeclarationOfIndependence, AuditProgram
+from apps.core.models.audit_entities import EngagementNotification
 from apps.api.serializers.audit_serializers import AuditEngagementSerializer
 from apps.infrastructure.services.messaging_service import messaging_service
 from shared.constants.event_types import AUDIT_ENGAGEMENT_EVENTS
@@ -555,6 +556,34 @@ class AuditEngagementPhaseTransitionView(APIView):
                                 "Please ensure the audit program is prepared and approved first."
                             ),
                             "code": "AUDIT_PROGRAM_NOT_APPROVED",
+                        },
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # SRS Pre-condition (AUDT2_ext.md §1.8.3 Pre-Conditions table):
+            # "Approved Engagement Notification" must exist before fieldwork begins.
+            # Ref: Process Flow steps 10-12 — CIA approves EN, EN transmitted to auditee,
+            # THEN entry meeting / fieldwork starts.
+            try:
+                has_approved_en = EngagementNotification.objects.filter(
+                    audit_engagement=engagement,
+                    status__in=('approved', 'transmitted'),
+                ).exists()
+            except Exception:
+                has_approved_en = False
+
+            if not has_approved_en:
+                return Response(
+                    {
+                        "success": False,
+                        "error": {
+                            "message": (
+                                "An approved Engagement Notification is required before the engagement "
+                                "lifecycle workflow can be started (SRS §1.8.3 Pre-Conditions). "
+                                "Please prepare the EN, submit it for CIA approval, and ensure it is approved first."
+                            ),
+                            "code": "ENGAGEMENT_NOTIFICATION_NOT_APPROVED",
                         },
                     },
                     status=status.HTTP_400_BAD_REQUEST,

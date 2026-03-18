@@ -357,7 +357,9 @@ class ConfigAuditSeverityView(APIView):
 
     def check_permissions(self, request):
         super().check_permissions(request)
-        if not CanManageAuditSeverity().has_permission(request, self):
+        # GET (read for dropdowns) is open to any authenticated GRC user
+        # Write operations require the config manage permission (CIA only)
+        if request.method != 'GET' and not CanManageAuditSeverity().has_permission(request, self):
             self.permission_denied(request, message='grc:config:audit_severity:manage required.')
 
     def get(self, request):
@@ -544,7 +546,9 @@ class ConfigFindingTypeView(APIView):
 
     def check_permissions(self, request):
         super().check_permissions(request)
-        if not CanManageFindingType().has_permission(request, self):
+        # GET (read for dropdowns) is open to any authenticated GRC user
+        # Write operations require the config manage permission (CIA only)
+        if request.method != 'GET' and not CanManageFindingType().has_permission(request, self):
             self.permission_denied(request, message='grc:config:finding_type:manage required.')
 
     def get(self, request):
@@ -736,8 +740,14 @@ class ConfigRiskRatingView(APIView):
 
     def check_permissions(self, request):
         super().check_permissions(request)
-        if not CanManageRiskRating().has_permission(request, self):
-            self.permission_denied(request, message='grc:config:risk_rating:manage required.')
+        if request.method in ('POST', 'PUT', 'PATCH', 'DELETE'):
+            # Write operations require the config manage permission (CIA only)
+            if not CanManageRiskRating().has_permission(request, self):
+                self.permission_denied(request, message='grc:config:risk_rating:manage required.')
+        else:
+            # GET (read for dropdowns) requires any valid GRC role
+            if not CanViewAuditPlan().has_permission(request, self):
+                self.permission_denied(request, message='A valid GRC role is required.')
 
     def get(self, request):
         """Get all risk ratings with pagination"""

@@ -10,9 +10,7 @@
 
 GRC's `OrchestrationClient` queries WO's template API at runtime to resolve a
 `workflow_type` string into a concrete template UUID. If WO has no matching
-template, the client falls back to sending inline stages directly in the
-`start_workflow` payload. The inline-stage path works but bypasses WO's
-reusable template registry — a fragile, non-idiomatic approach.
+template, the client falls and fails, it should never use inline stages, all things is dedicated to workflow_type
 
 **Current state:** WO's `seed_workflow_templates.py` contains **4 generic
 templates** (`approval`, `commission`, `management`, `disposal`) — **none of

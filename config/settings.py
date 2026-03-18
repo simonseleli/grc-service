@@ -214,6 +214,9 @@ JWT_REFRESH_TOKEN_LIFETIME_DAYS = int(os.getenv("JWT_REFRESH_TOKEN_LIFETIME_DAYS
 # Service URLs (FIMS Integration)
 IAM_SERVICE_URL = os.getenv("IAM_SERVICE_URL", "http://iam-service:8000")
 DOCUMENT_SERVICE_URL = os.getenv("DOCUMENT_SERVICE_URL", "http://document-records-service:8002")
+# Public URL used when storing document links that the browser must open.
+# Points to the API gateway which proxies /api/v1/documents/ to DRS.
+DOCUMENT_SERVICE_PUBLIC_URL = os.getenv("DOCUMENT_SERVICE_PUBLIC_URL", "http://localhost:8080")
 WORK_ORCHESTRATION_SERVICE_URL = os.getenv("WORK_ORCHESTRATION_SERVICE_URL", "http://work-orchestration-service:8004")
 
 # Workflow Template UUIDs — resolved automatically by OrchestrationClient._get_template_id_by_code()

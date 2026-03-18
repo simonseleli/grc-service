@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Engagement Notification</title>
+  <style>
+    /*
+      @page bottom margin = 60 mm
+      DRS stamps QR code  (30×30 mm) at bottom-left  (15 mm from edges)
+      DRS stamps signature (65×22 mm) at bottom-right (15 mm from right edge)
+      Separator line drawn at 42 mm from bottom.
+      60 mm clearance ensures nothing is overlapped.
+    */
+    @page {
+      size: A4;
+      margin: 20mm 25mm 60mm 25mm;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11pt;
+      color: #1a1a1a;
+      line-height: 1.55;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* ── Header ── */
+    .header {
+      text-align: center;
+      border-bottom: 2px solid #1a3a5c;
+      padding-bottom: 12px;
+      margin-bottom: 22px;
+    }
+
+    .org-name {
+      font-size: 13pt;
+      font-weight: bold;
+      color: #1a3a5c;
+      letter-spacing: 0.5px;
+      margin: 0 0 4px;
+    }
+
+    .doc-title {
+      font-size: 12pt;
+      font-weight: bold;
+      color: #222;
+      margin: 0 0 4px;
+    }
+
+    .ref-number {
+      font-size: 9pt;
+      color: #666;
+      margin: 0;
+    }
+
+    /* ── Fields ── */
+    .field {
+      margin: 10px 0;
+    }
+
+    .label {
+      font-weight: bold;
+      font-size: 10pt;
+      color: #333;
+    }
+
+    .value {
+      margin-top: 3px;
+      padding-left: 4px;
+    }
+
+    /* ── Two-column field row ── */
+    .field-row {
+      display: table;
+      width: 100%;
+      margin: 10px 0;
+    }
+
+    .field-col {
+      display: table-cell;
+      width: 50%;
+      vertical-align: top;
+    }
+
+    /* ── Section divider ── */
+    .section {
+      margin: 18px 0 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #ccc;
+    }
+
+    .section-title {
+      font-size: 11pt;
+      font-weight: bold;
+      color: #1a3a5c;
+    }
+
+    /* ── Scope box ── */
+    .scope-box {
+      margin: 10px 0;
+      padding: 10px 14px;
+      background: #f8f9fa;
+      border-left: 3px solid #1a3a5c;
+      font-size: 10.5pt;
+      line-height: 1.65;
+      text-align: justify;
+    }
+
+    /* ── Team table ── */
+    .team-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 10pt;
+    }
+
+    .team-table th {
+      background: #1a3a5c;
+      color: #fff;
+      padding: 6px 8px;
+      text-align: left;
+      font-weight: bold;
+    }
+
+    .team-table td {
+      padding: 5px 8px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .team-table tr:nth-child(even) td {
+      background: #f5f7fa;
+    }
+
+    /* ── Footer note ── */
+    .footer-note {
+      margin-top: 20px;
+      font-size: 8.5pt;
+      color: #888;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══ Header ═══ -->
+  <div class="header">
+    <div class="org-name">FAIR COMPETITION COMMISSION (FCC)</div>
+    <div class="doc-title">Engagement Notification</div>
+    <div class="ref-number">Reference: {{ en.reference_number }}</div>
+  </div>
+
+  <!-- ═══ Notification metadata ═══ -->
+  <div class="section"><span class="section-title">Notification Details</span></div>
+
+  <div class="field-row">
+    <div class="field-col">
+      <div class="field">
+        <div class="label">Reference Number:</div>
+        <div class="value">{{ en.reference_number }}</div>
+      </div>
+    </div>
+    <div class="field-col">
+      <div class="field">
+        <div class="label">Date of Issue:</div>
+        <div class="value">{{ generated_at|date:"d F Y" }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="field">
+    <div class="label">Audit Engagement:</div>
+    <div class="value">{{ engagement.title }} &mdash; {{ engagement.reference_number }}</div>
+  </div>
+
+  <div class="field">
+    <div class="label">Auditable Entity:</div>
+    <div class="value">{{ engagement.auditable_entity.name }}</div>
+  </div>
+
+  <!-- ═══ Audit period ═══ -->
+  <div class="section"><span class="section-title">Audit Period</span></div>
+
+  <div class="field-row">
+    <div class="field-col">
+      <div class="field">
+        <div class="label">Period Start:</div>
+        <div class="value">{{ en.audit_period_start|date:"d F Y" }}</div>
+      </div>
+    </div>
+    <div class="field-col">
+      <div class="field">
+        <div class="label">Period End:</div>
+        <div class="value">{{ en.audit_period_end|date:"d F Y" }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Scope ═══ -->
+  {% if en.scope_summary %}
+  <div class="section"><span class="section-title">Audit Scope</span></div>
+  <div class="scope-box">{{ en.scope_summary }}</div>
+  {% endif %}
+
+  <!-- ═══ Audit Team ═══ -->
+  {% if en.audit_team_snapshot %}
+  <div class="section"><span class="section-title">Audit Team</span></div>
+  <table class="team-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Role</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for member in en.audit_team_snapshot %}
+      <tr>
+        <td>{{ member.name|default:"—" }}</td>
+        <td>{{ member.role|default:"—"|title }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <!-- ═══ Prepared by ═══ -->
+  <div class="section"><span class="section-title">Prepared By</span></div>
+  <div class="field">
+    <div class="label">Lead Auditor (User ID):</div>
+    <div class="value">{{ en.prepared_by }}</div>
+  </div>
+
+  <div class="footer-note">
+    This document was generated by the FIMS GRC System on {{ generated_at|date:"d F Y H:i" }}.
+    The CIA approval signature and QR verification code will be embedded upon approval.
+  </div>
+
+</body>
+</html>

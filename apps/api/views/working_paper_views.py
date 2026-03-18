@@ -170,13 +170,15 @@ class EngagementWorkingPapersView(APIView):
             document_client = get_document_client(auth_token=auth_token)
             
             try:
-                document = document_client.create_document(
+                document = document_client.create_document_with_file(
                     title=title,
                     description=f"Working paper for audit engagement: {engagement.title}",
                     document_type='audit_working_paper',
                     classification='confidential',  # Audit documents are confidential
                     record_type='non_permanent',
                     retention_period=2555,  # 7 years for audit records
+                    file_data=uploaded_file if uploaded_file else None,
+                    file_name=uploaded_file.name if uploaded_file else None,
                     metadata={
                         'engagement_id': str(engagement.id),
                         'engagement_reference': engagement.reference_number,
@@ -188,7 +190,7 @@ class EngagementWorkingPapersView(APIView):
                 )
                 
                 document_id = document['id']
-                logger.info(f"Document {document_id} created in Document Records Service for working paper")
+                logger.info(f"Document {document_id} created in Document Records Service for working paper (file: {uploaded_file.name if uploaded_file else 'none'})")
                 
             except DocumentServiceError as e:
                 logger.error(f"Failed to create document in Document Records Service: {e}")
@@ -204,21 +206,7 @@ class EngagementWorkingPapersView(APIView):
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
             
-            # Step 2: Upload file if provided
-            if uploaded_file:
-                try:
-                    document = document_client.upload_file(
-                        document_id=document_id,
-                        file_data=uploaded_file,
-                        file_name=uploaded_file.name
-                    )
-                    logger.info(f"File uploaded to document {document_id}: {uploaded_file.name}")
-                except DocumentServiceError as e:
-                    # Document created but file upload failed
-                    logger.warning(f"Document {document_id} created but file upload failed: {e}")
-                    # Continue anyway - user can upload file later
-            
-            # Step 3: Create WorkingPaper metadata in GRC database
+            # Step 2: Create WorkingPaper metadata in GRC database
             working_paper = WorkingPaper.objects.create(
                 engagement=engagement,
                 reference_number=reference_number,

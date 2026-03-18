@@ -61,6 +61,8 @@ services:
     networks:
       - fims-network
     restart: unless-stopped
+    mem_limit: 600m
+    memswap_limit: 600m
     command: >
       sh -c "
         echo 'Running migrations...' &&
@@ -95,6 +97,8 @@ services:
     networks:
       - fims-network
     restart: unless-stopped
+    mem_limit: 400m
+    memswap_limit: 400m
 
   grc-celery-beat:
     build:
@@ -114,6 +118,8 @@ services:
     networks:
       - fims-network
     restart: unless-stopped
+    mem_limit: 128m
+    memswap_limit: 128m
 
   grc-kafka-consumer:
     build:
@@ -131,6 +137,8 @@ services:
     networks:
       - fims-network
     restart: unless-stopped
+    mem_limit: 128m
+    memswap_limit: 128m
     healthcheck:
       test: ["CMD", "python", "-c", "print('Container is responsive')"]
       interval: 30s

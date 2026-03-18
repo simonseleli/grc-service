@@ -36,6 +36,7 @@ from apps.api.serializers.audit_serializers import (
 from apps.api.permissions_jwt import (
     CanManageQuarterlyReport,
     CanApproveQuarterlyReport,
+    HasAnyPermission,
 )
 from apps.core.services.quarterly_report_service import QuarterlyReportService
 from apps.infrastructure.services.messaging_service import messaging_service
@@ -761,8 +762,9 @@ class QuarterlyReportWorkflowActionView(APIView):
 
     def check_permissions(self, request):
         super().check_permissions(request)
-        if not CanManageQuarterlyReport().has_permission(request, self):
-            self.permission_denied(request, message='grc:quarterly_report:manage required.')
+        # CIA/IA (manage) and Management/Committee/Commission (approve) all execute QR workflow actions
+        if not HasAnyPermission(['grc:quarterly_report:manage', 'grc:quarterly_report:approve']).has_permission(request, self):
+            self.permission_denied(request, message='grc:quarterly_report:manage or grc:quarterly_report:approve required.')
 
     def post(self, request, pk):
         user_id = getattr(request.user, 'id', None)

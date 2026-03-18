@@ -34,6 +34,65 @@ from apps.api.utils.response_helpers import (
 logger = logging.getLogger(__name__)
 
 
+def _upload_declaration_pdf_to_drs(decl, auth_token: str = None) -> None:
+    """
+    GAP 9 / SRS Req 18 + 38: Generate a PDF for the declaration and upload it
+    to DRS, storing the returned document UUID in decl.document_id.
+
+    This must run immediately after each declaration is created so that
+    document_id is set before the declarant clicks Sign. When all declarations
+    for an engagement are signed, DeclarationSignView loops over declarations
+    with document_id set and calls DRS generate-approved-stamp — which overlays
+    the QR code and CIA signature on the PDF.
+
+    auth_token: the requesting user's JWT (passed from request.auth). DRS
+    checks document:document:create permission embedded in the token, which
+    is already granted to the internal_auditor role via IAM (see grc_notes.md
+    section 9 — Grant DRS permissions to GRC roles).
+
+    Non-blocking: any error is logged and swallowed. The declaration record
+    is still valid without a PDF; stamping simply will not run for that record.
+    """
+    import io
+    from apps.infrastructure.external.document_service_client import DocumentServiceClient
+    from apps.core.utils.pdf_generators import generate_declaration_pdf
+    try:
+        # select_related so template rendering has no extra DB hits
+        decl.audit_engagement  # already accessed by caller, but ensure it's loaded
+        pdf_bytes = generate_declaration_pdf(decl)
+        client = DocumentServiceClient(auth_token=auth_token)  # JWT carries document:document:create
+        doc = client.create_document_with_file(
+            title=f"Declaration of Independence — {decl.declarant_name}",
+            description=(
+                f"Conflict of Interest Declaration for audit engagement "
+                f"{decl.audit_engagement.reference_number}"
+            ),
+            document_type='audit_declaration',
+            classification='confidential',
+            retention_period=2555,  # 7 years for audit records
+            file_data=io.BytesIO(pdf_bytes),
+            file_name=f"declaration_{decl.id}.pdf",
+            metadata={
+                'source_service': 'grc',
+                'entity_type': 'declaration',
+                'entity_id': str(decl.id),
+                'engagement_id': str(decl.audit_engagement_id),
+                'declarant_id': str(decl.declarant_user_id),
+            },
+        )
+        decl.document_id = doc['id']
+        decl.save(update_fields=['document_id'])
+        logger.info(
+            "GAP 9: Declaration %s PDF uploaded to DRS as document %s",
+            decl.id, doc['id'],
+        )
+    except Exception as pdf_err:
+        logger.warning(
+            "GAP 9: Could not upload declaration PDF to DRS for declaration %s: %s",
+            decl.id, pdf_err,
+        )
+
+
 class DeclarationListCreateView(APIView):
     """List all declarations or create new one(s)."""
 
@@ -117,6 +176,11 @@ class DeclarationListCreateView(APIView):
                         )
                         created.append(decl)
 
+                # GAP 9: upload a PDF to DRS for each declaration so document_id
+                # is set and the stamp trigger can fire when all are signed.
+                for decl in created:
+                    _upload_declaration_pdf_to_drs(decl, auth_token=request.auth)
+
                 serializer = DeclarationOfIndependenceSerializer(created, many=True)
                 return Response(
                     {
@@ -132,6 +196,10 @@ class DeclarationListCreateView(APIView):
             if serializer.is_valid():
                 with transaction.atomic():
                     decl = serializer.save(created_by=user_id)
+
+                # GAP 9: upload PDF to DRS immediately so document_id is set
+                # before the declarant clicks Sign.
+                _upload_declaration_pdf_to_drs(decl, auth_token=request.auth)
 
                 try:
                     messaging_service.publish_audit_plan_event(
@@ -269,6 +337,27 @@ class DeclarationSignView(APIView):
                     'has_conflict', 'conflict_details', 'is_signed', 'signed_at', 'status',
                 ])
 
+            # Regenerate the PDF with is_signed=True so the "Digitally Signed" block
+            # (name + date) is rendered instead of the blank signature lines.
+            # Must happen BEFORE the stamp loop so DRS stamps the correct version.
+            if decl.document_id:
+                try:
+                    import io
+                    from apps.core.utils.pdf_generators import generate_declaration_pdf
+                    from apps.infrastructure.external.document_service_client import DocumentServiceClient as _DSC
+                    _pdf = generate_declaration_pdf(decl)
+                    _DSC(auth_token=request.auth).upload_file(
+                        document_id=str(decl.document_id),
+                        file_data=io.BytesIO(_pdf),
+                        file_name=f"declaration_{decl.id}.pdf",
+                    )
+                    logger.info("GAP 9: Regenerated signed PDF for declaration %s in DRS", decl.id)
+                except Exception as _regen_err:
+                    logger.warning(
+                        "GAP 9: Could not regenerate signed PDF for declaration %s: %s",
+                        decl.id, _regen_err,
+                    )
+
             try:
                 messaging_service.publish_audit_plan_event(
                     event_type=DECLARATION_EVENTS['DECLARATION_SIGNED'],
@@ -293,9 +382,10 @@ class DeclarationSignView(APIView):
 
                 if all_signed:
                     from apps.infrastructure.external.document_service_client import DocumentServiceClient
-                    from django.conf import settings as django_settings
-                    service_token = getattr(django_settings, 'SERVICE_TO_SERVICE_TOKEN', None)
-                    client = DocumentServiceClient(auth_token=None)
+                    # Use the signer's JWT as auth_token — DRS JWTPermissionMiddleware requires
+                    # a Bearer token on every request. X-Service-Token alone is blocked by
+                    # middleware before DRF permission classes can check it.
+                    client = DocumentServiceClient(auth_token=request.auth)
                     for d in DeclarationOfIndependence.objects.filter(
                         audit_engagement=decl.audit_engagement,
                         is_active=True,
@@ -307,10 +397,15 @@ class DeclarationSignView(APIView):
                                 approver_id=str(user_id),
                                 entity_type='declaration',
                                 entity_id=str(d.id),
-                                service_token=service_token,
                             )
                             stamped_url = result.get('stamped_document_url')
                             if stamped_url:
+                                # DRS returns an internal Docker URL — rewrite to the
+                                # public API gateway URL so the browser can open it.
+                                internal_base = settings.DOCUMENT_SERVICE_URL.rstrip('/')
+                                public_base = getattr(settings, 'DOCUMENT_SERVICE_PUBLIC_URL', '').rstrip('/')
+                                if public_base and stamped_url.startswith(internal_base):
+                                    stamped_url = public_base + stamped_url[len(internal_base):]
                                 d.stamped_document_url = stamped_url
                                 d.save(update_fields=['stamped_document_url'])
                         except Exception as stamp_err:
@@ -319,6 +414,10 @@ class DeclarationSignView(APIView):
                             )
             except Exception as gap9_err:
                 logger.warning("GAP 9: Declaration stamp check failed: %s", gap9_err)
+
+            # Refresh from DB so the response reflects stamped_document_url if the
+            # stamp loop ran above (it updates separate ORM objects, not `decl`).
+            decl.refresh_from_db()
 
             return success_response(
                 data=DeclarationOfIndependenceSerializer(decl).data,

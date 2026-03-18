@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Meeting Minutes – {{ meeting.reference_number }}</title>
+  <style>
+    /* ── Page layout ─────────────────────────────────────────────────────── */
+    @page {
+      size: A4;
+      margin: 20mm 25mm 60mm 25mm;   /* 60mm bottom reserved for DRS stamp */
+    }
+
+    /* ── Base typography ─────────────────────────────────────────────────── */
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11pt;
+      color: #222222;
+      line-height: 1.5;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* ── Document header ─────────────────────────────────────────────────── */
+    .header {
+      border: 2px solid #1a3a5c;
+      padding: 12px 16px 10px;
+      margin-bottom: 18px;
+      text-align: center;
+    }
+    .org-name {
+      font-size: 13pt;
+      font-weight: bold;
+      color: #1a3a5c;
+      margin-bottom: 2px;
+    }
+    .doc-type {
+      font-size: 11pt;
+      color: #1a3a5c;
+      margin-bottom: 4px;
+    }
+    .doc-title {
+      font-size: 13pt;
+      font-weight: bold;
+      color: #222;
+      margin-bottom: 4px;
+    }
+    .ref-number {
+      font-size: 10pt;
+      color: #555;
+    }
+
+    /* ── Section headers ─────────────────────────────────────────────────── */
+    .section {
+      border-top: 1px solid #1a3a5c;
+      margin: 16px 0 6px;
+    }
+    .section-title {
+      font-size: 10.5pt;
+      font-weight: bold;
+      color: #1a3a5c;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin: 6px 0 8px;
+    }
+
+    /* ── Two-column field rows ───────────────────────────────────────────── */
+    .field-row {
+      display: flex;
+      margin-bottom: 5px;
+    }
+    .label {
+      width: 42%;
+      font-weight: bold;
+      color: #444;
+      font-size: 10pt;
+      padding-right: 8px;
+    }
+    .value {
+      width: 58%;
+      font-size: 10pt;
+      color: #222;
+    }
+
+    /* ── Long text blocks ─────────────────────────────────────────────────── */
+    .text-block {
+      font-size: 10pt;
+      color: #222;
+      white-space: pre-wrap;
+      margin: 4px 0 10px;
+      padding: 8px 10px;
+      background: #f9f9f9;
+      border-left: 3px solid #1a3a5c;
+    }
+    .empty-block {
+      font-size: 10pt;
+      color: #888;
+      font-style: italic;
+      margin: 4px 0 10px;
+    }
+
+    /* ── Attendee summary table ──────────────────────────────────────────── */
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10pt;
+      margin-bottom: 10px;
+    }
+    .summary-table th {
+      background-color: #1a3a5c;
+      color: #ffffff;
+      padding: 6px 10px;
+      text-align: left;
+    }
+    .summary-table td {
+      padding: 5px 10px;
+      border-bottom: 1px solid #ddd;
+    }
+    .summary-table tr:nth-child(even) td {
+      background-color: #f3f6fa;
+    }
+
+    /* ── Pre-exit notice box ─────────────────────────────────────────────── */
+    .notice-box {
+      border: 1px solid #c8a000;
+      background: #fffbe6;
+      padding: 8px 12px;
+      font-size: 9.5pt;
+      color: #7a5c00;
+      margin-bottom: 10px;
+      border-radius: 2px;
+    }
+
+    /* ── Footer ──────────────────────────────────────────────────────────── */
+    .footer-note {
+      font-size: 8.5pt;
+      color: #888;
+      font-style: italic;
+      margin-top: 24px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       DOCUMENT HEADER
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="header">
+    <div class="org-name">Fair Competition Commission (FCC)</div>
+    <div class="doc-type">Internal Audit Division</div>
+    <div class="doc-title">Audit Meeting Minutes</div>
+    <div class="ref-number">Reference: {{ meeting.reference_number }}</div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SECTION 1 — ENGAGEMENT INFORMATION
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="section"></div>
+  <div class="section-title">1. Engagement Information</div>
+
+  <div class="field-row">
+    <div class="label">Engagement Reference:</div>
+    <div class="value">{{ engagement.reference_number }}</div>
+  </div>
+  <div class="field-row">
+    <div class="label">Engagement Title:</div>
+    <div class="value">{{ engagement.title }}</div>
+  </div>
+  {% if auditee_name %}
+  <div class="field-row">
+    <div class="label">Auditee:</div>
+    <div class="value">{{ auditee_name }}</div>
+  </div>
+  {% endif %}
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SECTION 2 — MEETING DETAILS
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="section"></div>
+  <div class="section-title">2. Meeting Details</div>
+
+  <div class="field-row">
+    <div class="label">Meeting Type:</div>
+    <div class="value">{{ meeting.get_meeting_type_display }}</div>
+  </div>
+  <div class="field-row">
+    <div class="label">Meeting Title:</div>
+    <div class="value">{{ meeting.title }}</div>
+  </div>
+  <div class="field-row">
+    <div class="label">Scheduled Date &amp; Time:</div>
+    <div class="value">{{ meeting.scheduled_date|date:"d F Y, H:i" }}</div>
+  </div>
+  {% if meeting.actual_date %}
+  <div class="field-row">
+    <div class="label">Actual Date &amp; Time:</div>
+    <div class="value">{{ meeting.actual_date|date:"d F Y, H:i" }}</div>
+  </div>
+  {% endif %}
+  <div class="field-row">
+    <div class="label">Location / Venue:</div>
+    <div class="value">{{ meeting.location|default:"—" }}</div>
+  </div>
+  <div class="field-row">
+    <div class="label">Status:</div>
+    <div class="value">{{ meeting.get_status_display }}</div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SECTION 3 — ATTENDANCE SUMMARY
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="section"></div>
+  <div class="section-title">3. Attendance Summary</div>
+
+  {% if meeting.attendees %}
+    {% with total=meeting.attendees|length %}
+    <table class="summary-table">
+      <thead>
+        <tr>
+          <th>Role</th>
+          <th>Name</th>
+          <th>Title / Position</th>
+          <th>Present</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for attendee in meeting.attendees %}
+        <tr>
+          <td>{{ attendee.role|title|default:"—" }}</td>
+          <td>{{ attendee.name|default:"—" }}</td>
+          <td>{{ attendee.title|default:"—" }}</td>
+          <td>{% if attendee.present %}Yes{% else %}No{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endwith %}
+  {% else %}
+    <div class="empty-block">No attendees recorded.</div>
+  {% endif %}
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SECTION 4 — AGENDA
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="section"></div>
+  <div class="section-title">4. Agenda</div>
+  {% if meeting.agenda %}
+    <div class="text-block">{{ meeting.agenda }}</div>
+  {% else %}
+    <div class="empty-block">No agenda recorded.</div>
+  {% endif %}
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SECTION 5 — MINUTES / PROCEEDINGS
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="section"></div>
+  <div class="section-title">5. Minutes / Proceedings</div>
+  {% if meeting.minutes %}
+    <div class="text-block">{{ meeting.minutes }}</div>
+  {% else %}
+    <div class="empty-block">No minutes recorded.</div>
+  {% endif %}
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SECTION 6 — KEY DISCUSSION POINTS
+  ═══════════════════════════════════════════════════════════════════════ -->
+  {% if meeting.key_discussions %}
+  <div class="section"></div>
+  <div class="section-title">6. Key Discussion Points</div>
+  <div class="text-block">{{ meeting.key_discussions }}</div>
+  {% endif %}
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SECTION 7 — PRE-EXIT SPECIFIC (clarifications & agreed observations)
+       Only rendered for pre_exit meeting type (SRS §1.8.3 Step 17 — Key Info)
+  ═══════════════════════════════════════════════════════════════════════ -->
+  {% if meeting.meeting_type == 'pre_exit' %}
+  <div class="section"></div>
+  <div class="section-title">7. Pre-Exit Meeting Data</div>
+
+  <div class="notice-box">
+    This section records data specific to the Pre-Exit Meeting as required by
+    SRS §1.8.3 Step 17 (Key Information for Pre-Exit Meeting).
+  </div>
+
+  <div class="field-row">
+    <div class="label" style="font-size:10pt;">Clarifications:</div>
+  </div>
+  {% if meeting.clarifications %}
+    <div class="text-block">{{ meeting.clarifications }}</div>
+  {% else %}
+    <div class="empty-block">No clarifications recorded.</div>
+  {% endif %}
+
+  <div class="field-row">
+    <div class="label" style="font-size:10pt;">Agreed Observations:</div>
+  </div>
+  {% if meeting.agreed_observations %}
+    <div class="text-block">{{ meeting.agreed_observations }}</div>
+  {% else %}
+    <div class="empty-block">No agreed observations recorded.</div>
+  {% endif %}
+  {% endif %}
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SECTION 8 — ACTION ITEMS
+  ═══════════════════════════════════════════════════════════════════════ -->
+  {% if meeting.action_items %}
+  <div class="section"></div>
+  <div class="section-title">{% if meeting.meeting_type == 'pre_exit' %}8{% else %}7{% endif %}. Action Items</div>
+  <table class="summary-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Description</th>
+        <th>Responsible</th>
+        <th>Due Date</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in meeting.action_items %}
+      <tr>
+        <td>{{ forloop.counter }}</td>
+        <td>{{ item.description|default:"—" }}</td>
+        <td>{{ item.responsible_name|default:"—" }}</td>
+        <td>{{ item.due_date|default:"—" }}</td>
+        <td>{{ item.status|title|default:"—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       FOOTER
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="footer-note">
+    Auto-generated by FCC Internal Audit GRC System on {{ generated_at|date:"d F Y, H:i" }} UTC.
+    This document is an official record of the {{ meeting.get_meeting_type_display|lower }}.
+  </div>
+
+</body>
+</html>

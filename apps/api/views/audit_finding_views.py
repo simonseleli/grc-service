@@ -8,6 +8,7 @@ import logging
 from django.conf import settings
 from django.db import transaction
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -15,7 +16,7 @@ from rest_framework.views import APIView
 
 from apps.core.models import (
     AuditFinding, AuditEngagement, FiscalYear, Quarter,
-    FindingType, AuditSeverity, RiskRating
+    FindingType, AuditSeverity, RiskRating, WorkingPaper, AuditMeeting
 )
 from apps.api.serializers.audit_serializers import AuditFindingSerializer
 from apps.infrastructure.services.messaging_service import messaging_service
@@ -23,6 +24,7 @@ from shared.constants.event_types import AUDIT_FINDING_EVENTS
 from apps.api.permissions_jwt import (
     CanManageAuditFinding,
     CanRespondToAuditFinding,
+    CanManagementRespondToAuditFinding,
 )
 
 # FIMS standard utilities
@@ -77,7 +79,8 @@ class AuditFindingListCreateView(APIView):
                 'quarter',
                 'finding_type',
                 'severity',
-                'risk_rating'
+                'risk_rating',
+                'working_paper'
             ).all()
             
             # Apply filters
@@ -185,7 +188,35 @@ class AuditFindingListCreateView(APIView):
                     get_object_or_404(AuditSeverity, id=severity_id)
                 if risk_rating_id:
                     get_object_or_404(RiskRating, id=risk_rating_id)
-                
+
+                # GAP-F2: if a working_paper_id is supplied, it must belong to the same engagement
+                working_paper_id = serializer.validated_data.get('working_paper_id')
+                if working_paper_id:
+                    try:
+                        wp = WorkingPaper.objects.get(id=working_paper_id)
+                    except WorkingPaper.DoesNotExist:
+                        return Response(
+                            {
+                                "success": False,
+                                "error": {
+                                    "message": "Working paper not found",
+                                    "code": "WP_NOT_FOUND"
+                                }
+                            },
+                            status=status.HTTP_404_NOT_FOUND
+                        )
+                    if str(wp.engagement_id) != str(engagement_id):
+                        return Response(
+                            {
+                                "success": False,
+                                "error": {
+                                    "message": "Working paper does not belong to this engagement",
+                                    "code": "WP_ENGAGEMENT_MISMATCH"
+                                }
+                            },
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+
                 # FIMS pattern: always require authenticated user — no system user fallback
                 user_id = getattr(request.user, 'id', None)
                 if not user_id:
@@ -276,7 +307,8 @@ class AuditFindingDetailView(APIView):
                     'quarter',
                     'finding_type',
                     'severity',
-                    'risk_rating'
+                    'risk_rating',
+                    'working_paper'
                 ),
                 pk=pk
             )
@@ -327,6 +359,34 @@ class AuditFindingDetailView(APIView):
             serializer = AuditFindingSerializer(finding, data=request.data)
             
             if serializer.is_valid():
+                # GAP-F2: if a working_paper_id is supplied, it must belong to the same engagement
+                working_paper_id = serializer.validated_data.get('working_paper_id')
+                if working_paper_id:
+                    engagement_id = serializer.validated_data.get('engagement_id', finding.engagement_id)
+                    try:
+                        wp = WorkingPaper.objects.get(id=working_paper_id)
+                    except WorkingPaper.DoesNotExist:
+                        return Response(
+                            {
+                                "success": False,
+                                "error": {
+                                    "message": "Working paper not found",
+                                    "code": "WP_NOT_FOUND"
+                                }
+                            },
+                            status=status.HTTP_404_NOT_FOUND
+                        )
+                    if str(wp.engagement_id) != str(engagement_id):
+                        return Response(
+                            {
+                                "success": False,
+                                "error": {
+                                    "message": "Working paper does not belong to this engagement",
+                                    "code": "WP_ENGAGEMENT_MISMATCH"
+                                }
+                            },
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
                 with transaction.atomic():
                     # Get user ID for modified_by tracking — require authenticated user
                     user_id = getattr(request.user, 'id', None)
@@ -389,6 +449,34 @@ class AuditFindingDetailView(APIView):
             serializer = AuditFindingSerializer(finding, data=request.data, partial=True)
             
             if serializer.is_valid():
+                # GAP-F2: if a working_paper_id is supplied, it must belong to the same engagement
+                working_paper_id = serializer.validated_data.get('working_paper_id')
+                if working_paper_id:
+                    engagement_id = serializer.validated_data.get('engagement_id', finding.engagement_id)
+                    try:
+                        wp = WorkingPaper.objects.get(id=working_paper_id)
+                    except WorkingPaper.DoesNotExist:
+                        return Response(
+                            {
+                                "success": False,
+                                "error": {
+                                    "message": "Working paper not found",
+                                    "code": "WP_NOT_FOUND"
+                                }
+                            },
+                            status=status.HTTP_404_NOT_FOUND
+                        )
+                    if str(wp.engagement_id) != str(engagement_id):
+                        return Response(
+                            {
+                                "success": False,
+                                "error": {
+                                    "message": "Working paper does not belong to this engagement",
+                                    "code": "WP_ENGAGEMENT_MISMATCH"
+                                }
+                            },
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
                 with transaction.atomic():
                     # Get user ID for modified_by tracking — require authenticated user
                     user_id = getattr(request.user, 'id', None)
@@ -523,6 +611,25 @@ class AuditFindingFinalizeView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
+            # GAP-F4: draft → discussed requires a completed Pre-Exit meeting (SRS Step 17)
+            if target_status == 'discussed':
+                has_preexit = AuditMeeting.objects.filter(
+                    engagement=finding.engagement,
+                    meeting_type='pre_exit',
+                    status='completed'
+                ).exists()
+                if not has_preexit:
+                    return Response(
+                        {
+                            "success": False,
+                            "error": {
+                                "message": "A completed Pre-Exit meeting is required before marking a finding as discussed",
+                                "code": "PRE_EXIT_MEETING_REQUIRED"
+                            }
+                        },
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
             # Require responses before finalizing
             if target_status == 'final':
                 if not finding.auditee_response:
@@ -550,7 +657,15 @@ class AuditFindingFinalizeView(APIView):
             
             with transaction.atomic():
                 finding.status = target_status
-                finding.save(update_fields=['status'])
+                now = timezone.now()
+                update_fields = ['status']
+                if target_status == 'discussed' and not finding.discussed_at:
+                    finding.discussed_at = now
+                    update_fields.append('discussed_at')
+                elif target_status == 'final' and not finding.finalized_at:
+                    finding.finalized_at = now
+                    update_fields.append('finalized_at')
+                finding.save(update_fields=update_fields)
             
             return Response(
                 {
@@ -573,95 +688,6 @@ class AuditFindingFinalizeView(APIView):
             )
 
 
-class AuditFindingStatusUpdateView(APIView):
-    """Update finding status (simplified status change without full finalization workflow)"""
-
-    permission_classes = [IsAuthenticated]
-
-    def check_permissions(self, request):
-        super().check_permissions(request)
-        if not CanManageAuditFinding().has_permission(request, self):
-            self.permission_denied(request, message='grc:audit_finding:manage required.')
-
-    def post(self, request, pk):
-        """Update finding status"""
-        try:
-            finding = get_object_or_404(AuditFinding, pk=pk)
-            
-            new_status = request.data.get('status')
-            
-            if not new_status:
-                return Response(
-                    {
-                        "success": False,
-                        "error": {
-                            "message": "Status is required",
-                            "code": "MISSING_STATUS"
-                        }
-                    },
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Validate status value
-            valid_statuses = ['draft', 'discussed', 'final']
-            if new_status not in valid_statuses:
-                return Response(
-                    {
-                        "success": False,
-                        "error": {
-                            "message": f"Invalid status. Must be one of: {', '.join(valid_statuses)}",
-                            "code": "INVALID_STATUS"
-                        }
-                    },
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Valid status transitions
-            valid_transitions = {
-                'draft': ['discussed', 'final'],
-                'discussed': ['final', 'draft'],
-                'final': [],  # Cannot change from final
-            }
-            
-            if new_status not in valid_transitions.get(finding.status, []):
-                return Response(
-                    {
-                        "success": False,
-                        "error": {
-                            "message": f"Cannot transition from '{finding.status}' to '{new_status}'",
-                            "code": "INVALID_STATUS_TRANSITION",
-                            "current_status": finding.status,
-                            "allowed_transitions": valid_transitions.get(finding.status, [])
-                        }
-                    },
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            with transaction.atomic():
-                finding.status = new_status
-                finding.save(update_fields=['status'])
-            
-            return Response(
-                {
-                    "success": True,
-                    "data": AuditFindingSerializer(finding).data,
-                    "message": f"Finding status updated to '{new_status}' successfully"
-                }
-            )
-                
-        except Exception as e:
-            return Response(
-                {
-                    "success": False,
-                    "error": {
-                        "message": "Failed to update finding status",
-                        "details": str(e)
-                    }
-                },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-
 class AuditFindingResponseView(APIView):
     """Add or update auditee/management responses"""
 
@@ -669,9 +695,15 @@ class AuditFindingResponseView(APIView):
 
     def check_permissions(self, request):
         super().check_permissions(request)
-        if not (CanRespondToAuditFinding().has_permission(request, self) or
-                CanManageAuditFinding().has_permission(request, self)):
-            self.permission_denied(request, message='grc:audit_finding:respond or :manage required.')
+        # Only the auditee (respond) or management (management_respond) may call this endpoint.
+        # The Lead Auditor (manage) manages findings but does NOT write responses.
+        is_auditee_responder = CanRespondToAuditFinding().has_permission(request, self)
+        is_management_responder = CanManagementRespondToAuditFinding().has_permission(request, self)
+        if not (is_auditee_responder or is_management_responder):
+            self.permission_denied(
+                request,
+                message='grc:audit_finding:respond or grc:audit_finding:management_respond required.',
+            )
 
     def patch(self, request, pk):
         """Update finding responses"""
@@ -693,15 +725,59 @@ class AuditFindingResponseView(APIView):
             
             auditee_response = request.data.get('auditee_response')
             management_response = request.data.get('management_response')
-            
+
+            # ── Role-based field enforcement (GAP-F3) ─────────────────────────
+            # Per RBAC matrix:
+            #   grc:audit_finding:respond            → auditee       → may only set auditee_response
+            #   grc:audit_finding:management_respond → management    → may only set management_response
+            is_auditee_responder = CanRespondToAuditFinding().has_permission(request, self)
+            is_management_responder = CanManagementRespondToAuditFinding().has_permission(request, self)
+
+            # Auditee: strip management_response and block if they try to force it
+            if is_auditee_responder and not is_management_responder:
+                management_response = None
+
+            if management_response is not None and not is_management_responder:
+                return Response(
+                    {
+                        "success": False,
+                        "error": {
+                            "message": "Only management can provide management response",
+                            "code": "PERMISSION_DENIED"
+                        }
+                    },
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            # Management: strip auditee_response and block if they try to force it
+            if is_management_responder and not is_auditee_responder:
+                auditee_response = None
+
+            if auditee_response is not None and not is_auditee_responder:
+                return Response(
+                    {
+                        "success": False,
+                        "error": {
+                            "message": "Only auditees can provide auditee response",
+                            "code": "PERMISSION_DENIED"
+                        }
+                    },
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            # ──────────────────────────────────────────────────────────────────
+
+            fields_to_save = []
             with transaction.atomic():
                 if auditee_response is not None:
                     finding.auditee_response = auditee_response
+                    fields_to_save.append('auditee_response')
                 if management_response is not None:
                     finding.management_response = management_response
-                
-                finding.save(update_fields=['auditee_response', 'management_response'])
-            
+                    fields_to_save.append('management_response')
+
+                if fields_to_save:
+                    finding.save(update_fields=fields_to_save)
+
             return Response(
                 {
                     "success": True,

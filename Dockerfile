@@ -12,6 +12,16 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     libffi-dev \
     curl \
+    # WeasyPrint system dependencies (PDF generation)
+    libpango-1.0-0 \
+    libpangoft2-1.0-0 \
+    libpangocairo-1.0-0 \
+    libgobject-2.0-0 \
+    libcairo2 \
+    libgdk-pixbuf-2.0-0 \
+    shared-mime-info \
+    fonts-liberation \
+    fontconfig \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./

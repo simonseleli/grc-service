@@ -104,9 +104,17 @@
     {
       "permission_code": "grc:audit_finding:respond",
       "name": "Respond to Audit Findings",
-      "description": "Provide management response to audit findings",
+      "description": "Auditee provides their factual clarification / auditee_response to a finding",
       "resource_type": "audit_finding",
       "action": "respond",
+      "category": "audit_finding"
+    },
+    {
+      "permission_code": "grc:audit_finding:management_respond",
+      "name": "Provide Management Response to Audit Findings",
+      "description": "Management provides their formal action plan / management_response to a finding",
+      "resource_type": "audit_finding",
+      "action": "management_respond",
       "category": "audit_finding"
     },
     {
@@ -246,6 +254,14 @@
       "category": "audit_program"
     },
     {
+      "permission_code": "grc:audit_program:approve",
+      "name": "Approve Audit Programs",
+      "description": "CIA review and approval of submitted audit programs (SRS Req 23)",
+      "resource_type": "audit_program",
+      "action": "approve",
+      "category": "audit_program"
+    },
+    {
       "permission_code": "grc:engagement_notification:manage",
       "name": "Manage Engagement Notifications",
       "description": "Create, update, submit and transmit Engagement Notifications",
@@ -276,35 +292,37 @@
       "resource_type": "quarterly_audit_report",
       "action": "approve",
       "category": "quarterly_audit_report"
+    },
+    {
+      "permission_code": "grc:audit_memo:approve",
+      "name": "Approve Audit Memos",
+      "description": "Advance audit memo approval stages (CIA review, Director General approval)",
+      "resource_type": "audit_memo",
+      "action": "approve",
+      "category": "audit_memo"
+    },
+    {
+      "permission_code": "grc:audit_meeting:manage",
+      "name": "Manage Audit Meetings",
+      "description": "Schedule, update, and manage audit meetings; add/remove attendees, update status, send notifications",
+      "resource_type": "audit_meeting",
+      "action": "manage",
+      "category": "audit_meeting"
+    },
+    {
+      "permission_code": "grc:audit_meeting:view",
+      "name": "View Audit Meetings",
+      "description": "View audit meeting details, attendee lists, and minutes (CIA and Audit Committee read-only access)",
+      "resource_type": "audit_meeting",
+      "action": "view",
+      "category": "audit_meeting"
     }
   ],
   "roles": [
     {
       "code": "internal_auditor",
-      "name": "Internal Auditor",
-      "description": "Performs risk assessments and fieldwork",
-      "permissions": [
-        "grc:audit_universe:view",
-        "grc:audit_universe:manage",
-        "grc:risk_assessment:conduct",
-        "grc:audit_plan:view",
-        "grc:audit_plan:manage",
-        "grc:audit_engagement:manage",
-        "grc:audit_memo:view",
-        "grc:audit_memo:manage",
-        "grc:audit_declaration:manage",
-        "grc:audit_declaration:sign",
-        "grc:audit_survey:manage",
-        "grc:audit_rcm:manage",
-        "grc:audit_program:manage",
-        "grc:engagement_notification:manage",
-        "grc:audit_working_paper:manage",
-        "grc:audit_finding:manage",
-        "grc:audit_monitoring:update",
-        "grc:audit_dashboard:view"
-      ],
-      "name": "Lead Auditor",
-      "description": "Oversees engagement planning and working papers",
+      "name": "Internal Auditor / Lead Auditor",
+      "description": "Conducts risk assessments, manages engagements and working papers",
       "permissions": [
         "grc:audit_universe:view",
         "grc:audit_universe:manage",
@@ -326,6 +344,7 @@
         "grc:audit_finding:manage",
         "grc:audit_report:view",
         "grc:audit_monitoring:update",
+        "grc:audit_meeting:manage",
         "grc:quarterly_report:manage",
         "grc:audit_dashboard:view"
       ]
@@ -333,7 +352,7 @@
     {
       "code": "chief_internal_auditor",
       "name": "Chief Internal Auditor",
-      "description": "Approves plans, programs, and reports",
+      "description": "Approves audit universe, plans, programs, memos, and reports",
       "permissions": [
         "grc:audit_universe:view",
         "grc:audit_universe:approve",
@@ -354,6 +373,7 @@
         "grc:audit_working_paper:review",
         "grc:audit_report:view",
         "grc:audit_report:approve",
+        "grc:audit_meeting:view",
         "grc:quarterly_report:manage",
         "grc:quarterly_report:approve",
         "grc:audit_dashboard:view",
@@ -374,6 +394,7 @@
         "grc:audit_memo:view",
         "grc:audit_report:view",
         "grc:audit_report:approve",
+        "grc:audit_meeting:view",
         "grc:quarterly_report:approve",
         "grc:audit_dashboard:view"
       ]
@@ -385,6 +406,7 @@
       "permissions": [
         "grc:audit_plan:view",
         "grc:audit_report:view",
+        "grc:audit_finding:management_respond",
         "grc:audit_monitoring:update",
         "grc:quarterly_report:approve",
         "grc:audit_dashboard:view"
@@ -398,6 +420,28 @@
         "grc:audit_plan:view",
         "grc:audit_finding:respond",
         "grc:audit_monitoring:update"
+      ]
+    },
+    {
+      "code": "director_general",
+      "name": "Director General",
+      "description": "Approves audit memos and receives final audit reports (SRS: FCC_SBP_IA_TB_04 actor)",
+      "permissions": [
+        "grc:audit_memo:view",
+        "grc:audit_memo:approve",
+        "grc:audit_report:view",
+        "grc:audit_dashboard:view"
+      ]
+    },
+    {
+      "code": "commission",
+      "name": "Commission",
+      "description": "Notes/approves RBIAP and quarterly audit reports at the governing body level (SRS: FCC_SBP_IA_TB_01, FCC_SBP_IA_06 actor)",
+      "permissions": [
+        "grc:audit_plan:view",
+        "grc:audit_plan:approve",
+        "grc:quarterly_report:approve",
+        "grc:audit_dashboard:view"
       ]
     }
   ]

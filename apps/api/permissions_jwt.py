@@ -264,12 +264,21 @@ class CanManageAuditFinding(BasePermission):
 
 
 class CanRespondToAuditFinding(BasePermission):
-    """Check: grc:audit_finding:respond — auditee provides management response."""
+    """Check: grc:audit_finding:respond — auditee provides auditee_response to a finding."""
 
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
         return _check_grc_permission_locally(request, 'grc:audit_finding:respond')
+
+
+class CanManagementRespondToAuditFinding(BasePermission):
+    """Check: grc:audit_finding:management_respond — management provides management_response to a finding."""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:audit_finding:management_respond')
 
 
 # ── Audit Report ──────────────────────────────────────────────────────────────
@@ -301,6 +310,15 @@ class CanManageAuditMeeting(BasePermission):
         if not request.user or not request.user.is_authenticated:
             return False
         return _check_grc_permission_locally(request, 'grc:audit_meeting:manage')
+
+
+class CanViewAuditMeeting(BasePermission):
+    """Check: grc:audit_meeting:view — read-only access to audit meetings (CIA, audit_committee)."""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:audit_meeting:view')
 
 
 # ── Quarterly Audit Report ───────────────────────────────────────────────────

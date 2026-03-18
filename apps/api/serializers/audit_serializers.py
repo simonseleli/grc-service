@@ -164,7 +164,20 @@ class AuditFindingSerializer(serializers.ModelSerializer):
     finding_type_id = serializers.UUIDField(write_only=True)
     risk_rating = RiskRatingSerializer(read_only=True)
     risk_rating_id = serializers.UUIDField(write_only=True)
-    
+    # Optional WP link — uses same pattern as other FK _id fields (plain UUID, no FK validation;
+    # validation that the WP belongs to this engagement is handled in the view)
+    working_paper_id = serializers.UUIDField(write_only=False, required=False, allow_null=True)
+    working_paper_reference = serializers.SerializerMethodField()
+
+    def get_working_paper_reference(self, obj):
+        """Return the WP reference number if a WP is linked."""
+        if not obj.working_paper_id:
+            return None
+        try:
+            return obj.working_paper.reference_number
+        except Exception:
+            return None
+
     class Meta:
         model = AuditFinding
         fields = [
@@ -173,9 +186,10 @@ class AuditFindingSerializer(serializers.ModelSerializer):
             'engagement', 'engagement_id', 'fiscal_year', 'fiscal_year_id',
             'quarter', 'quarter_id', 'severity', 'severity_id',
             'finding_type', 'finding_type_id', 'risk_rating', 'risk_rating_id',
-            'working_paper_id', 'is_active', 'created_at', 'updated_at'
+            'working_paper_id', 'working_paper_reference', 'is_active', 'created_at', 'updated_at',
+            'discussed_at', 'finalized_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'discussed_at', 'finalized_at']
         extra_kwargs = {
             'reference_number': {'required': False, 'allow_blank': True},
         }
@@ -385,11 +399,14 @@ class AuditMeetingSerializer(serializers.ModelSerializer):
             'engagement_reference', 'reference_number', 'meeting_type',
             'meeting_type_display', 'title', 'scheduled_date', 'actual_date',
             'location', 'attendees', 'agenda', 'minutes', 'key_discussions',
+            'clarifications', 'agreed_observations',
             'action_items', 'status', 'status_display', 'organized_by',
             'minutes_document_id', 'attendance_document_id',
+            'notification_sent', 'notification_date', 'draft_report_id',
             'is_active', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'engagement', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'engagement', 'created_at', 'updated_at',
+                           'notification_sent', 'notification_date', 'draft_report_id']
         extra_kwargs = {
             'reference_number': {'required': False, 'allow_blank': True},
             'organized_by': {'required': False},   # Set programmatically in view
@@ -807,6 +824,6 @@ class EngagementNotificationListSerializer(serializers.ModelSerializer):
             'scope_summary',
             'workflow_plan_id', 'workflow_stage',
             'approved_by_cia', 'cia_approval_date',
-            'transmitted_at', 'stamped_document_url',
+            'transmitted_at', 'document_id', 'stamped_document_url',
             'created_at',
         ]

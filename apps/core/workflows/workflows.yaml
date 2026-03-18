@@ -7,7 +7,7 @@ templates:
   - code: "grc.working_paper_approval"
     name: "Working Paper Approval"
     workflow_type: "grc"
-    version: 2
+    version: 4
     definition:
       description: "Approval workflow for GRC audit working papers"
       sla:
@@ -34,7 +34,7 @@ templates:
         - definitionKey: "working_paper_approval"
           name: "Working Paper Approval"
           order: 2
-          assignees: ["role:grc_reviewer"]
+          assignees: ["role:chief_internal_auditor"]
           actions:
             - name: "approve"
               label: "Approve"
@@ -51,18 +51,10 @@ templates:
           metadata:
             status_on_complete: "approved"
 
-        - definitionKey: "working_paper_completed"
-          name: "Completed"
-          order: 3
-          assignees: []
-          actions: []
-          metadata:
-            status_on_complete: "approved"
-
   - code: "grc.audit_universe_approval"
     name: "Audit Universe Approval"
     workflow_type: "grc"
-    version: 1
+    version: 2
     definition:
       description: "Single-stage CIA review and approval of the audit universe"
       sla:
@@ -75,7 +67,7 @@ templates:
         - definitionKey: "cia_review"
           name: "CIA Review"
           order: 1
-          assignees: []
+          assignees: ["role:chief_internal_auditor"]
           actions:
             - name: "approve"
               label: "Approve"
@@ -92,7 +84,7 @@ templates:
   - code: "grc.rbiap_approval"
     name: "RBIAP Approval"
     workflow_type: "grc"
-    version: 1
+    version: 2
     definition:
       description: "Risk-Based Internal Audit Plan approval: CIA → Management → Committee → Commission"
       sla:
@@ -105,7 +97,7 @@ templates:
         - definitionKey: "cia_review"
           name: "CIA Review"
           order: 1
-          assignees: []
+          assignees: ["role:chief_internal_auditor"]
           actions:
             - name: "approve"
               label: "Approve"
@@ -122,7 +114,7 @@ templates:
         - definitionKey: "management_review"
           name: "Management Review"
           order: 2
-          assignees: []
+          assignees: ["role:management"]
           actions:
             - name: "adopt"
               label: "Adopt"
@@ -139,7 +131,7 @@ templates:
         - definitionKey: "committee_review"
           name: "Audit Committee Review"
           order: 3
-          assignees: []
+          assignees: ["role:audit_committee"]
           actions:
             - name: "approve"
               label: "Approve"
@@ -156,7 +148,7 @@ templates:
         - definitionKey: "commission_noting"
           name: "Commission Noting"
           order: 4
-          assignees: []
+          assignees: ["role:commission"]
           actions:
             - name: "note"
               label: "Note"
@@ -225,7 +217,7 @@ templates:
   - code: "grc.engagement_notification_approval"
     name: "Engagement Notification Approval"
     workflow_type: "grc"
-    version: 1
+    version: 2
     definition:
       description: "Single-stage CIA approval of the Engagement Notification before transmission to the auditable area"
       sla:
@@ -238,7 +230,7 @@ templates:
         - definitionKey: "cia_approval"
           name: "CIA Approval"
           order: 1
-          assignees: []
+          assignees: ["role:chief_internal_auditor"]
           actions:
             - name: "approve"
               label: "Approve"
@@ -259,7 +251,7 @@ templates:
   - code: "grc.audit_memo_approval"
     name: "Audit Memo Approval"
     workflow_type: "grc"
-    version: 1
+    version: 2
     definition:
       description: "2-stage approval: CIA reviews the audit memo and forwards to DG; DG approves"
       sla:
@@ -272,7 +264,7 @@ templates:
         - definitionKey: "cia_memo_review"
           name: "CIA Review"
           order: 1
-          assignees: []
+          assignees: ["role:chief_internal_auditor"]
           actions:
             - name: "forward_to_dg"
               label: "Forward to DG"
@@ -288,7 +280,7 @@ templates:
         - definitionKey: "dg_memo_approval"
           name: "DG Approval"
           order: 2
-          assignees: []
+          assignees: ["role:director_general"]
           actions:
             - name: "approve"
               label: "Approve"
@@ -305,7 +297,7 @@ templates:
   - code: "grc.audit_program_approval"
     name: "Audit Program Approval"
     workflow_type: "grc"
-    version: 1
+    version: 2
     definition:
       description: "2-stage approval: IA team reviews the audit program; CIA gives final approval"
       sla:
@@ -318,7 +310,7 @@ templates:
         - definitionKey: "ia_program_review"
           name: "IA Review"
           order: 1
-          assignees: []
+          assignees: ["role:internal_auditor"]
           actions:
             - name: "approve"
               label: "Approve"
@@ -334,7 +326,7 @@ templates:
         - definitionKey: "cia_program_approval"
           name: "CIA Approval"
           order: 2
-          assignees: []
+          assignees: ["role:chief_internal_auditor"]
           actions:
             - name: "approve"
               label: "Approve"
@@ -351,7 +343,7 @@ templates:
   - code: "grc.audit_report_approval"
     name: "Audit Report Approval"
     workflow_type: "grc"
-    version: 1
+    version: 2
     definition:
       description: "2-stage approval: IA team reviews the draft audit report; CIA gives final approval"
       sla:
@@ -364,7 +356,7 @@ templates:
         - definitionKey: "ia_report_review"
           name: "IA Review"
           order: 1
-          assignees: []
+          assignees: ["role:internal_auditor"]
           actions:
             - name: "approve"
               label: "Approve"
@@ -380,7 +372,7 @@ templates:
         - definitionKey: "cia_report_approval"
           name: "CIA Approval"
           order: 2
-          assignees: []
+          assignees: ["role:chief_internal_auditor"]
           actions:
             - name: "approve"
               label: "Approve"
@@ -397,7 +389,7 @@ templates:
   - code: "grc.quarterly_report_approval"
     name: "Quarterly Audit Report Approval"
     workflow_type: "grc"
-    version: 1
+    version: 2
     definition:
       description: "4-stage approval: CIA review → Management review → Audit Committee review → Commission noting"
       sla:
@@ -410,7 +402,7 @@ templates:
         - definitionKey: "cia_qr_review"
           name: "CIA Review"
           order: 1
-          assignees: []
+          assignees: ["role:chief_internal_auditor"]
           actions:
             - name: "approve"
               label: "Approve"
@@ -426,7 +418,7 @@ templates:
         - definitionKey: "management_qr_review"
           name: "Management Review"
           order: 2
-          assignees: []
+          assignees: ["role:management"]
           actions:
             - name: "adopt"
               label: "Adopt"
@@ -442,7 +434,7 @@ templates:
         - definitionKey: "committee_qr_review"
           name: "Audit Committee Review"
           order: 3
-          assignees: []
+          assignees: ["role:audit_committee"]
           actions:
             - name: "approve"
               label: "Approve"
@@ -458,7 +450,7 @@ templates:
         - definitionKey: "commission_qr_noting"
           name: "Commission Noting"
           order: 4
-          assignees: []
+          assignees: ["role:commission"]
           actions:
             - name: "note"
               label: "Note"

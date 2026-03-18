@@ -21,6 +21,7 @@ from apps.api.permissions_jwt import (
     CanViewAuditPlan,
     CanManageAuditPlan,
     CanApproveAuditPlan,
+    HasAnyPermission,
 )
 from apps.core.services.audit_plan_service import AuditPlanService
 
@@ -691,8 +692,8 @@ class AuditPlanWorkflowActionView(APIView):
 
     def check_permissions(self, request):
         super().check_permissions(request)
-        if not CanManageAuditPlan().has_permission(request, self):
-            self.permission_denied(request, message='grc:audit_plan:manage required.')
+        if not HasAnyPermission(['grc:audit_plan:manage', 'grc:audit_plan:approve']).has_permission(request, self):
+            self.permission_denied(request, message='grc:audit_plan:manage or grc:audit_plan:approve required.')
 
     def post(self, request, pk):
         user_id = getattr(request.user, 'id', None)
@@ -829,10 +830,11 @@ class AuditPlanGenerateDraftView(APIView):
                     status_code=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Check if a plan already exists for this universe + fiscal year
+            # Check if an active plan already exists for this universe + fiscal year
             existing = AuditPlan.objects.filter(
                 audit_universe=universe,
                 fiscal_year=fiscal_year,
+                is_active=True,
             ).first()
             if existing:
                 return conflict_response(

@@ -66,6 +66,7 @@ AUDIT_MEETING_EVENTS = {
     'MEETING_STARTED': 'grc.audit.meeting.started',
     'MEETING_COMPLETED': 'grc.audit.meeting.completed',
     'MEETING_CANCELLED': 'grc.audit.meeting.cancelled',
+    'MEETING_NOTIFICATION_SENT': 'grc.audit.meeting.notification_sent',
 }
 
 # GRC Quarterly Audit Report Events

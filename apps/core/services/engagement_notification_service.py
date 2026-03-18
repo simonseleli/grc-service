@@ -342,7 +342,9 @@ class EngagementNotificationService:
         now = timezone.now()
         en.status = 'transmitted'
         en.transmitted_at = now
-        en.save(update_fields=['status', 'transmitted_at'])
+        # GAP E: auto-set notification_date to actual transmission date (SRS Step 12)
+        en.notification_date = now.date()
+        en.save(update_fields=['status', 'transmitted_at', 'notification_date'])
 
         # Advance the parent engagement to fieldwork phase
         engagement = en.audit_engagement

@@ -278,22 +278,9 @@ class AuditProgramSubmitView(APIView):
 
             with transaction.atomic():
                 # Start workflow via service layer (FIMS corporate pattern)
-                result = AuditProgramService().start_workflow(
+                program = AuditProgramService().submit_for_approval(
                     str(program.id), str(user_id)
                 )
-
-                if result and result.plan_id:
-                    program.workflow_plan_id = result.plan_id
-                    program.workflow_stage = result.current_stage_name or ""
-                    program.workflow_stage_id = result.current_stage_id or None
-                    program.workflow_started_at = timezone.now()
-                    program.status = 'under_review'
-                    program.save(update_fields=[
-                        'workflow_plan_id', 'workflow_stage', 'workflow_stage_id',
-                        'workflow_started_at', 'status',
-                    ])
-                else:
-                    logger.error("Failed to start workflow for AuditProgram %s", pk)
 
             try:
                 messaging_service.publish_audit_plan_event(

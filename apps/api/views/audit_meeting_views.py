@@ -13,15 +13,17 @@ import logging
 
 from django.conf import settings
 from django.db import transaction
+from django.http import Http404
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.core.models import AuditMeeting, AuditEngagement
+from apps.core.models import AuditMeeting, AuditEngagement, AuditReport, WorkingPaper
 from apps.api.serializers.audit_serializers import AuditMeetingSerializer
-from apps.api.permissions_jwt import CanManageAuditMeeting
+from apps.api.permissions_jwt import CanManageAuditMeeting, CanViewAuditMeeting
 from apps.infrastructure.services.messaging_service import messaging_service
 from shared.constants.event_types import AUDIT_MEETING_EVENTS
 from apps.infrastructure.external.document_service_client import (
@@ -43,6 +45,148 @@ from apps.api.utils.response_helpers import (
 
 logger = logging.getLogger(__name__)
 
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _sync_engagement_meeting_date(meeting):
+    """
+    GAP-6 fix: keep AuditEngagement.entry_meeting_date / exit_meeting_date
+    in sync with the corresponding AuditMeeting.scheduled_date.
+
+    Called after a meeting is created, updated, or has its status changed.
+    For cancelled meetings the engagement date is cleared.
+    """
+    field_map = {
+        'entry': 'entry_meeting_date',
+        'exit':  'exit_meeting_date',
+    }
+    field_name = field_map.get(meeting.meeting_type)
+    if not field_name:
+        return  # Only entry/exit meetings have corresponding engagement fields
+
+    engagement = meeting.engagement
+
+    if meeting.status == 'cancelled':
+        new_value = None
+    else:
+        new_value = meeting.scheduled_date
+
+    if getattr(engagement, field_name) != new_value:
+        setattr(engagement, field_name, new_value)
+        engagement.save(update_fields=[field_name, 'updated_at'])
+        logger.info(
+            'Synced %s=%s on engagement %s from meeting %s',
+            field_name, new_value, engagement.reference_number,
+            meeting.reference_number,
+        )
+
+
+def _generate_meeting_documents(meeting, auth_token=None):
+    """
+    GAP-9: Auto-generate meeting minutes and attendance register PDFs
+    and store them in the Document Records Service when a meeting is completed.
+
+    Scope (SRS §1.8.3):
+      - entry   → minutes PDF + attendance register PDF
+      - exit    → minutes PDF + attendance register PDF
+      - pre_exit→ minutes PDF only  (SRS Step 17 data requirement, no separate attendance register)
+      - team    → skipped           (internal team meeting, no formal SRS output)
+
+    The function is intentionally non-blocking: any PDF/upload error is logged
+    and swallowed so that the meeting completion itself is never rolled back.
+    Already-set document IDs are never overwritten (preserve manual uploads).
+    """
+    import io
+    from apps.core.utils.pdf_generators import (
+        generate_meeting_minutes_pdf,
+        generate_attendance_register_pdf,
+    )
+    from apps.infrastructure.external.document_service_client import DocumentServiceClient
+
+    if meeting.meeting_type == 'team':
+        return
+
+    client = DocumentServiceClient(auth_token=auth_token)
+    fields_to_update = []
+
+    # ── Minutes PDF (entry, exit, pre_exit) ──────────────────────────────
+    if not meeting.minutes_document_id:
+        try:
+            pdf_bytes = generate_meeting_minutes_pdf(meeting)
+            doc = client.create_document_with_file(
+                title=f"Meeting Minutes — {meeting.reference_number}",
+                description=(
+                    f"Meeting minutes for {meeting.get_meeting_type_display()} "
+                    f"of engagement {meeting.engagement.reference_number}"
+                ),
+                document_type='audit_meeting_minutes',
+                classification='confidential',
+                retention_period=2555,  # 7 years for audit records
+                file_data=io.BytesIO(pdf_bytes),
+                file_name=f"meeting_minutes_{meeting.id}.pdf",
+                metadata={
+                    'source_service': 'grc',
+                    'entity_type': 'audit_meeting',
+                    'entity_id': str(meeting.id),
+                    'engagement_id': str(meeting.engagement_id),
+                    'meeting_type': meeting.meeting_type,
+                    'reference_number': meeting.reference_number,
+                },
+            )
+            meeting.minutes_document_id = doc['id']
+            fields_to_update.append('minutes_document_id')
+            logger.info(
+                'GAP-9: Minutes PDF for meeting %s uploaded to DRS as document %s',
+                meeting.id, doc['id'],
+            )
+        except Exception as exc:
+            logger.warning(
+                'GAP-9: Could not generate/upload minutes PDF for meeting %s: %s',
+                meeting.id, exc,
+            )
+
+    # ── Attendance Register PDF (entry, exit only) ───────────────────────
+    if meeting.meeting_type in ('entry', 'exit') and not meeting.attendance_document_id:
+        try:
+            pdf_bytes = generate_attendance_register_pdf(meeting)
+            doc = client.create_document_with_file(
+                title=f"Attendance Register — {meeting.reference_number}",
+                description=(
+                    f"Attendance register for {meeting.get_meeting_type_display()} "
+                    f"of engagement {meeting.engagement.reference_number}"
+                ),
+                document_type='audit_meeting_attendance',
+                classification='confidential',
+                retention_period=2555,
+                file_data=io.BytesIO(pdf_bytes),
+                file_name=f"attendance_register_{meeting.id}.pdf",
+                metadata={
+                    'source_service': 'grc',
+                    'entity_type': 'audit_meeting',
+                    'entity_id': str(meeting.id),
+                    'engagement_id': str(meeting.engagement_id),
+                    'meeting_type': meeting.meeting_type,
+                    'reference_number': meeting.reference_number,
+                },
+            )
+            meeting.attendance_document_id = doc['id']
+            fields_to_update.append('attendance_document_id')
+            logger.info(
+                'GAP-9: Attendance PDF for meeting %s uploaded to DRS as document %s',
+                meeting.id, doc['id'],
+            )
+        except Exception as exc:
+            logger.warning(
+                'GAP-9: Could not generate/upload attendance PDF for meeting %s: %s',
+                meeting.id, exc,
+            )
+
+    if fields_to_update:
+        meeting.save(update_fields=fields_to_update)
+
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -60,14 +204,15 @@ LOCKED_STATUSES = ('completed', 'cancelled')
 
 # Only these fields may be changed when a meeting is in_progress
 IN_PROGRESS_EDITABLE_FIELDS = frozenset(
-    ['minutes', 'key_discussions', 'action_items', 'attendees',
+    ['minutes', 'key_discussions', 'clarifications', 'agreed_observations',
+     'action_items', 'attendees',
      'minutes_document_id', 'attendance_document_id',
      'minutes_file', 'attendance_file']
 )
 
 # Map: meeting_type → permitted engagement statuses
 MEETING_TYPE_ENGAGEMENT_PHASES = {
-    'entry':    ('planning', 'fieldwork'),
+    'entry':    ('fieldwork',),          # FIX-1: entry meeting requires EN transmitted (fieldwork phase)
     'pre_exit': ('fieldwork', 'reporting'),
     'team':     ('fieldwork', 'reporting'),
     'exit':     ('reporting', 'completed'),
@@ -88,11 +233,22 @@ class AuditMeetingListCreateView(APIView):
 
     def check_permissions(self, request):
         super().check_permissions(request)
-        if not CanManageAuditMeeting().has_permission(request, self):
-            self.permission_denied(
-                request,
-                message='grc:audit_meeting:manage permission required.',
-            )
+        if request.method == 'GET':
+            # Viewers (CIA, audit_committee) and managers (LA) can list meetings.
+            can_view   = CanViewAuditMeeting().has_permission(request, self)
+            can_manage = CanManageAuditMeeting().has_permission(request, self)
+            if not (can_view or can_manage):
+                self.permission_denied(
+                    request,
+                    message='grc:audit_meeting:view or grc:audit_meeting:manage permission required.',
+                )
+        else:
+            # POST — only the Lead Auditor (internal_auditor) may schedule meetings.
+            if not CanManageAuditMeeting().has_permission(request, self):
+                self.permission_denied(
+                    request,
+                    message='grc:audit_meeting:manage permission required.',
+                )
 
     def get(self, request):
         """List all audit meetings with optional filtering and pagination."""
@@ -183,6 +339,57 @@ class AuditMeetingListCreateView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+            # --- Pre-exit requires at least one approved working paper --
+            # SRS Step 16: LA must have reviewed WPs before arranging pre-exit meeting.
+            if meeting_type == 'pre_exit':
+                has_approved_wp = WorkingPaper.objects.filter(
+                    engagement=engagement,
+                    review_status='approved',
+                    is_active=True,
+                ).exists()
+                if not has_approved_wp:
+                    return Response(
+                        {
+                            'success': False,
+                            'error': {
+                                'message': (
+                                    'Cannot schedule a Pre-Exit Meeting until at least one '
+                                    'Working Paper for this engagement has been approved '
+                                    '(SRS Step 16 dependency).'
+                                ),
+                                'code': 'PRE_EXIT_REQUIRES_APPROVED_WPS',
+                            },
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+            # --- Prevent duplicate meeting type per engagement ---------------
+            # SRS GAP-4: each engagement should have at most one non-cancelled
+            # meeting of each type (entry, pre_exit, team, exit).
+            existing = AuditMeeting.objects.filter(
+                engagement=engagement,
+                meeting_type=meeting_type,
+                is_active=True,
+            ).exclude(status='cancelled')
+            if existing.exists():
+                type_display = dict(AuditMeeting.MEETING_TYPE_CHOICES).get(
+                    meeting_type, meeting_type
+                )
+                return Response(
+                    {
+                        'success': False,
+                        'error': {
+                            'message': (
+                                f"This engagement already has an active '{type_display}' meeting "
+                                f"({existing.first().reference_number}). "
+                                f"Cancel or complete the existing meeting before scheduling a new one."
+                            ),
+                            'code': 'DUPLICATE_MEETING_TYPE',
+                        },
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             # --- Require authenticated user ----------------------------------
             user_id = getattr(request.user, 'id', None)
             if not user_id:
@@ -218,6 +425,8 @@ class AuditMeetingListCreateView(APIView):
 
             with transaction.atomic():
                 meeting = serializer.save(created_by=user_id)
+                # GAP-6: sync scheduled_date → engagement meeting date
+                _sync_engagement_meeting_date(meeting)
 
             # --- Publish Kafka event (best-effort) ---------------------------
             try:
@@ -276,15 +485,26 @@ class AuditMeetingDetailView(APIView):
 
     def check_permissions(self, request):
         super().check_permissions(request)
-        if not CanManageAuditMeeting().has_permission(request, self):
-            self.permission_denied(
-                request,
-                message='grc:audit_meeting:manage permission required.',
-            )
+        if request.method == 'GET':
+            # Read access: viewers (CIA, audit_committee) and managers (LA).
+            can_view   = CanViewAuditMeeting().has_permission(request, self)
+            can_manage = CanManageAuditMeeting().has_permission(request, self)
+            if not (can_view or can_manage):
+                self.permission_denied(
+                    request,
+                    message='grc:audit_meeting:view or grc:audit_meeting:manage permission required.',
+                )
+        else:
+            # PUT / PATCH / DELETE — manage permission required.
+            if not CanManageAuditMeeting().has_permission(request, self):
+                self.permission_denied(
+                    request,
+                    message='grc:audit_meeting:manage permission required.',
+                )
 
     def _get_meeting(self, pk):
         return get_object_or_404(
-            AuditMeeting.objects.select_related('engagement'),
+            AuditMeeting.objects.select_related('engagement__auditable_entity'),
             pk=pk,
         )
 
@@ -320,6 +540,21 @@ class AuditMeetingDetailView(APIView):
                         },
                     },
                     status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # --- Ownership check: only the organizer may edit ----------------
+            # SRS: LA who scheduled the meeting is responsible for its records.
+            user_id = getattr(request.user, 'id', None)
+            if str(meeting.organized_by) != str(user_id):
+                return Response(
+                    {
+                        'success': False,
+                        'error': {
+                            'code': 'MEETING_NOT_ORGANIZER',
+                            'message': 'Only the meeting organizer can edit this meeting.',
+                        },
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
                 )
 
             # --- In-progress: restrict editable fields -----------------------
@@ -374,6 +609,8 @@ class AuditMeetingDetailView(APIView):
             user_id = getattr(request.user, 'id', None)
             with transaction.atomic():
                 updated = serializer.save(modified_by=user_id)
+                # GAP-6: sync scheduled_date → engagement meeting date
+                _sync_engagement_meeting_date(updated)
 
             # --- Handle document file uploads (FIMS Document Records Service) ---
             minutes_file    = request.FILES.get('minutes_file')
@@ -465,6 +702,20 @@ class AuditMeetingDetailView(APIView):
         try:
             meeting = self._get_meeting(pk)
 
+            # --- Ownership check: only the organizer may delete ---------------
+            user_id = getattr(request.user, 'id', None)
+            if str(meeting.organized_by) != str(user_id):
+                return Response(
+                    {
+                        'success': False,
+                        'error': {
+                            'code': 'MEETING_NOT_ORGANIZER',
+                            'message': 'Only the meeting organizer can delete this meeting.',
+                        },
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
             # Cannot soft-delete a completed meeting
             if meeting.status == 'completed':
                 return Response(
@@ -529,8 +780,24 @@ class AuditMeetingStatusUpdateView(APIView):
 
     def post(self, request, pk):
         try:
-            meeting    = get_object_or_404(AuditMeeting, pk=pk)
+            meeting    = get_object_or_404(
+                AuditMeeting.objects.select_related('engagement__auditable_entity'), pk=pk
+            )
             new_status = request.data.get('status', '').strip()
+
+            # --- Ownership check: only the organizer may change status -------
+            user_id = getattr(request.user, 'id', None)
+            if str(meeting.organized_by) != str(user_id):
+                return Response(
+                    {
+                        'success': False,
+                        'error': {
+                            'code': 'MEETING_NOT_ORGANIZER',
+                            'message': 'Only the meeting organizer can update the meeting status.',
+                        },
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
 
             # --- Validate target status exists in choices --------------------
             valid_statuses = [s for s, _ in AuditMeeting.STATUS_CHOICES]
@@ -591,6 +858,18 @@ class AuditMeetingStatusUpdateView(APIView):
 
             with transaction.atomic():
                 meeting.save(update_fields=['status', 'updated_at'])
+                # GAP-6: sync engagement meeting date (clears on cancel)
+                _sync_engagement_meeting_date(meeting)
+
+            # GAP-9: auto-generate meeting documents (minutes + attendance) on completion
+            if new_status == 'completed':
+                auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+                auth_token = (
+                    auth_header[len('Bearer '):].strip()
+                    if auth_header.startswith('Bearer ')
+                    else None
+                )
+                _generate_meeting_documents(meeting, auth_token=auth_token)
 
             # --- Map transition to Kafka event --------------------------------
             EVENT_MAP = {
@@ -634,5 +913,161 @@ class AuditMeetingStatusUpdateView(APIView):
             logger.exception('Failed to update meeting status')
             return server_error_response(
                 message='Failed to update meeting status',
+                details=str(e) if settings.DEBUG else None,
+            )
+
+
+# ---------------------------------------------------------------------------
+# 4. AuditMeetingSendNotificationView
+# ---------------------------------------------------------------------------
+class AuditMeetingSendNotificationView(APIView):
+    """
+    POST /meetings/{pk}/send-notification/
+    SRS Step 23: LA sends Exit Meeting Notification including draft audit report
+    to auditee, auditors and other personnel responsible for the finding.
+    """
+    permission_classes = [IsAuthenticated, CanManageAuditMeeting]
+
+    def post(self, request, pk):
+        try:
+            meeting = get_object_or_404(AuditMeeting, pk=pk, is_active=True)
+
+            # --- Ownership check: only the organizer may send notification ---
+            user_id = getattr(request.user, 'id', None)
+            if str(meeting.organized_by) != str(user_id):
+                return Response(
+                    {
+                        'success': False,
+                        'error': {
+                            'code': 'MEETING_NOT_ORGANIZER',
+                            'message': 'Only the meeting organizer can send notifications for this meeting.',
+                        },
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            # ── Must be an exit meeting ──────────────────────────────────
+            if meeting.meeting_type != 'exit':
+                return Response(
+                    {
+                        'success': False,
+                        'error': {
+                            'message': 'Notifications can only be sent for exit meetings.',
+                            'code': 'NOT_EXIT_MEETING',
+                        },
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # ── Must be scheduled (not already started/completed) ────────
+            if meeting.status != 'scheduled':
+                return Response(
+                    {
+                        'success': False,
+                        'error': {
+                            'message': (
+                                f"Cannot send notification for a meeting in "
+                                f"'{meeting.status}' status. Meeting must be 'scheduled'."
+                            ),
+                            'code': 'INVALID_MEETING_STATUS',
+                        },
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # ── Must not have already been sent ──────────────────────────
+            if meeting.notification_sent:
+                return Response(
+                    {
+                        'success': False,
+                        'error': {
+                            'message': 'Exit meeting notification has already been sent.',
+                            'code': 'NOTIFICATION_ALREADY_SENT',
+                        },
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # ── Engagement must have an approved draft report ────────────
+            engagement = meeting.engagement
+            draft_report = AuditReport.objects.filter(
+                engagement=engagement,
+                report_type='draft',
+                status='approved',
+                is_active=True,
+            ).order_by('-created_at').first()
+
+            if not draft_report:
+                return Response(
+                    {
+                        'success': False,
+                        'error': {
+                            'message': (
+                                'No approved draft audit report found for this engagement. '
+                                'Per SRS Step 23, the exit meeting notification must include '
+                                'the draft audit report.'
+                            ),
+                            'code': 'NO_APPROVED_DRAFT_REPORT',
+                        },
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # ── Send notification ────────────────────────────────────────
+            with transaction.atomic():
+                now = timezone.now()
+                meeting.notification_sent = True
+                meeting.notification_date = now
+                meeting.draft_report_id = draft_report.id
+                meeting.save(update_fields=[
+                    'notification_sent', 'notification_date', 'draft_report_id',
+                ])
+
+            # ── Publish Kafka event ──────────────────────────────────────
+            try:
+                user_id = getattr(request.user, 'id', None)
+                messaging_service.publish_audit_event(
+                    event_type=AUDIT_MEETING_EVENTS['MEETING_NOTIFICATION_SENT'],
+                    audit_data={
+                        'meeting_id':       str(meeting.id),
+                        'reference_number': meeting.reference_number,
+                        'engagement_id':    str(engagement.id),
+                        'draft_report_id':  str(draft_report.id),
+                        'notification_date': now.isoformat(),
+                        'user_id':          str(user_id) if user_id else None,
+                    },
+                )
+            except Exception as event_err:
+                logger.warning(
+                    f'Failed to publish exit notification event for '
+                    f'meeting {meeting.id}: {event_err}'
+                )
+
+            logger.info(
+                f'Exit meeting notification sent for meeting {meeting.id} '
+                f'(engagement {engagement.reference_number}), '
+                f'draft report {draft_report.id}'
+            )
+
+            return Response(
+                {
+                    'success': True,
+                    'data': AuditMeetingSerializer(
+                        meeting, context={'request': request}
+                    ).data,
+                    'message': (
+                        'Exit meeting notification sent successfully. '
+                        'Draft audit report has been linked.'
+                    ),
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Http404:
+            raise
+        except Exception as e:
+            logger.exception('Failed to send exit meeting notification')
+            return server_error_response(
+                message='Failed to send exit meeting notification',
                 details=str(e) if settings.DEBUG else None,
             )

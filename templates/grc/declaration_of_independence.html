@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Declaration of Independence and Conflict of Interest</title>
+  <style>
+    /*
+      @page bottom margin = 60 mm
+      DRS stamps QR code  (30×30 mm) at bottom-left  (15 mm from edges)
+      DRS stamps signature (65×22 mm) at bottom-right (15 mm from right edge)
+      Separator line drawn at 42 mm from bottom.
+      60 mm clearance ensures nothing is overlapped.
+    */
+    @page {
+      size: A4;
+      margin: 20mm 25mm 60mm 25mm;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11pt;
+      color: #1a1a1a;
+      line-height: 1.55;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* ── Header ── */
+    .header {
+      text-align: center;
+      border-bottom: 2px solid #1a3a5c;
+      padding-bottom: 12px;
+      margin-bottom: 22px;
+    }
+
+    .org-name {
+      font-size: 13pt;
+      font-weight: bold;
+      color: #1a3a5c;
+      letter-spacing: 0.5px;
+      margin: 0 0 4px;
+    }
+
+    .doc-title {
+      font-size: 12pt;
+      font-weight: bold;
+      color: #222;
+      margin: 0 0 4px;
+    }
+
+    .ref-number {
+      font-size: 9pt;
+      color: #666;
+      margin: 0;
+    }
+
+    /* ── Fields ── */
+    .field {
+      margin: 10px 0;
+    }
+
+    .label {
+      font-weight: bold;
+      font-size: 10pt;
+      color: #333;
+    }
+
+    .value {
+      margin-top: 3px;
+      padding-left: 4px;
+    }
+
+    /* ── Two-column field row ── */
+    .field-row {
+      display: table;
+      width: 100%;
+      margin: 10px 0;
+    }
+
+    .field-col {
+      display: table-cell;
+      width: 50%;
+      vertical-align: top;
+    }
+
+    /* ── Declaration text ── */
+    .declaration-section {
+      margin: 18px 0;
+    }
+
+    .declaration-text {
+      text-align: justify;
+      margin-top: 6px;
+      padding: 10px 14px;
+      background: #f8f9fa;
+      border-left: 3px solid #1a3a5c;
+      font-size: 10.5pt;
+      line-height: 1.65;
+    }
+
+    /* ── Conflict of Interest ── */
+    .conflict-box {
+      margin: 14px 0;
+      padding: 10px 14px;
+      border: 1px solid #e74c3c;
+      border-radius: 3px;
+      background: #fff5f5;
+    }
+
+    .conflict-box .label {
+      color: #c0392b;
+    }
+
+    .no-conflict-box {
+      margin: 14px 0;
+      padding: 10px 14px;
+      border: 1px solid #27ae60;
+      border-radius: 3px;
+      background: #f0fff4;
+    }
+
+    .no-conflict-box .label {
+      color: #1e8449;
+    }
+
+    /* ── Signature block ── */
+    .sig-block {
+      margin-top: 28px;
+      padding-top: 10px;
+      border-top: 1px solid #bbb;
+    }
+
+    .sig-block .label {
+      color: #1a3a5c;
+    }
+
+    /* ── Footer note ── */
+    .footer-note {
+      margin-top: 16px;
+      font-size: 8.5pt;
+      color: #888;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══ Header ═══ -->
+  <div class="header">
+    <div class="org-name">FAIR COMPETITION COMMISSION (FCC)</div>
+    <div class="doc-title">Declaration of Independence and Conflict of Interest</div>
+    <div class="ref-number">Engagement Reference: {{ engagement.reference_number }}</div>
+  </div>
+
+  <!-- ═══ Declarant details ═══ -->
+  <div class="field-row">
+    <div class="field-col">
+      <div class="field">
+        <div class="label">Full Name:</div>
+        <div class="value">{{ decl.declarant_name }}</div>
+      </div>
+    </div>
+    <div class="field-col">
+      <div class="field">
+        <div class="label">Role in Audit Team:</div>
+        <div class="value">{{ decl.get_declarant_role_display }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="field">
+    <div class="label">Audit Engagement:</div>
+    <div class="value">{{ engagement.title }} &mdash; {{ engagement.reference_number }}</div>
+  </div>
+
+  <div class="field">
+    <div class="label">Date of Declaration:</div>
+    <div class="value">{{ generated_at|date:"d F Y" }}</div>
+  </div>
+
+  <!-- ═══ Declaration text ═══ -->
+  <div class="declaration-section">
+    <div class="label">Declaration Statement:</div>
+    <div class="declaration-text">{{ decl.declaration_text }}</div>
+  </div>
+
+  <!-- ═══ Conflict of Interest status ═══ -->
+  {% if decl.has_conflict %}
+  <div class="conflict-box">
+    <div class="label">⚠ Conflict of Interest Declared</div>
+    <div class="value">{{ decl.conflict_details }}</div>
+  </div>
+  {% else %}
+  <div class="no-conflict-box">
+    <div class="label">✓ No Conflict of Interest</div>
+    <div class="value">The declarant confirms no conflict of interest exists with respect to this engagement.</div>
+  </div>
+  {% endif %}
+
+  <!-- ═══ Signature block ═══ -->
+  {% if decl.is_signed %}
+  <div class="sig-block">
+    <div class="label">Digitally Signed</div>
+    <div class="value">
+      <strong>{{ decl.declarant_name }}</strong> &mdash; {{ decl.get_declarant_role_display }}<br>
+      Signed on: {{ decl.signed_at|date:"d F Y \a\t H:i" }} UTC
+    </div>
+    <!-- DRS will overlay QR code (bottom-left) + approver signature image (bottom-right) in the reserved margin -->
+  </div>
+  {% else %}
+  <div class="sig-block">
+    <div class="label">Signature</div>
+    <div class="value">
+      Name: ________________________________________<br><br>
+      Signature: ________________________________________<br><br>
+      Date: ________________________________________
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="footer-note">
+    This document was generated by the FIMS Internal Audit GRC System on {{ generated_at|date:"d F Y \a\t H:i" }} UTC.
+    {% if decl.is_signed %}
+    The QR code at the bottom of this page can be scanned to verify the authenticity of this signed declaration.
+    {% endif %}
+  </div>
+
+</body>
+</html>

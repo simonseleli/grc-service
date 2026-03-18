@@ -48,6 +48,70 @@ def _generate_en_reference(engagement: AuditEngagement) -> str:
     return f"EN-{engagement.reference_number}"
 
 
+def _upload_en_pdf_to_drs(en, auth_token: str = None) -> None:
+    """
+    GAP F / SRS Req 26: Generate a PDF for the Engagement Notification and
+    upload it to DRS, storing the returned document UUID in en.document_id.
+
+    Called on submit_for_approval so the PDF reflects the finalised EN content.
+    On re-submit after CIA returns the EN to draft, if document_id already
+    exists the file is overwritten at the same UUID (download URL unchanged).
+
+    Non-blocking: any error is logged and swallowed. The Kafka consumer's stamp
+    trigger is gated on document_id — it simply will not run if upload failed.
+    """
+    import io
+    from apps.infrastructure.external.document_service_client import DocumentServiceClient
+    from apps.core.utils.pdf_generators import generate_engagement_notification_pdf
+    try:
+        pdf_bytes = generate_engagement_notification_pdf(en)
+        client = DocumentServiceClient(auth_token=auth_token)
+        if en.document_id:
+            # Re-submit after CIA return: overwrite the file at the same document_id
+            # (download URL unchanged; stamp will apply to the refreshed content)
+            client.upload_file(
+                document_id=str(en.document_id),
+                file_data=io.BytesIO(pdf_bytes),
+                file_name=f"engagement_notification_{en.id}.pdf",
+            )
+            logger.info(
+                "GAP F: Re-uploaded EN PDF to DRS for EngagementNotification %s (document_id=%s)",
+                en.id, en.document_id,
+            )
+        else:
+            # First submit: create a new document record in DRS
+            doc = client.create_document_with_file(
+                title=f"Engagement Notification — {en.reference_number}",
+                description=(
+                    f"Engagement Notification for audit engagement "
+                    f"{en.audit_engagement.reference_number}"
+                ),
+                document_type='audit_engagement_notification',
+                classification='confidential',
+                retention_period=2555,  # 7 years for audit records
+                file_data=io.BytesIO(pdf_bytes),
+                file_name=f"engagement_notification_{en.id}.pdf",
+                metadata={
+                    'source_service': 'grc',
+                    'entity_type': 'engagement_notification',
+                    'entity_id': str(en.id),
+                    'engagement_id': str(en.audit_engagement_id),
+                    'prepared_by': str(en.prepared_by),
+                },
+            )
+            en.document_id = doc['id']
+            en.save(update_fields=['document_id'])
+            logger.info(
+                "GAP F: EN PDF uploaded to DRS for EngagementNotification %s: document_id=%s",
+                en.id, doc['id'],
+            )
+    except Exception as pdf_err:
+        logger.warning(
+            "GAP F: Could not upload EN PDF to DRS for EngagementNotification %s: %s",
+            en.id, pdf_err,
+        )
+
+
 # ─── List / Create ────────────────────────────────────────────────────────────
 
 class EngagementNotificationListCreateView(APIView):
@@ -279,7 +343,9 @@ class EngagementNotificationSubmitView(APIView):
             )
 
         try:
-            en = EngagementNotification.objects.get(pk=pk)
+            en = EngagementNotification.objects.select_related(
+                'audit_engagement'
+            ).get(pk=pk)
         except EngagementNotification.DoesNotExist:
             return not_found_response('Engagement Notification not found')
 
@@ -300,6 +366,11 @@ class EngagementNotificationSubmitView(APIView):
                     code="WORKFLOW_ALREADY_STARTED",
                 )
 
+            # GAP F: Generate and upload EN PDF to DRS so document_id is set
+            # before CIA approves. The Kafka consumer's stamp trigger fires only
+            # when document_id is not null. Non-blocking — submission proceeds
+            # even if the PDF upload fails.
+            _upload_en_pdf_to_drs(en, auth_token=request.auth)
 
             # Delegate to service — handles workflow start + WF field saves + notification
             service = EngagementNotificationService()
@@ -457,6 +528,31 @@ class EngagementNotificationWorkflowActionView(APIView):
                 {'success': False, 'error': {'message': 'Failed to execute workflow action', 'details': str(exc)}},
                 status=status.HTTP_502_BAD_GATEWAY,
             )
+
+        # GAP 9 — trigger DRS stamp when CIA approves EN.
+        # Must be called here (with request.auth JWT) not in the Kafka consumer —
+        # DRS JWTPermissionMiddleware requires a Bearer token on every request;
+        # X-Service-Token alone is blocked by middleware before DRF permission
+        # classes can check it. Pattern copied from declaration_views.py §Sign.
+        if action_name == 'approve':
+            try:
+                en = EngagementNotification.objects.get(pk=pk)
+                if en.document_id:
+                    from apps.infrastructure.external.document_service_client import DocumentServiceClient
+                    client = DocumentServiceClient(auth_token=request.auth)
+                    client.generate_approved_stamp(
+                        document_id=str(en.document_id),
+                        approver_id=str(user_id),
+                        entity_type='audit_engagement_notification',
+                        entity_id=str(en.id),
+                    )
+                    logger.info(
+                        'GAP 9: DRS stamp triggered for EngagementNotification %s by CIA %s',
+                        pk, user_id,
+                    )
+            except Exception as stamp_err:
+                # Best-effort — never block the approval response
+                logger.error('GAP 9: DRS stamp failed for EngagementNotification %s: %s', pk, stamp_err)
 
         return Response({'success': True, 'data': result}, status=status.HTTP_200_OK)
 

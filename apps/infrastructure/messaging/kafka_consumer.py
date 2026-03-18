@@ -426,17 +426,60 @@ class GRCKafkaConsumer:
             )
             return
 
-        # Locate the stage that is now in_progress (the next active stage)
+        # Locate the stage that is now in_progress (the next active stage).
+        # A terminal/display stage (no actions, no assignees) is treated the same as
+        # no stage — it means the workflow is effectively complete and we must route
+        # to the completion handler rather than just syncing display fields.
         current_stage = next(
             (s for s in plan.stages if s.get('status') == 'in_progress'),
             None,
         )
-        if not current_stage:
-            # All stages done or workflow is complete — nothing to track
-            logger.debug(
-                f"WorkflowStageUpdated: no in_progress stage for plan {plan_id} "
-                f"(workflow may be complete)"
-            )
+        is_terminal_stage = (
+            current_stage is not None
+            and not current_stage.get('actions')
+            and not current_stage.get('assignees')
+        )
+        if not current_stage or is_terminal_stage:
+            # No next in_progress stage — the workflow has fully completed or been rejected.
+            # WO only fires WorkflowStageUpdated (not grc.workflow.completed) in this env,
+            # so we must derive the final decision from plan.plan_status here.
+            plan_status = getattr(plan, 'plan_status', '') or ''
+            final_decision = ''
+            if plan_status in ('approved', 'completed'):
+                final_decision = 'approved'
+            elif plan_status in ('rejected', 'cancelled'):
+                final_decision = 'rejected'
+
+            if final_decision:
+                logger.info(
+                    f"WorkflowStageUpdated: no next stage, plan_status={plan_status!r} → "
+                    f"treating as terminal final_decision={final_decision!r} for "
+                    f"template={template_code!r} entity={entity_id}"
+                )
+                # Route to the correct completion handler
+                if template_code == 'grc.working_paper_approval':
+                    self._handle_working_paper_completion(entity_id, final_decision, event_data)
+                elif template_code == 'grc.audit_universe_approval':
+                    self._handle_audit_universe_completion(entity_id, final_decision)
+                elif template_code == 'grc.rbiap_approval':
+                    self._handle_audit_plan_completion(entity_id, final_decision, event_data)
+                elif template_code == 'grc.engagement_lifecycle':
+                    self._handle_audit_engagement_stage(entity_id, final_decision, metadata)
+                elif template_code == 'grc.audit_report_approval':
+                    self._handle_audit_report_completion(entity_id, final_decision, event_data)
+                elif template_code == 'grc.audit_memo_approval':
+                    self._handle_audit_memo_completion(entity_id, final_decision, event_data)
+                elif template_code == 'grc.audit_program_approval':
+                    self._handle_audit_program_completion(entity_id, final_decision, event_data)
+                elif template_code == 'grc.engagement_notification_approval':
+                    self._handle_engagement_notification_completion(entity_id, final_decision, event_data)
+                elif template_code == 'grc.quarterly_report_approval':
+                    self._handle_quarterly_report_completion(entity_id, final_decision, event_data)
+            else:
+                logger.debug(
+                    f"WorkflowStageUpdated: no in_progress stage for plan {plan_id} "
+                    f"plan_status={plan_status!r} — no action taken"
+                )
             return
 
         new_stage_name = current_stage.get('name', '')

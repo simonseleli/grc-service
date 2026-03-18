@@ -1,122 +1,151 @@
-# Fix: Delete Button Hidden on Terminal-Status Records
+# Fix: Delete Button Visibility — Role + Status Based Control
 
-**Date:** 2026-03-10  
-**Affected module:** GRC — All list pages (Audit Reports, Recommendations, Plans, Findings)
-
----
-
-## The Problem
-
-On any GRC list page, records in a "terminal" status (e.g. `approved`, `completed`, `closed`, `final`) showed **only a View button** — the Delete button was completely gone from the action menu.
-
-This meant admins could not delete records even when deletion was perfectly safe (e.g. a `draft` audit report is different from a `distributed` one).
+**Originally fixed:** 2026-03-10 (terminal status bug)
+**Updated:** 2026-03-14 (per-item role+status control for Risk Assessments)
+**Affected modules:** GRC — All list pages (Audit Reports, Recommendations, Plans, Findings, Risk Assessments)
 
 ---
 
-## Root Cause
+## Phase 1 Fix (2026-03-10) — Terminal Status Bug
 
-**File:** `frontend/packages/shared/src/components/ListActions.tsx`
+### Problem
 
-The shared `ListActions` component had a blanket rule:
+Records in a terminal status (`approved`, `completed`, `closed`, `final`) showed **only a View button** — Delete was gone entirely, even when deletion might be valid for some modules.
+
+### Root Cause
+
+`ListActions.tsx` was too aggressive on terminal statuses:
 
 ```tsx
-const terminalStatuses = ['approved', 'completed', 'closed', 'final'];
-const isTerminal = terminalStatuses.includes(itemStatus?.toLowerCase() || '');
-if (isTerminal) {
-  // This wiped out delete too — too aggressive
-  allowedActions = allowedActions.filter(a => a === 'view');
-}
+// BEFORE — wiped delete too
+allowedActions = allowedActions.filter(a => a === 'view');
 ```
 
-This was intended to block **editing** terminal records (correct), but it also silently removed **delete** from the menu — which is a separate concern that each module needs to decide on its own.
+### Fix
 
----
-
-## The Fix
-
-### 1. `frontend/packages/shared/src/components/ListActions.tsx`
-
-Changed the filter to allow `delete` through for terminal statuses. Each page's `handleDelete` is now responsible for its own business rule.
+Changed to keep `delete` in the allowed list for terminal items, and let each page's `handleDelete` enforce its own business rule:
 
 ```tsx
-// BEFORE
-allowedActions = allowedActions.filter(a => a === 'view');
-
-// AFTER
+// AFTER — delete survives the terminal filter
 allowedActions = allowedActions.filter(a => a === 'view' || a === 'delete');
 ```
 
-### 2. `frontend/apps/staff-portal/src/pages/grc/AuditReportsPage.tsx`
-
-Added guard in `handleDelete` + imported `toast` from `sonner`:
+Each page then guards in `handleDelete`:
 
 ```tsx
+// Example: AuditReportsPage
 if (item.status === 'approved' || item.status === 'distributed') {
   toast.error('Cannot delete this report', { description: '...' });
   return;
 }
-// else open delete dialog
+setDeletingItem(item);
 ```
 
-### 3. `frontend/apps/staff-portal/src/pages/grc/AuditRecommendationsPage.tsx`
+---
 
-Added guard in `handleDelete` + imported `toast`:
+## Phase 2 Fix (2026-03-14) — Per-Item Role+Status Visibility (Risk Assessments)
+
+### Problem
+
+Risk Assessments required a stricter, **role-aware** approach:
+- The delete button was still visible to CIA (wrong role) and on `approved` items (wrong status)
+- Clicking it silently did nothing — bad UX
+
+The `approved` status is also terminal, but `delete` was being kept visible (Phase 1 behaviour) and then silently swallowed in `handleDelete`.
+
+### Root Cause (two layers)
+
+1. **`GenericListPage.tsx`** was passing `onDelete={handleDelete}` unconditionally to every row
+2. **`ListActions.tsx`** rendered the Delete menu item as long as it was in `allowedActions`, regardless of whether the handler was `undefined`
+
+### Fix — three-layer chain
+
+**Layer 1 — `RiskAssessmentsPage.tsx`**: compute `canDelete` per item
 
 ```tsx
-if (item.status === 'verified' || item.status === 'closed') {
-  toast.error('Cannot delete this recommendation', { description: '...' });
-  return;
+// Only IA can delete, and only draft assessments (not yet in the review chain)
+const canDelete = item.status === 'draft' && canConductRiskAssessment;
+```
+
+This flag travels with the transformed item into `GenericListPage`.
+
+**Layer 2 — `GenericListPage.tsx`**: pass handler conditionally per row
+
+```tsx
+onDelete={item.canDelete !== false ? onDelete : undefined}
+```
+
+When `canDelete` is `false`, `undefined` is passed as `onDelete` to `ListActions` for that row.
+
+**Layer 3 — `ListActions.tsx`**: remove action when handler is absent
+
+```tsx
+if (!onDelete) {
+  allowedActions = allowedActions.filter(a => a !== 'delete');
+}
+if (!onProgressUpdate) {
+  allowedActions = allowedActions.filter(a => a !== 'progressUpdate');
 }
 ```
 
-### 4. `frontend/apps/staff-portal/src/pages/grc/AuditPlansPage.tsx`
+This runs **after** all other role/status logic, so it overrides everything — including the `isTerminal` behaviour that was keeping `delete` visible.
 
-Added guard in `handleDelete` + imported `toast`:
+---
 
-```tsx
-if (item.status === 'active' || item.status === 'completed') {
-  toast.error('Cannot delete this audit plan', { description: '...' });
-  return;
-}
-```
+## Final Delete Visibility: Risk Assessments
+
+| Status | IA (`canConductRiskAssessment=true`) | CIA (`canConductRiskAssessment=false`) |
+|---|---|---|
+| `draft` | ✅ Visible & functional | ❌ Hidden |
+| `submitted` | ❌ Hidden | ❌ Hidden |
+| `reviewed` | ❌ Hidden | ❌ Hidden |
+| `approved` | ❌ Hidden | ❌ Hidden |
 
 ---
 
 ## Delete Policy Per Module
 
-| Module | Can Delete | Cannot Delete | Reason blocked |
+| Module | Can Delete | Cannot Delete | Enforced by |
 |---|---|---|---|
-| Audit Report | `draft`, `under_review` | `approved`, `distributed` | Approval fires GAP 12 events; distribution is a permanent auditee record |
-| Audit Finding | `draft`, `discussed` | — | (backend enforces; `final` shows warning but is deletable) |
-| Audit Recommendation | `open`, `in_progress`, `implemented` | `verified`, `closed` | Verified/closed recs are part of the final audit trail |
-| Audit Plan | `draft` | `active`, `completed` | Active/completed plans have linked engagements |
-| Audit Monitoring | any | — | Backend guards: blocks delete if linked recommendation is `verified`/`closed` |
+| **Risk Assessment** | `draft` (IA only) | `submitted`, `reviewed`, `approved`, and all statuses for CIA | Per-item `canDelete` flag + `ListActions` handler check |
+| Audit Report | `draft`, `under_review` | `approved`, `distributed` | `handleDelete` toast guard |
+| Audit Recommendation | `open`, `in_progress`, `implemented` | `verified`, `closed` | `handleDelete` toast guard |
+| Audit Plan | `draft` | `active`, `completed` | `handleDelete` toast guard |
+| Audit Finding | `draft`, `discussed` | — | Backend enforces |
+| Audit Monitoring | any | — | Backend enforces if linked rec is `verified`/`closed` |
 
 ---
 
-## Result
+## Two Patterns Available for Future Modules
 
-- The **Delete option now appears** in the action menu for all records, regardless of status.
-- Clicking Delete on a **protected record** shows a descriptive toast error explaining why.
-- Clicking Delete on a **safe record** opens the normal confirmation dialog as before.
-- Edit and workflow actions remain correctly blocked for terminal-status records (unchanged).
+### Pattern A — Toast guard in `handleDelete` (simple, single-role pages)
 
----
+Use when: any authenticated user can delete if the status allows it.
 
-## Pattern for Future Modules
+```tsx
+const handleDelete = (id: string) => {
+  const item = findOriginal(id);
+  if (!item) return;
+  if (['approved', 'distributed'].includes(item.status)) {
+    toast.error('Cannot delete', { description: 'This record is final.' });
+    return;
+  }
+  setDeletingItem(item);
+};
+```
 
-When adding a new GRC module:
-1. `ListActions.tsx` does **not** need changing — it already allows delete through for all statuses.
-2. In your page's `handleDelete`, add a guard:
-   ```tsx
-   const handleDelete = (id: string) => {
-     const item = items.find(i => i.id === id);
-     if (!item) return;
-     if (LOCKED_STATUSES.includes(item.status)) {
-       toast.error('Cannot delete', { description: 'Reason why...' });
-       return;
-     }
-     setDeletingItem(item);
-   };
-   ```
-3. The backend should also enforce the same rule independently as a safety net.
+### Pattern B — Per-item `canDelete` flag (role + status aware)
+
+Use when: different roles have different delete permissions, or you want the button completely hidden (not just a toast).
+
+```tsx
+// In the transform map:
+const canDelete = item.status === 'draft' && canConductPermission;
+
+// In GenericListPage row:
+onDelete={item.canDelete !== false ? onDelete : undefined}
+
+// ListActions will automatically hide Delete when onDelete is undefined
+```
+
+> **Rule of thumb:** Pattern B is preferred when the button should be **invisible** to unauthorized users. Pattern A is acceptable when all users can see the button but some get a clear error message explaining why it's blocked.

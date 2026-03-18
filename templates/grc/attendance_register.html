@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Attendance Register – {{ meeting.reference_number }}</title>
+  <style>
+    /* ── Page layout ─────────────────────────────────────────────────────── */
+    @page {
+      size: A4;
+      margin: 20mm 25mm 60mm 25mm;   /* 60mm bottom reserved for DRS stamp */
+    }
+
+    /* ── Base typography ─────────────────────────────────────────────────── */
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11pt;
+      color: #222222;
+      line-height: 1.5;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* ── Document header ─────────────────────────────────────────────────── */
+    .header {
+      border: 2px solid #1a3a5c;
+      padding: 12px 16px 10px;
+      margin-bottom: 18px;
+      text-align: center;
+    }
+    .org-name {
+      font-size: 13pt;
+      font-weight: bold;
+      color: #1a3a5c;
+      margin-bottom: 2px;
+    }
+    .doc-type {
+      font-size: 11pt;
+      color: #1a3a5c;
+      margin-bottom: 4px;
+    }
+    .doc-title {
+      font-size: 13pt;
+      font-weight: bold;
+      color: #222;
+      margin-bottom: 4px;
+    }
+    .ref-number {
+      font-size: 10pt;
+      color: #555;
+    }
+
+    /* ── Section headers ─────────────────────────────────────────────────── */
+    .section {
+      border-top: 1px solid #1a3a5c;
+      margin: 16px 0 6px;
+    }
+    .section-title {
+      font-size: 10.5pt;
+      font-weight: bold;
+      color: #1a3a5c;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin: 6px 0 8px;
+    }
+
+    /* ── Two-column field rows ───────────────────────────────────────────── */
+    .field-row {
+      display: flex;
+      margin-bottom: 5px;
+    }
+    .label {
+      width: 42%;
+      font-weight: bold;
+      color: #444;
+      font-size: 10pt;
+      padding-right: 8px;
+    }
+    .value {
+      width: 58%;
+      font-size: 10pt;
+      color: #222;
+    }
+
+    /* ── Attendance table ────────────────────────────────────────────────── */
+    .attendance-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10pt;
+      margin-top: 8px;
+    }
+    .attendance-table th {
+      background-color: #1a3a5c;
+      color: #ffffff;
+      padding: 7px 8px;
+      text-align: left;
+      font-weight: bold;
+    }
+    .attendance-table td {
+      padding: 6px 8px;
+      border-bottom: 1px solid #ccc;
+      vertical-align: middle;
+    }
+    .attendance-table tr:nth-child(even) td {
+      background-color: #f3f6fa;
+    }
+
+    /* Signature cell — provides a ruled line for handwritten signature */
+    .sig-cell {
+      min-width: 70px;
+      height: 28px;
+      border-bottom: 1px solid #555 !important;
+    }
+
+    /* Present tick/cross */
+    .present-yes { color: #1a7a1a; font-weight: bold; }
+    .present-no  { color: #b22222; }
+
+    /* ── Summary box ─────────────────────────────────────────────────────── */
+    .summary-box {
+      display: flex;
+      gap: 12px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+    .summary-item {
+      border: 1px solid #1a3a5c;
+      padding: 6px 14px;
+      font-size: 10pt;
+      text-align: center;
+      min-width: 90px;
+    }
+    .summary-item .count {
+      font-size: 15pt;
+      font-weight: bold;
+      color: #1a3a5c;
+      display: block;
+    }
+    .summary-item .count-label {
+      font-size: 8pt;
+      color: #555;
+    }
+
+    /* ── Footer ──────────────────────────────────────────────────────────── */
+    .footer-note {
+      font-size: 8.5pt;
+      color: #888;
+      font-style: italic;
+      margin-top: 24px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       DOCUMENT HEADER
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="header">
+    <div class="org-name">Fair Competition Commission (FCC)</div>
+    <div class="doc-type">Internal Audit Division</div>
+    <div class="doc-title">Attendance Register</div>
+    <div class="ref-number">Reference: {{ meeting.reference_number }}</div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SECTION 1 — ENGAGEMENT INFORMATION
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="section"></div>
+  <div class="section-title">1. Engagement Information</div>
+
+  <div class="field-row">
+    <div class="label">Engagement Reference:</div>
+    <div class="value">{{ engagement.reference_number }}</div>
+  </div>
+  <div class="field-row">
+    <div class="label">Engagement Title:</div>
+    <div class="value">{{ engagement.title }}</div>
+  </div>
+  {% if auditee_name %}
+  <div class="field-row">
+    <div class="label">Auditee:</div>
+    <div class="value">{{ auditee_name }}</div>
+  </div>
+  {% endif %}
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SECTION 2 — MEETING DETAILS
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="section"></div>
+  <div class="section-title">2. Meeting Details</div>
+
+  <div class="field-row">
+    <div class="label">Meeting Type:</div>
+    <div class="value">{{ meeting.get_meeting_type_display }}</div>
+  </div>
+  <div class="field-row">
+    <div class="label">Meeting Title:</div>
+    <div class="value">{{ meeting.title }}</div>
+  </div>
+  <div class="field-row">
+    <div class="label">Scheduled Date &amp; Time:</div>
+    <div class="value">{{ meeting.scheduled_date|date:"d F Y, H:i" }}</div>
+  </div>
+  {% if meeting.actual_date %}
+  <div class="field-row">
+    <div class="label">Actual Date &amp; Time:</div>
+    <div class="value">{{ meeting.actual_date|date:"d F Y, H:i" }}</div>
+  </div>
+  {% endif %}
+  <div class="field-row">
+    <div class="label">Location / Venue:</div>
+    <div class="value">{{ meeting.location|default:"—" }}</div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SECTION 3 — ATTENDANCE REGISTER
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="section"></div>
+  <div class="section-title">3. Attendance Register</div>
+
+  {% if meeting.attendees %}
+  <table class="attendance-table">
+    <thead>
+      <tr>
+        <th style="width:5%;">#</th>
+        <th style="width:25%;">Full Name</th>
+        <th style="width:22%;">Title / Position</th>
+        <th style="width:16%;">Role</th>
+        <th style="width:10%; text-align:center;">Present</th>
+        <th style="width:22%;">Signature</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for attendee in meeting.attendees %}
+      <tr>
+        <td>{{ forloop.counter }}</td>
+        <td>{{ attendee.name|default:"—" }}</td>
+        <td>{{ attendee.title|default:"—" }}</td>
+        <td>{{ attendee.role|title|default:"—" }}</td>
+        <td style="text-align:center;">
+          {% if attendee.present %}
+            <span class="present-yes">✓</span>
+          {% else %}
+            <span class="present-no">✗</span>
+          {% endif %}
+        </td>
+        <td class="sig-cell"></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Attendance summary counts -->
+  {% with total=meeting.attendees|length %}
+  <div class="summary-box">
+    <div class="summary-item">
+      <span class="count">{{ total }}</span>
+      <span class="count-label">Total Invited</span>
+    </div>
+    <div class="summary-item">
+      <span class="count present-yes">{{ present_count }}</span>
+      <span class="count-label">Present</span>
+    </div>
+  </div>
+  {% endwith %}
+
+  {% else %}
+    <p style="color:#888;font-style:italic;font-size:10pt;">No attendees recorded for this meeting.</p>
+  {% endif %}
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       FOOTER
+  ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="footer-note">
+    Auto-generated by FCC Internal Audit GRC System on {{ generated_at|date:"d F Y, H:i" }} UTC.
+    This attendance register is an official record of the {{ meeting.get_meeting_type_display|lower }}.
+  </div>
+
+</body>
+</html>

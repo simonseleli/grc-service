@@ -27,6 +27,7 @@ reportlab==4.0.7
 openpyxl==3.1.2
 python-docx==0.8.11
 weasyprint==60.1
+pydyf==0.10.0
 qrcode==7.4.2
 Pillow==10.2.0
 

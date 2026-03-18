@@ -961,7 +961,19 @@ class AuditFinding(TimestampedModel, StatusMixin):
         db_index=True,
         help_text="Current status of the finding"
     )
-    
+
+    # Lifecycle timestamps (GAP-F6 — audit trail)
+    discussed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the finding was first marked as discussed with the auditee"
+    )
+    finalized_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the finding was finalized (both responses recorded)"
+    )
+
     class Meta:
         db_table = 'grc_audit_finding'
         ordering = ['-created_at']
@@ -1646,6 +1658,18 @@ class AuditMeeting(TimestampedModel, StatusMixin):
         help_text="Summary of key discussion points"
     )
 
+    # Pre-exit meeting specific fields (SRS 1.8.3 Step 17)
+    clarifications = models.TextField(
+        blank=True,
+        default='',
+        help_text="Issues clarified during pre-exit meeting (SRS: Key Info for pre-exit meeting)"
+    )
+    agreed_observations = models.TextField(
+        blank=True,
+        default='',
+        help_text="Observations agreed upon between auditors and auditee (SRS: Key Info for pre-exit meeting)"
+    )
+
     # Action items — stored as JSON list
     # Format: [{"description": "...", "responsible": "uuid", "responsible_name": "...",
     #            "due_date": "YYYY-MM-DD", "status": "open|completed"}]
@@ -1682,6 +1706,22 @@ class AuditMeeting(TimestampedModel, StatusMixin):
         null=True,
         blank=True,
         help_text="Attendance sheet document reference from Document Records Service"
+    )
+
+    # Exit meeting notification fields (SRS 1.8.3 Step 23)
+    notification_sent = models.BooleanField(
+        default=False,
+        help_text="Whether exit meeting notification has been sent to auditee"
+    )
+    notification_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the exit meeting notification was sent"
+    )
+    draft_report_id = models.UUIDField(
+        null=True,
+        blank=True,
+        help_text="UUID of the draft audit report attached to exit meeting notification"
     )
 
     class Meta:
