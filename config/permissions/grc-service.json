@@ -316,6 +316,230 @@
       "resource_type": "audit_meeting",
       "action": "view",
       "category": "audit_meeting"
+    },
+    {
+      "permission_code": "grc:legal_governing_body:view",
+      "name": "View Legal Governing Bodies",
+      "description": "View governing body records, members, and committee details",
+      "resource_type": "legal_governing_body",
+      "action": "view",
+      "category": "legal_governing_body"
+    },
+    {
+      "permission_code": "grc:legal_governing_body:manage",
+      "name": "Manage Legal Governing Bodies",
+      "description": "Create, update, and manage governing bodies, members, and committees",
+      "resource_type": "legal_governing_body",
+      "action": "manage",
+      "category": "legal_governing_body"
+    },
+    {
+      "permission_code": "grc:legal_meeting:view",
+      "name": "View Legal Meetings",
+      "description": "View legal meeting details, agendas, participants, and minutes",
+      "resource_type": "legal_meeting",
+      "action": "view",
+      "category": "legal_meeting"
+    },
+    {
+      "permission_code": "grc:legal_meeting:manage",
+      "name": "Manage Legal Meetings",
+      "description": "Schedule, update, manage meetings, agendas, participants, and RSVP",
+      "resource_type": "legal_meeting",
+      "action": "manage",
+      "category": "legal_meeting"
+    },
+    {
+      "permission_code": "grc:legal_meeting:approve",
+      "name": "Approve Legal Meetings",
+      "description": "Approve meeting lifecycle workflow stages",
+      "resource_type": "legal_meeting",
+      "action": "approve",
+      "category": "legal_meeting"
+    },
+    {
+      "permission_code": "grc:legal_minutes:view",
+      "name": "View Legal Minutes",
+      "description": "View meeting minutes, resolutions, and directives",
+      "resource_type": "legal_minutes",
+      "action": "view",
+      "category": "legal_minutes"
+    },
+    {
+      "permission_code": "grc:legal_minutes:manage",
+      "name": "Manage Legal Minutes",
+      "description": "Draft, update, and submit meeting minutes for approval",
+      "resource_type": "legal_minutes",
+      "action": "manage",
+      "category": "legal_minutes"
+    },
+    {
+      "permission_code": "grc:legal_minutes:approve",
+      "name": "Approve Legal Minutes",
+      "description": "Approve meeting minutes through workflow",
+      "resource_type": "legal_minutes",
+      "action": "approve",
+      "category": "legal_minutes"
+    },
+    {
+      "permission_code": "grc:legal_case:view",
+      "name": "View Legal Cases",
+      "description": "View defendant and plaintiff case records",
+      "resource_type": "legal_case",
+      "action": "view",
+      "category": "legal_case"
+    },
+    {
+      "permission_code": "grc:legal_case:manage",
+      "name": "Manage Legal Cases",
+      "description": "Create, update, and manage defendant and plaintiff litigation cases",
+      "resource_type": "legal_case",
+      "action": "manage",
+      "category": "legal_case"
+    },
+    {
+      "permission_code": "grc:legal_case:close",
+      "name": "Close Legal Cases",
+      "description": "Approve case closure and DG noting workflow stages",
+      "resource_type": "legal_case",
+      "action": "close",
+      "category": "legal_case"
+    },
+    {
+      "permission_code": "grc:legal_filing:view",
+      "name": "View Legal Filings",
+      "description": "View court filing documents and approval chains",
+      "resource_type": "legal_filing",
+      "action": "view",
+      "category": "legal_filing"
+    },
+    {
+      "permission_code": "grc:legal_filing:manage",
+      "name": "Manage Legal Filings",
+      "description": "Create, update, and submit legal filings for approval",
+      "resource_type": "legal_filing",
+      "action": "manage",
+      "category": "legal_filing"
+    },
+    {
+      "permission_code": "grc:legal_filing:approve",
+      "name": "Approve Legal Filings",
+      "description": "Approve legal filings through workflow",
+      "resource_type": "legal_filing",
+      "action": "approve",
+      "category": "legal_filing"
+    },
+    {
+      "permission_code": "grc:legal_hearing:view",
+      "name": "View Legal Hearings",
+      "description": "View hearing schedules, reports, and outcomes",
+      "resource_type": "legal_hearing",
+      "action": "view",
+      "category": "legal_hearing"
+    },
+    {
+      "permission_code": "grc:legal_hearing:manage",
+      "name": "Manage Legal Hearings",
+      "description": "Create, update hearings, and submit hearing reports",
+      "resource_type": "legal_hearing",
+      "action": "manage",
+      "category": "legal_hearing"
+    },
+    {
+      "permission_code": "grc:legal_settlement:view",
+      "name": "View Legal Settlements",
+      "description": "View settlement records and agreement details",
+      "resource_type": "legal_settlement",
+      "action": "view",
+      "category": "legal_settlement"
+    },
+    {
+      "permission_code": "grc:legal_settlement:manage",
+      "name": "Manage Legal Settlements",
+      "description": "Create, update, and submit settlements for approval",
+      "resource_type": "legal_settlement",
+      "action": "manage",
+      "category": "legal_settlement"
+    },
+    {
+      "permission_code": "grc:legal_settlement:approve",
+      "name": "Approve Legal Settlements",
+      "description": "Approve settlement workflow stages",
+      "resource_type": "legal_settlement",
+      "action": "approve",
+      "category": "legal_settlement"
+    },
+    {
+      "permission_code": "grc:legal_judgment:view",
+      "name": "View Legal Judgments",
+      "description": "View judgment records, appeal decisions, and financial outcomes",
+      "resource_type": "legal_judgment",
+      "action": "view",
+      "category": "legal_judgment"
+    },
+    {
+      "permission_code": "grc:legal_judgment:manage",
+      "name": "Manage Legal Judgments",
+      "description": "Record, update, and submit judgments for review",
+      "resource_type": "legal_judgment",
+      "action": "manage",
+      "category": "legal_judgment"
+    },
+    {
+      "permission_code": "grc:legal_judgment:record",
+      "name": "Record Legal Judgments",
+      "description": "Record judgment and trigger appeal creation",
+      "resource_type": "legal_judgment",
+      "action": "record",
+      "category": "legal_judgment"
+    },
+    {
+      "permission_code": "grc:legal_directive:view",
+      "name": "View Legal Directives",
+      "description": "View litigation directives and task assignments",
+      "resource_type": "legal_directive",
+      "action": "view",
+      "category": "legal_directive"
+    },
+    {
+      "permission_code": "grc:legal_directive:manage",
+      "name": "Manage Legal Directives",
+      "description": "Create, assign, and update litigation directives and tasks",
+      "resource_type": "legal_directive",
+      "action": "manage",
+      "category": "legal_directive"
+    },
+    {
+      "permission_code": "grc:legal_appeal:view",
+      "name": "View Legal Appeals",
+      "description": "View appeal records, decisions, and outcomes",
+      "resource_type": "legal_appeal",
+      "action": "view",
+      "category": "legal_appeal"
+    },
+    {
+      "permission_code": "grc:legal_appeal:manage",
+      "name": "Manage Legal Appeals",
+      "description": "Create, update, and manage appeal records",
+      "resource_type": "legal_appeal",
+      "action": "manage",
+      "category": "legal_appeal"
+    },
+    {
+      "permission_code": "grc:legal_notice:view",
+      "name": "View Legal Notices",
+      "description": "View legal notices and service records",
+      "resource_type": "legal_notice",
+      "action": "view",
+      "category": "legal_notice"
+    },
+    {
+      "permission_code": "grc:legal_notice:manage",
+      "name": "Manage Legal Notices",
+      "description": "Create, update, and track legal notice service and delivery",
+      "resource_type": "legal_notice",
+      "action": "manage",
+      "category": "legal_notice"
     }
   ],
   "roles": [
@@ -442,6 +666,94 @@
         "grc:audit_plan:approve",
         "grc:quarterly_report:approve",
         "grc:audit_dashboard:view"
+      ]
+    },
+    {
+      "code": "legal_manager",
+      "name": "Legal Manager",
+      "description": "Manages legal department operations, approves filings and settlements, oversees cases",
+      "permissions": [
+        "grc:legal_governing_body:view",
+        "grc:legal_governing_body:manage",
+        "grc:legal_meeting:view",
+        "grc:legal_meeting:manage",
+        "grc:legal_meeting:approve",
+        "grc:legal_minutes:view",
+        "grc:legal_minutes:manage",
+        "grc:legal_minutes:approve",
+        "grc:legal_case:view",
+        "grc:legal_case:manage",
+        "grc:legal_case:close",
+        "grc:legal_filing:view",
+        "grc:legal_filing:manage",
+        "grc:legal_filing:approve",
+        "grc:legal_hearing:view",
+        "grc:legal_hearing:manage",
+        "grc:legal_settlement:view",
+        "grc:legal_settlement:manage",
+        "grc:legal_settlement:approve",
+        "grc:legal_judgment:view",
+        "grc:legal_judgment:manage",
+        "grc:legal_judgment:record",
+        "grc:legal_directive:view",
+        "grc:legal_directive:manage",
+        "grc:legal_appeal:view",
+        "grc:legal_appeal:manage",
+        "grc:legal_notice:view",
+        "grc:legal_notice:manage"
+      ]
+    },
+    {
+      "code": "legal_officer",
+      "name": "Legal Officer",
+      "description": "Handles day-to-day case management, filings, hearings, and directives",
+      "permissions": [
+        "grc:legal_governing_body:view",
+        "grc:legal_meeting:view",
+        "grc:legal_minutes:view",
+        "grc:legal_case:view",
+        "grc:legal_case:manage",
+        "grc:legal_filing:view",
+        "grc:legal_filing:manage",
+        "grc:legal_hearing:view",
+        "grc:legal_hearing:manage",
+        "grc:legal_settlement:view",
+        "grc:legal_settlement:manage",
+        "grc:legal_judgment:view",
+        "grc:legal_judgment:manage",
+        "grc:legal_directive:view",
+        "grc:legal_directive:manage",
+        "grc:legal_appeal:view",
+        "grc:legal_notice:view",
+        "grc:legal_notice:manage"
+      ]
+    },
+    {
+      "code": "committee_secretary",
+      "name": "Committee Secretary",
+      "description": "Manages meeting logistics, agendas, minutes, and governing body records",
+      "permissions": [
+        "grc:legal_governing_body:view",
+        "grc:legal_governing_body:manage",
+        "grc:legal_meeting:view",
+        "grc:legal_meeting:manage",
+        "grc:legal_minutes:view",
+        "grc:legal_minutes:manage",
+        "grc:legal_directive:view",
+        "grc:legal_directive:manage"
+      ]
+    },
+    {
+      "code": "committee_chair",
+      "name": "Committee Chair",
+      "description": "Presides over meetings, approves minutes, and reviews submissions for determination",
+      "permissions": [
+        "grc:legal_governing_body:view",
+        "grc:legal_meeting:view",
+        "grc:legal_meeting:approve",
+        "grc:legal_minutes:view",
+        "grc:legal_minutes:approve",
+        "grc:legal_directive:view"
       ]
     }
   ]

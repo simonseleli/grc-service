@@ -21,6 +21,18 @@ from apps.core.tasks.monitoring_deadlines import (
     check_monitoring_deadlines,
 )
 
+from apps.core.tasks.legal_directive_deadlines import (
+    check_legal_directive_deadlines,
+)
+
+from apps.core.tasks.legal_case_deadlines import (
+    check_legal_task_deadlines,
+)
+
+from apps.core.tasks.legal_case_archiving import (
+    archive_closed_legal_cases,
+)
+
 __all__ = [
     # Organizational sync tasks
     'sync_organizational_data',
@@ -36,4 +48,11 @@ __all__ = [
 
     # Monitoring deadline enforcement (GAP 7)
     'check_monitoring_deadlines',
+
+    # Legal deadline enforcement
+    'check_legal_directive_deadlines',
+    'check_legal_task_deadlines',
+
+    # Legal case archiving (GAP-14)
+    'archive_closed_legal_cases',
 ]

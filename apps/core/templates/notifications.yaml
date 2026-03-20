@@ -919,4 +919,202 @@ templates:
       domain: "implementation_monitoring"
       action: "escalated_to_cia"
       priority: "high"
+
+  # ─────────────────────────────────────────────────────────────────
+  # Legal Module — Directive overdue notification
+  # ─────────────────────────────────────────────────────────────────
+  - code: "grc.legal.directive.overdue"
+    name: "Legal Directive Overdue"
+    category: "reminder"
+    description: "Sent to the assigned user when a legal directive exceeds its due date"
+    channels:
+      - email
+      - in_app
+    subject: "Legal Directive Overdue — {{ directive.description }}"
+    body_template: |
+      Dear {{ assignee.first_name }},
+
+      A legal directive assigned to you is now overdue.
+
+      Directive Type: {{ directive.type }}
+      Description: {{ directive.description }}
+      Due Date: {{ directive.due_date }}
+      Days Overdue: {{ directive.days_overdue }}
+
+      Please take immediate action to address this directive.
+
+      View details: {{ detail_url }}
+
+      Regards,
+      GRC System
+    variables:
+      - name: "assignee.first_name"
+        required: true
+        type: "string"
+        description: "First name of the assigned user"
+      - name: "assignee.email"
+        required: true
+        type: "string"
+        description: "Email of the assigned user"
+      - name: "directive.id"
+        required: true
+        type: "string"
+        description: "UUID of the directive"
+      - name: "directive.type"
+        required: true
+        type: "string"
+        description: "Type of directive (meeting or litigation)"
+      - name: "directive.description"
+        required: true
+        type: "string"
+        description: "Description or instruction text of the directive"
+      - name: "directive.due_date"
+        required: true
+        type: "string"
+        description: "Due date of the directive (YYYY-MM-DD)"
+      - name: "directive.days_overdue"
+        required: true
+        type: "integer"
+        description: "Number of days past the due date"
+      - name: "detail_url"
+        required: true
+        type: "url"
+        description: "Direct link to the directive in the staff portal"
+    metadata:
+      service: "grc"
+      domain: "legal"
+      action: "directive_overdue"
+      priority: "high"
+
+  # ─────────────────────────────────────────────────────────────────
+  # Legal Module — Task deadline reminder
+  # ─────────────────────────────────────────────────────────────────
+  - code: "grc.legal.task.deadline_reminder"
+    name: "Legal Task Deadline Reminder"
+    category: "reminder"
+    description: "Sent to the assigned user when a litigation task is approaching its due date"
+    channels:
+      - email
+      - in_app
+    subject: "Reminder — Legal Task Due in {{ task.days_remaining }} Day(s)"
+    body_template: |
+      Dear {{ assignee.first_name }},
+
+      This is a reminder that a litigation task assigned to you is due soon.
+
+      Task: {{ task.title }}
+      Priority: {{ task.priority }}
+      Due Date: {{ task.due_date }}
+      Days Remaining: {{ task.days_remaining }}
+
+      Please ensure this task is completed before the due date.
+
+      View details: {{ detail_url }}
+
+      Regards,
+      GRC System
+    variables:
+      - name: "assignee.first_name"
+        required: true
+        type: "string"
+        description: "First name of the assigned user"
+      - name: "assignee.email"
+        required: true
+        type: "string"
+        description: "Email of the assigned user"
+      - name: "task.id"
+        required: true
+        type: "string"
+        description: "UUID of the task"
+      - name: "task.title"
+        required: true
+        type: "string"
+        description: "Title of the litigation task"
+      - name: "task.due_date"
+        required: true
+        type: "string"
+        description: "Due date of the task (YYYY-MM-DD)"
+      - name: "task.priority"
+        required: true
+        type: "string"
+        description: "Task priority (critical, high, medium, low)"
+      - name: "task.days_remaining"
+        required: true
+        type: "integer"
+        description: "Number of days until the due date"
+      - name: "detail_url"
+        required: true
+        type: "url"
+        description: "Direct link to the task in the staff portal"
+    metadata:
+      service: "grc"
+      domain: "legal"
+      action: "task_deadline_reminder"
+      priority: "normal"
+
+  # ─────────────────────────────────────────────────────────────────
+  # Legal Module — Task overdue notification
+  # ─────────────────────────────────────────────────────────────────
+  - code: "grc.legal.task.overdue"
+    name: "Legal Task Overdue"
+    category: "reminder"
+    description: "Sent to the assigned user when a litigation task exceeds its due date"
+    channels:
+      - email
+      - in_app
+    subject: "Legal Task Overdue — {{ task.title }}"
+    body_template: |
+      Dear {{ assignee.first_name }},
+
+      A litigation task assigned to you is now overdue.
+
+      Task: {{ task.title }}
+      Priority: {{ task.priority }}
+      Due Date: {{ task.due_date }}
+      Days Overdue: {{ task.days_overdue }}
+
+      Please take immediate action to complete this task.
+
+      View details: {{ detail_url }}
+
+      Regards,
+      GRC System
+    variables:
+      - name: "assignee.first_name"
+        required: true
+        type: "string"
+        description: "First name of the assigned user"
+      - name: "assignee.email"
+        required: true
+        type: "string"
+        description: "Email of the assigned user"
+      - name: "task.id"
+        required: true
+        type: "string"
+        description: "UUID of the task"
+      - name: "task.title"
+        required: true
+        type: "string"
+        description: "Title of the litigation task"
+      - name: "task.due_date"
+        required: true
+        type: "string"
+        description: "Due date of the task (YYYY-MM-DD)"
+      - name: "task.priority"
+        required: true
+        type: "string"
+        description: "Task priority (critical, high, medium, low)"
+      - name: "task.days_overdue"
+        required: true
+        type: "integer"
+        description: "Number of days past the due date"
+      - name: "detail_url"
+        required: true
+        type: "url"
+        description: "Direct link to the task in the staff portal"
+    metadata:
+      service: "grc"
+      domain: "legal"
+      action: "task_overdue"
+      priority: "high"
       version: "1.0.0"

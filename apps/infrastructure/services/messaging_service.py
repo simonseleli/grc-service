@@ -20,11 +20,31 @@ from apps.core.events.audit_events import (
     AuditPlanCreatedEvent,
     AuditPlanApprovedEvent,
 )
+from apps.core.events.legal_events import (
+    LegalCaseCreatedEvent,
+    LegalCaseClosedEvent,
+    LegalJudgmentRecordedEvent,
+    LegalMeetingCompletedEvent,
+    LegalMeetingInvitationsSentEvent,
+    LegalMinutesApprovedEvent,
+    LegalDirectiveOverdueEvent,
+    LegalFilingApprovedEvent,
+    LegalSettlementApprovedEvent,
+    LegalNoticeIssuedEvent,
+)
 from shared.constants.event_types import (
     AUDIT_ENGAGEMENT_EVENTS,
     WORKING_PAPER_EVENTS,
     AUDIT_FINDING_EVENTS,
     AUDIT_PLAN_EVENTS,
+    LEGAL_CASE_EVENTS,
+    LEGAL_JUDGMENT_EVENTS,
+    LEGAL_MEETING_EVENTS,
+    LEGAL_MINUTES_EVENTS,
+    LEGAL_DIRECTIVE_EVENTS,
+    LEGAL_FILING_EVENTS,
+    LEGAL_SETTLEMENT_EVENTS,
+    LEGAL_NOTICE_EVENTS,
 )
 
 logger = logging.getLogger(__name__)
@@ -362,6 +382,309 @@ class KafkaMessagingService(MessagingServiceInterface):
                 f"Failed to publish finding.finalized event for finding "
                 f"{getattr(finding, 'id', 'N/A')}: {e}"
             )
+            return False
+
+
+    # ------------------------------------------------------------------ #
+    # Legal Module event publishers                                       #
+    # ------------------------------------------------------------------ #
+
+    def publish_legal_case_event(
+        self,
+        event_type: str,
+        case_id: uuid.UUID,
+        additional_data: Dict[str, Any] = None,
+    ) -> bool:
+        """Publish legal case event to Kafka"""
+        try:
+            if event_type not in LEGAL_CASE_EVENTS.values():
+                logger.warning(f"Unknown legal case event type: {event_type}")
+                return False
+
+            additional_data = additional_data or {}
+
+            if event_type == LEGAL_CASE_EVENTS.get('CASE_CREATED'):
+                event = LegalCaseCreatedEvent(
+                    case_id=str(case_id),
+                    case_type=additional_data.get('case_type', ''),
+                    reference_number=additional_data.get('reference_number', ''),
+                    case_title=additional_data.get('case_title', ''),
+                    court_level=additional_data.get('court_level', ''),
+                    created_by=additional_data.get('created_by', ''),
+                    user_id=additional_data.get('user_id', additional_data.get('created_by', '')),
+                )
+            elif event_type == LEGAL_CASE_EVENTS.get('CASE_CLOSED'):
+                event = LegalCaseClosedEvent(
+                    case_id=str(case_id),
+                    case_type=additional_data.get('case_type', ''),
+                    reference_number=additional_data.get('reference_number', ''),
+                    closed_by=additional_data.get('closed_by', ''),
+                    closure_reason=additional_data.get('closure_reason', ''),
+                    user_id=additional_data.get('user_id', additional_data.get('closed_by', '')),
+                )
+            else:
+                logger.warning(f"No event class for legal case type: {event_type}")
+                return False
+
+            publish_event(event)
+            logger.info(f"Published legal case event: {event_type} for {case_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error publishing legal case event {event_type}: {e}")
+            return False
+
+    def publish_legal_judgment_event(
+        self,
+        event_type: str,
+        judgment_id: uuid.UUID,
+        additional_data: Dict[str, Any] = None,
+    ) -> bool:
+        """Publish legal judgment event to Kafka"""
+        try:
+            if event_type not in LEGAL_JUDGMENT_EVENTS.values():
+                logger.warning(f"Unknown legal judgment event type: {event_type}")
+                return False
+
+            additional_data = additional_data or {}
+
+            if event_type == LEGAL_JUDGMENT_EVENTS.get('JUDGMENT_RECORDED'):
+                event = LegalJudgmentRecordedEvent(
+                    judgment_id=str(judgment_id),
+                    case_id=additional_data.get('case_id', ''),
+                    case_type=additional_data.get('case_type', ''),
+                    judgment_date=additional_data.get('judgment_date', ''),
+                    outcome=additional_data.get('outcome', ''),
+                    recorded_by=additional_data.get('recorded_by', ''),
+                    user_id=additional_data.get('user_id', additional_data.get('recorded_by', '')),
+                )
+            else:
+                logger.warning(f"No event class for legal judgment type: {event_type}")
+                return False
+
+            publish_event(event)
+            logger.info(f"Published legal judgment event: {event_type} for {judgment_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error publishing legal judgment event {event_type}: {e}")
+            return False
+
+    def publish_legal_meeting_event(
+        self,
+        event_type: str,
+        meeting_id: uuid.UUID,
+        additional_data: Dict[str, Any] = None,
+    ) -> bool:
+        """Publish legal meeting event to Kafka"""
+        try:
+            if event_type not in LEGAL_MEETING_EVENTS.values():
+                logger.warning(f"Unknown legal meeting event type: {event_type}")
+                return False
+
+            additional_data = additional_data or {}
+
+            if event_type == LEGAL_MEETING_EVENTS.get('MEETING_COMPLETED'):
+                event = LegalMeetingCompletedEvent(
+                    meeting_id=str(meeting_id),
+                    meeting_type=additional_data.get('meeting_type', ''),
+                    governing_body_id=additional_data.get('governing_body_id', ''),
+                    reference_number=additional_data.get('reference_number', ''),
+                    completed_by=additional_data.get('completed_by', ''),
+                    user_id=additional_data.get('user_id', additional_data.get('completed_by', '')),
+                )
+            elif event_type == LEGAL_MEETING_EVENTS.get('INVITATIONS_SENT'):
+                event = LegalMeetingInvitationsSentEvent(
+                    meeting_id=str(meeting_id),
+                    governing_body_id=additional_data.get('governing_body_id', ''),
+                    reference_number=additional_data.get('reference_number', ''),
+                    participant_count=additional_data.get('participant_count', 0),
+                    sent_by=additional_data.get('sent_by', ''),
+                    user_id=additional_data.get('sent_by', ''),
+                )
+            else:
+                logger.warning(f"No event class for legal meeting type: {event_type}")
+                return False
+
+            publish_event(event)
+            logger.info(f"Published legal meeting event: {event_type} for {meeting_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error publishing legal meeting event {event_type}: {e}")
+            return False
+
+    def publish_legal_minutes_event(
+        self,
+        event_type: str,
+        minutes_id: uuid.UUID,
+        additional_data: Dict[str, Any] = None,
+    ) -> bool:
+        """Publish legal minutes event to Kafka"""
+        try:
+            if event_type not in LEGAL_MINUTES_EVENTS.values():
+                logger.warning(f"Unknown legal minutes event type: {event_type}")
+                return False
+
+            additional_data = additional_data or {}
+
+            if event_type == LEGAL_MINUTES_EVENTS.get('MINUTES_APPROVED'):
+                event = LegalMinutesApprovedEvent(
+                    minutes_id=str(minutes_id),
+                    meeting_id=additional_data.get('meeting_id', ''),
+                    reference_number=additional_data.get('reference_number', ''),
+                    approved_by=additional_data.get('approved_by', ''),
+                    user_id=additional_data.get('user_id', additional_data.get('approved_by', '')),
+                )
+            else:
+                logger.warning(f"No event class for legal minutes type: {event_type}")
+                return False
+
+            publish_event(event)
+            logger.info(f"Published legal minutes event: {event_type} for {minutes_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error publishing legal minutes event {event_type}: {e}")
+            return False
+
+    def publish_legal_directive_event(
+        self,
+        event_type: str,
+        directive_id: uuid.UUID,
+        additional_data: Dict[str, Any] = None,
+    ) -> bool:
+        """Publish legal directive event to Kafka"""
+        try:
+            if event_type not in LEGAL_DIRECTIVE_EVENTS.values():
+                logger.warning(f"Unknown legal directive event type: {event_type}")
+                return False
+
+            additional_data = additional_data or {}
+
+            if event_type == LEGAL_DIRECTIVE_EVENTS.get('DIRECTIVE_OVERDUE'):
+                event = LegalDirectiveOverdueEvent(
+                    directive_id=str(directive_id),
+                    minutes_id=additional_data.get('minutes_id', ''),
+                    meeting_id=additional_data.get('meeting_id', ''),
+                    due_date=additional_data.get('due_date', ''),
+                    assigned_to=additional_data.get('assigned_to', ''),
+                    user_id=additional_data.get('user_id', ''),
+                )
+            else:
+                logger.warning(f"No event class for legal directive type: {event_type}")
+                return False
+
+            publish_event(event)
+            logger.info(f"Published legal directive event: {event_type} for {directive_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error publishing legal directive event {event_type}: {e}")
+            return False
+
+    def publish_legal_filing_event(
+        self,
+        event_type: str,
+        filing_id: uuid.UUID,
+        additional_data: Dict[str, Any] = None,
+    ) -> bool:
+        """Publish legal filing event to Kafka"""
+        try:
+            if event_type not in LEGAL_FILING_EVENTS.values():
+                logger.warning(f"Unknown legal filing event type: {event_type}")
+                return False
+
+            additional_data = additional_data or {}
+
+            if event_type == LEGAL_FILING_EVENTS.get('FILING_APPROVED'):
+                event = LegalFilingApprovedEvent(
+                    filing_id=str(filing_id),
+                    case_id=additional_data.get('case_id', ''),
+                    filing_type=additional_data.get('filing_type', ''),
+                    reference_number=additional_data.get('reference_number', ''),
+                    approved_by=additional_data.get('approved_by', ''),
+                    user_id=additional_data.get('user_id', additional_data.get('approved_by', '')),
+                )
+            else:
+                logger.warning(f"No event class for legal filing type: {event_type}")
+                return False
+
+            publish_event(event)
+            logger.info(f"Published legal filing event: {event_type} for {filing_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error publishing legal filing event {event_type}: {e}")
+            return False
+
+    def publish_legal_settlement_event(
+        self,
+        event_type: str,
+        settlement_id: uuid.UUID,
+        additional_data: Dict[str, Any] = None,
+    ) -> bool:
+        """Publish legal settlement event to Kafka"""
+        try:
+            if event_type not in LEGAL_SETTLEMENT_EVENTS.values():
+                logger.warning(f"Unknown legal settlement event type: {event_type}")
+                return False
+
+            additional_data = additional_data or {}
+
+            if event_type == LEGAL_SETTLEMENT_EVENTS.get('SETTLEMENT_APPROVED'):
+                event = LegalSettlementApprovedEvent(
+                    settlement_id=str(settlement_id),
+                    case_id=additional_data.get('case_id', ''),
+                    settlement_amount=additional_data.get('settlement_amount', ''),
+                    approved_by=additional_data.get('approved_by', ''),
+                    user_id=additional_data.get('user_id', additional_data.get('approved_by', '')),
+                )
+            else:
+                logger.warning(f"No event class for legal settlement type: {event_type}")
+                return False
+
+            publish_event(event)
+            logger.info(f"Published legal settlement event: {event_type} for {settlement_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error publishing legal settlement event {event_type}: {e}")
+            return False
+
+    def publish_legal_notice_event(
+        self,
+        event_type: str,
+        notice_id: uuid.UUID,
+        additional_data: Dict[str, Any] = None,
+    ) -> bool:
+        """Publish legal notice event to Kafka"""
+        try:
+            if event_type not in LEGAL_NOTICE_EVENTS.values():
+                logger.warning(f"Unknown legal notice event type: {event_type}")
+                return False
+
+            additional_data = additional_data or {}
+
+            if event_type == LEGAL_NOTICE_EVENTS.get('NOTICE_ISSUED'):
+                event = LegalNoticeIssuedEvent(
+                    notice_id=str(notice_id),
+                    notice_type=additional_data.get('notice_type', ''),
+                    reference_number=additional_data.get('reference_number', ''),
+                    issued_by=additional_data.get('issued_by', ''),
+                    recipient=additional_data.get('recipient', ''),
+                    user_id=additional_data.get('user_id', additional_data.get('issued_by', '')),
+                )
+            else:
+                logger.warning(f"No event class for legal notice type: {event_type}")
+                return False
+
+            publish_event(event)
+            logger.info(f"Published legal notice event: {event_type} for {notice_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error publishing legal notice event {event_type}: {e}")
             return False
 
 

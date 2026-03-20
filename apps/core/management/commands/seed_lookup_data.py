@@ -13,6 +13,10 @@ from apps.core.models import (
     FiscalYear, Quarter, AuditSeverity, FindingType, 
     RiskRating, AuditOpinion
 )
+from apps.core.models.lookups import (
+    CourtLevel, LitigationUrgencyLevel, LitigationRiskLevel,
+    MeetingMode, MeetingType, DirectivePriority, DirectiveCategory,
+)
 
 
 class Command(BaseCommand):
@@ -38,6 +42,7 @@ class Command(BaseCommand):
             self._create_finding_types()
             self._create_risk_ratings()
             self._create_audit_opinions()
+            self._seed_legal_lookups()
             
         self.stdout.write(
             self.style.SUCCESS('Successfully seeded lookup table data')
@@ -50,6 +55,14 @@ class Command(BaseCommand):
         FindingType.objects.all().delete()
         RiskRating.objects.all().delete()
         AuditOpinion.objects.all().delete()
+        # Legal lookups
+        CourtLevel.objects.all().delete()
+        LitigationUrgencyLevel.objects.all().delete()
+        LitigationRiskLevel.objects.all().delete()
+        MeetingMode.objects.all().delete()
+        MeetingType.objects.all().delete()
+        DirectivePriority.objects.all().delete()
+        DirectiveCategory.objects.all().delete()
 
     def _create_fiscal_years(self):
         """Create fiscal year data"""
@@ -358,5 +371,110 @@ class Command(BaseCommand):
                 created_count += 1
 
         self.stdout.write(f'Created {created_count} audit opinions')
+
+    def _seed_legal_lookups(self):
+        """Seed all Legal module lookup tables."""
+
+        # ── CourtLevel ──
+        court_levels = [
+            {'code': 'magistrate',          'name': 'Magistrate Court',                'order': 1},
+            {'code': 'high_court',          'name': 'High Court',                      'order': 2},
+            {'code': 'labour_court',        'name': 'Labour Court',                    'order': 2},
+            {'code': 'commercial_division', 'name': 'Commercial Division (High Court)', 'order': 2},
+            {'code': 'court_of_appeal',     'name': 'Court of Appeal',                 'order': 3},
+            {'code': 'supreme_court',       'name': 'Supreme Court',                   'order': 4},
+        ]
+        ct = 0
+        for item in court_levels:
+            _, created = CourtLevel.objects.get_or_create(code=item['code'], defaults=item)
+            if created:
+                ct += 1
+        self.stdout.write(f'Created {ct} court levels')
+
+        # ── LitigationUrgencyLevel ──
+        urgency_levels = [
+            {'code': 'critical', 'name': 'Critical', 'color_code': '#DC2626', 'order': 1},
+            {'code': 'high',     'name': 'High',     'color_code': '#F59E0B', 'order': 2},
+            {'code': 'medium',   'name': 'Medium',   'color_code': '#3B82F6', 'order': 3},
+            {'code': 'low',      'name': 'Low',      'color_code': '#6B7280', 'order': 4},
+        ]
+        ct = 0
+        for item in urgency_levels:
+            _, created = LitigationUrgencyLevel.objects.get_or_create(code=item['code'], defaults=item)
+            if created:
+                ct += 1
+        self.stdout.write(f'Created {ct} litigation urgency levels')
+
+        # ── LitigationRiskLevel ──
+        risk_levels = [
+            {'code': 'high_risk',   'name': 'High Risk',   'color_code': '#DC2626', 'order': 1},
+            {'code': 'medium_risk', 'name': 'Medium Risk', 'color_code': '#F59E0B', 'order': 2},
+            {'code': 'low_risk',    'name': 'Low Risk',    'color_code': '#22C55E', 'order': 3},
+        ]
+        ct = 0
+        for item in risk_levels:
+            _, created = LitigationRiskLevel.objects.get_or_create(code=item['code'], defaults=item)
+            if created:
+                ct += 1
+        self.stdout.write(f'Created {ct} litigation risk levels')
+
+        # ── MeetingMode ──
+        meeting_modes = [
+            {'code': 'physical', 'name': 'Physical', 'requires_venue_link': False},
+            {'code': 'virtual',  'name': 'Virtual',  'requires_venue_link': True},
+            {'code': 'hybrid',   'name': 'Hybrid',   'requires_venue_link': True},
+        ]
+        ct = 0
+        for item in meeting_modes:
+            _, created = MeetingMode.objects.get_or_create(code=item['code'], defaults=item)
+            if created:
+                ct += 1
+        self.stdout.write(f'Created {ct} meeting modes')
+
+        # ── MeetingType ──
+        meeting_types = [
+            {'code': 'ordinary',      'name': 'Ordinary Meeting',      'quorum_percentage': 51},
+            {'code': 'extraordinary', 'name': 'Extraordinary Meeting', 'quorum_percentage': 51},
+            {'code': 'special',       'name': 'Special Meeting',       'quorum_percentage': 67},
+        ]
+        ct = 0
+        for item in meeting_types:
+            _, created = MeetingType.objects.get_or_create(code=item['code'], defaults=item)
+            if created:
+                ct += 1
+        self.stdout.write(f'Created {ct} meeting types')
+
+        # ── DirectivePriority ──
+        priorities = [
+            {'code': 'critical', 'name': 'Critical', 'color_code': '#DC2626', 'order': 1},
+            {'code': 'high',     'name': 'High',     'color_code': '#F59E0B', 'order': 2},
+            {'code': 'medium',   'name': 'Medium',   'color_code': '#3B82F6', 'order': 3},
+            {'code': 'low',      'name': 'Low',      'color_code': '#6B7280', 'order': 4},
+        ]
+        ct = 0
+        for item in priorities:
+            _, created = DirectivePriority.objects.get_or_create(code=item['code'], defaults=item)
+            if created:
+                ct += 1
+        self.stdout.write(f'Created {ct} directive priorities')
+
+        # ── DirectiveCategory ──
+        categories = [
+            {'code': 'legal_compliance',     'name': 'Legal Compliance'},
+            {'code': 'corporate_governance', 'name': 'Corporate Governance'},
+            {'code': 'finance',              'name': 'Finance'},
+            {'code': 'operations',           'name': 'Operations'},
+            {'code': 'human_resources',      'name': 'Human Resources'},
+            {'code': 'procurement',          'name': 'Procurement'},
+            {'code': 'ict',                  'name': 'ICT'},
+        ]
+        ct = 0
+        for item in categories:
+            _, created = DirectiveCategory.objects.get_or_create(code=item['code'], defaults=item)
+            if created:
+                ct += 1
+        self.stdout.write(f'Created {ct} directive categories')
+
+        self.stdout.write(self.style.SUCCESS('Legal lookup tables seeded.'))
     
 

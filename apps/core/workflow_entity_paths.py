@@ -14,6 +14,17 @@ ENTITY_DETAIL_PATHS = {
     'engagement_notification': '/service/grc/engagement-notifications',
     # P2-GAP 2
     'quarterly_audit_report':  '/service/grc/quarterly-reports',
+    # Legal Module
+    'meeting':              '/service/grc/legal/meetings/{entity_id}',
+    'minutes':              '/service/grc/legal/meetings/{entity_id}/minutes',
+    'case_defendant':       '/service/grc/legal/cases/defendant/{entity_id}',
+    'case_plaintiff':       '/service/grc/legal/cases/plaintiff/{entity_id}',
+    'filing_defendant':     '/service/grc/legal/cases/defendant/{entity_id}/filings',
+    'filing_plaintiff':     '/service/grc/legal/cases/plaintiff/{entity_id}/filings',
+    'settlement_defendant': '/service/grc/legal/cases/defendant/{entity_id}/settlements',
+    'settlement_plaintiff': '/service/grc/legal/cases/plaintiff/{entity_id}/settlements',
+    'judgment_defendant':   '/service/grc/legal/cases/defendant/{entity_id}/judgments',
+    'judgment_plaintiff':   '/service/grc/legal/cases/plaintiff/{entity_id}/judgments',
 }
 
 def get_entity_detail_path(entity_type: str):

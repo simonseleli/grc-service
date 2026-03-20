@@ -340,6 +340,19 @@ class GRCKafkaConsumer:
                 self._handle_audit_program_completion(subject_ref, final_decision, event_data)
             elif template_code == 'grc.engagement_notification_approval':        # P2-GAP 1
                 self._handle_engagement_notification_completion(subject_ref, final_decision, event_data)
+            # ── Legal Module workflow completions ──
+            elif template_code == 'grc.legal_meeting_lifecycle':
+                self._handle_legal_meeting_completion(subject_ref, final_decision, event_data)
+            elif template_code == 'grc.legal_minutes_approval':
+                self._handle_legal_minutes_completion(subject_ref, final_decision, event_data)
+            elif template_code == 'grc.legal_case_closure':
+                self._handle_legal_case_closure(subject_ref, final_decision, event_data)
+            elif template_code == 'grc.legal_filing_approval':
+                self._handle_legal_filing_completion(subject_ref, final_decision, event_data)
+            elif template_code == 'grc.legal_settlement_approval':
+                self._handle_legal_settlement_completion(subject_ref, final_decision, event_data)
+            elif template_code == 'grc.legal_judgment_decision':
+                self._handle_legal_judgment_completion(subject_ref, final_decision, event_data)
             else:
                 logger.warning(
                     f"Unknown GRC template_code '{template_code}' for subject_ref={subject_ref}"
@@ -363,6 +376,13 @@ class GRCKafkaConsumer:
         'grc.audit_program_approval':           'AuditProgram',
         'grc.engagement_notification_approval': 'EngagementNotification',
         'grc.quarterly_report_approval':        'QuarterlyAuditReport',
+        # Legal module
+        'grc.legal_meeting_lifecycle':          'Meeting',
+        'grc.legal_minutes_approval':           'Minutes',
+        'grc.legal_case_closure':               'CaseDefendant',
+        'grc.legal_filing_approval':            'Filing',
+        'grc.legal_settlement_approval':        'SettlementNegotiation',
+        'grc.legal_judgment_decision':          'JudgmentDefendant',
     }
 
     def _handle_stage_updated(self, event_data: Dict[str, Any]) -> None:
@@ -1302,7 +1322,290 @@ class GRCKafkaConsumer:
             logger.info(
                 f"GAP 9: Saved stamped_document_url on {entity_type} {entity_id}: {stamped_url}"
             )
-    
+
+    # ------------------------------------------------------------------ #
+    # Legal Module workflow completion handlers                            #
+    # ------------------------------------------------------------------ #
+
+    def _handle_legal_meeting_completion(
+        self, subject_ref: str, final_decision: str, event_data: dict = None
+    ):
+        """
+        Update Meeting.status when the grc.legal_meeting_lifecycle workflow completes.
+        approved → status='completed' | rejected/cancelled → 'draft'
+        """
+        from apps.core.models import Meeting
+        from django.utils import timezone
+
+        event_data = event_data or {}
+
+        try:
+            meeting = Meeting.objects.get(id=subject_ref)
+        except Meeting.DoesNotExist:
+            logger.warning(f"Meeting {subject_ref} not found for workflow completion event")
+            return
+        except Exception as exc:
+            logger.error(f"DB error looking up Meeting {subject_ref}: {exc}")
+            return
+
+        if final_decision == 'approved':
+            now = timezone.now()
+            meeting.status = 'completed'
+            meeting.workflow_completed_at = now
+            meeting.save(update_fields=['status', 'workflow_completed_at'])
+            logger.info(f"Meeting {subject_ref} completed via WO workflow event")
+        elif final_decision in ('rejected', 'cancelled'):
+            meeting.status = 'draft'
+            meeting.clear_workflow()
+            meeting.save(update_fields=[
+                'status', 'workflow_plan_id', 'workflow_stage', 'workflow_stage_id',
+                'workflow_started_at', 'workflow_completed_at',
+            ])
+            logger.info(f"Meeting {subject_ref} returned to draft (decision: {final_decision})")
+        else:
+            logger.warning(
+                f"Unknown final_decision '{final_decision}' for Meeting {subject_ref}"
+            )
+
+    def _handle_legal_minutes_completion(
+        self, subject_ref: str, final_decision: str, event_data: dict = None
+    ):
+        """
+        Update Minutes.status when the grc.legal_minutes_approval workflow completes.
+        approved → status='approved' | rejected/cancelled → 'draft'
+        """
+        from apps.core.models import Minutes
+        from django.utils import timezone
+
+        event_data = event_data or {}
+
+        try:
+            minutes = Minutes.objects.get(id=subject_ref)
+        except Minutes.DoesNotExist:
+            logger.warning(f"Minutes {subject_ref} not found for workflow completion event")
+            return
+        except Exception as exc:
+            logger.error(f"DB error looking up Minutes {subject_ref}: {exc}")
+            return
+
+        if final_decision == 'approved':
+            approved_by_id = (
+                event_data.get('user_id')
+                or event_data.get('approved_by')
+                or (event_data.get('metadata') or {}).get('user_id')
+            )
+            now = timezone.now()
+            minutes.status = 'approved'
+            minutes.workflow_completed_at = now
+            minutes.save(update_fields=['status', 'workflow_completed_at'])
+            logger.info(f"Minutes {subject_ref} approved via WO workflow event")
+        elif final_decision in ('rejected', 'cancelled'):
+            minutes.status = 'draft'
+            minutes.clear_workflow()
+            minutes.save(update_fields=[
+                'status', 'workflow_plan_id', 'workflow_stage', 'workflow_stage_id',
+                'workflow_started_at', 'workflow_completed_at',
+            ])
+            logger.info(f"Minutes {subject_ref} returned to draft (decision: {final_decision})")
+        else:
+            logger.warning(
+                f"Unknown final_decision '{final_decision}' for Minutes {subject_ref}"
+            )
+
+    def _handle_legal_case_closure(
+        self, subject_ref: str, final_decision: str, event_data: dict = None
+    ):
+        """
+        Update CaseDefendant or CasePlaintiff status when grc.legal_case_closure
+        workflow completes. approved → status='closed' | rejected/cancelled → previous status
+        """
+        from apps.core.models import CaseDefendant, CasePlaintiff
+        from django.utils import timezone
+
+        event_data = event_data or {}
+
+        # Try CaseDefendant first, then CasePlaintiff
+        case = None
+        case_type = 'defendant'
+        try:
+            case = CaseDefendant.objects.get(id=subject_ref)
+        except CaseDefendant.DoesNotExist:
+            try:
+                case = CasePlaintiff.objects.get(id=subject_ref)
+                case_type = 'plaintiff'
+            except CasePlaintiff.DoesNotExist:
+                logger.warning(f"Case {subject_ref} not found in defendant or plaintiff tables")
+                return
+        except Exception as exc:
+            logger.error(f"DB error looking up Case {subject_ref}: {exc}")
+            return
+
+        if final_decision == 'approved':
+            now = timezone.now()
+            case.status = 'closed'
+            case.workflow_completed_at = now
+            case.save(update_fields=['status', 'workflow_completed_at'])
+            logger.info(
+                f"Case{case_type.title()} {subject_ref} closed via WO workflow event"
+            )
+        elif final_decision in ('rejected', 'cancelled'):
+            case.status = 'active'
+            case.clear_workflow()
+            case.save(update_fields=[
+                'status', 'workflow_plan_id', 'workflow_stage', 'workflow_stage_id',
+                'workflow_started_at', 'workflow_completed_at',
+            ])
+            logger.info(
+                f"Case{case_type.title()} {subject_ref} closure rejected, "
+                f"returned to active (decision: {final_decision})"
+            )
+        else:
+            logger.warning(
+                f"Unknown final_decision '{final_decision}' for Case {subject_ref}"
+            )
+
+    def _handle_legal_filing_completion(
+        self, subject_ref: str, final_decision: str, event_data: dict = None
+    ):
+        """
+        Update Filing.status when grc.legal_filing_approval workflow completes.
+        approved → status='approved' | rejected/cancelled → 'draft'
+        """
+        from apps.core.models import Filing
+        from django.utils import timezone
+
+        event_data = event_data or {}
+
+        try:
+            filing = Filing.objects.get(id=subject_ref)
+        except Filing.DoesNotExist:
+            logger.warning(f"Filing {subject_ref} not found for workflow completion event")
+            return
+        except Exception as exc:
+            logger.error(f"DB error looking up Filing {subject_ref}: {exc}")
+            return
+
+        if final_decision == 'approved':
+            now = timezone.now()
+            filing.status = 'approved'
+            filing.workflow_completed_at = now
+            filing.save(update_fields=['status', 'workflow_completed_at'])
+            logger.info(f"Filing {subject_ref} approved via WO workflow event")
+        elif final_decision in ('rejected', 'cancelled'):
+            filing.status = 'draft'
+            filing.clear_workflow()
+            filing.save(update_fields=[
+                'status', 'workflow_plan_id', 'workflow_stage', 'workflow_stage_id',
+                'workflow_started_at', 'workflow_completed_at',
+            ])
+            logger.info(f"Filing {subject_ref} returned to draft (decision: {final_decision})")
+        else:
+            logger.warning(
+                f"Unknown final_decision '{final_decision}' for Filing {subject_ref}"
+            )
+
+    def _handle_legal_settlement_completion(
+        self, subject_ref: str, final_decision: str, event_data: dict = None
+    ):
+        """
+        Update SettlementNegotiation.status when grc.legal_settlement_approval
+        workflow completes. approved → status='approved' | rejected/cancelled → 'draft'
+        """
+        from apps.core.models import SettlementNegotiation
+        from django.utils import timezone
+
+        event_data = event_data or {}
+
+        try:
+            settlement = SettlementNegotiation.objects.get(id=subject_ref)
+        except SettlementNegotiation.DoesNotExist:
+            logger.warning(
+                f"SettlementNegotiation {subject_ref} not found for workflow completion event"
+            )
+            return
+        except Exception as exc:
+            logger.error(f"DB error looking up SettlementNegotiation {subject_ref}: {exc}")
+            return
+
+        if final_decision == 'approved':
+            now = timezone.now()
+            settlement.status = 'approved'
+            settlement.workflow_completed_at = now
+            settlement.save(update_fields=['status', 'workflow_completed_at'])
+            logger.info(
+                f"SettlementNegotiation {subject_ref} approved via WO workflow event"
+            )
+        elif final_decision in ('rejected', 'cancelled'):
+            settlement.status = 'draft'
+            settlement.clear_workflow()
+            settlement.save(update_fields=[
+                'status', 'workflow_plan_id', 'workflow_stage', 'workflow_stage_id',
+                'workflow_started_at', 'workflow_completed_at',
+            ])
+            logger.info(
+                f"SettlementNegotiation {subject_ref} returned to draft "
+                f"(decision: {final_decision})"
+            )
+        else:
+            logger.warning(
+                f"Unknown final_decision '{final_decision}' for "
+                f"SettlementNegotiation {subject_ref}"
+            )
+
+    def _handle_legal_judgment_completion(
+        self, subject_ref: str, final_decision: str, event_data: dict = None
+    ):
+        """
+        Update JudgmentDefendant/JudgmentPlaintiff status when
+        grc.legal_judgment_decision workflow completes.
+        approved → status='final' | rejected/cancelled → 'draft'
+        """
+        from apps.core.models import JudgmentDefendant, JudgmentPlaintiff
+        from django.utils import timezone
+
+        event_data = event_data or {}
+
+        judgment = None
+        judgment_type = 'defendant'
+        try:
+            judgment = JudgmentDefendant.objects.get(id=subject_ref)
+        except JudgmentDefendant.DoesNotExist:
+            try:
+                judgment = JudgmentPlaintiff.objects.get(id=subject_ref)
+                judgment_type = 'plaintiff'
+            except JudgmentPlaintiff.DoesNotExist:
+                logger.warning(
+                    f"Judgment {subject_ref} not found in defendant or plaintiff tables"
+                )
+                return
+        except Exception as exc:
+            logger.error(f"DB error looking up Judgment {subject_ref}: {exc}")
+            return
+
+        if final_decision == 'approved':
+            now = timezone.now()
+            judgment.status = 'final'
+            judgment.workflow_completed_at = now
+            judgment.save(update_fields=['status', 'workflow_completed_at'])
+            logger.info(
+                f"Judgment{judgment_type.title()} {subject_ref} finalized via WO workflow event"
+            )
+        elif final_decision in ('rejected', 'cancelled'):
+            judgment.status = 'draft'
+            judgment.clear_workflow()
+            judgment.save(update_fields=[
+                'status', 'workflow_plan_id', 'workflow_stage', 'workflow_stage_id',
+                'workflow_started_at', 'workflow_completed_at',
+            ])
+            logger.info(
+                f"Judgment{judgment_type.title()} {subject_ref} returned to draft "
+                f"(decision: {final_decision})"
+            )
+        else:
+            logger.warning(
+                f"Unknown final_decision '{final_decision}' for Judgment {subject_ref}"
+            )
+
     def close(self):
         """Close the Kafka consumer gracefully"""
         if self.consumer:

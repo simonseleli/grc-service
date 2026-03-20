@@ -754,3 +754,332 @@ docker restart fims-grc-service
 | `auditcommittee@fcc.go.tz` (AC) | `GET /meetings/` | GET | 200 ✅ |
 | `auditcommittee@fcc.go.tz` (AC) | `POST /meetings/` | POST | 403 `permission required` |
 
+---
+
+
+---
+
+# LEGAL MODULE
+
+Everything below relates to the **Legal Module** (governing bodies, meetings, cases, appeals, notices, etc.).
+
+---
+
+## 13. Legal Roles, Users & Permissions
+
+### 13.1 Permission Codes (28 total)
+
+All codes are defined in `config/permissions/grc-service.json` and exposed via `GrcServicePermissions`.
+
+| Domain | Permission Code | Action |
+|---|---|---|
+| Governing Body | `grc:legal_governing_body:view` | View |
+| Governing Body | `grc:legal_governing_body:manage` | Create/Update |
+| Meeting | `grc:legal_meeting:view` | View |
+| Meeting | `grc:legal_meeting:manage` | Schedule/Update |
+| Meeting | `grc:legal_meeting:approve` | Approve via workflow |
+| Minutes | `grc:legal_minutes:view` | View |
+| Minutes | `grc:legal_minutes:manage` | Create/Update |
+| Minutes | `grc:legal_minutes:approve` | Approve via workflow |
+| Directive | `grc:legal_directive:view` | View |
+| Directive | `grc:legal_directive:manage` | Create/Update/Track |
+| Case | `grc:legal_case:view` | View |
+| Case | `grc:legal_case:manage` | Create/Update |
+| Case | `grc:legal_case:close` | Close/Archive |
+| Hearing | `grc:legal_hearing:view` | View |
+| Hearing | `grc:legal_hearing:manage` | Create/Record |
+| Filing | `grc:legal_filing:view` | View |
+| Filing | `grc:legal_filing:manage` | Create/Submit |
+| Filing | `grc:legal_filing:approve` | Approve via workflow |
+| Settlement | `grc:legal_settlement:view` | View |
+| Settlement | `grc:legal_settlement:manage` | Create/Submit |
+| Settlement | `grc:legal_settlement:approve` | Approve via workflow |
+| Judgment | `grc:legal_judgment:view` | View |
+| Judgment | `grc:legal_judgment:manage` | Create/Update |
+| Judgment | `grc:legal_judgment:record` | Record final outcome |
+| Appeal | `grc:legal_appeal:view` | View |
+| Appeal | `grc:legal_appeal:manage` | Create/Update |
+| Notice | `grc:legal_notice:view` | View |
+| Notice | `grc:legal_notice:manage` | Create/Issue |
+
+### 13.2 Legal Roles (4 roles)
+
+| Role Code | Role Name | Legal Perms | WO Perms | Total |
+|---|---|---|---|---|
+| `legal_manager` | Legal Manager | 28 (all) | 3 (`plan:read`, `plan:create`, `stage:action`) | 31 |
+| `legal_officer` | Legal Officer | 18 | 3 (`plan:read`, `plan:create`, `stage:action`) | 21 |
+| `committee_secretary` | Committee Secretary | 8 | 2 (`plan:read`, `stage:action`) | 10 |
+| `committee_chair` | Committee Chair | 6 | 2 (`plan:read`, `stage:action`) | 8 |
+
+**Role → Permission breakdown:**
+
+**legal_manager** (28 legal perms — all 28):
+- All `governing_body`, `meeting`, `minutes`, `directive`, `case`, `hearing`, `filing`, `settlement`, `judgment`, `appeal`, `notice` permissions
+
+**legal_officer** (18 legal perms):
+- `governing_body:view`
+- `meeting:view`, `minutes:view`
+- `directive:view`, `directive:manage`
+- `case:view`, `case:manage`
+- `hearing:view`, `hearing:manage`
+- `filing:view`, `filing:manage`
+- `settlement:view`, `settlement:manage`
+- `judgment:view`, `judgment:manage`
+- `appeal:view`, `appeal:manage`
+- `notice:view`, `notice:manage`
+
+**committee_secretary** (8 legal perms):
+- `governing_body:view`, `governing_body:manage`
+- `meeting:view`, `meeting:manage`
+- `minutes:view`, `minutes:manage`
+- `directive:view`, `directive:manage`
+
+**committee_chair** (6 legal perms):
+- `governing_body:view`
+- `meeting:view`, `meeting:approve`
+- `minutes:view`, `minutes:approve`
+- `directive:view`
+
+### 13.3 Legal Test Users
+
+> **Password for all legal test users:** `Pass@1234`
+
+| Email | Username | Role | First Name | Last Name | Employee ID |
+|---|---|---|---|---|---|
+| `legalmanager@fcc.go.tz` | legalmanager | Legal Manager | Sarah | Mkapa | FCC-LM-001 |
+| `legalofficer@fcc.go.tz` | legalofficer | Legal Officer | Peter | Mushi | FCC-LO-001 |
+| `secretary@fcc.go.tz` | secretary | Committee Secretary | Anna | Mollel | FCC-CS-001 |
+| `chair@fcc.go.tz` | chair | Committee Chair | Joseph | Massawe | FCC-CC-001 |
+
+### 13.4 Permission Classes (in `apps/api/permissions_jwt.py`)
+
+28 DRF permission classes — each checks a single permission code from the JWT:
+
+| Class Name | Permission Code |
+|---|---|
+| `CanViewLegalGoverningBody` | `grc:legal_governing_body:view` |
+| `CanManageLegalGoverningBody` | `grc:legal_governing_body:manage` |
+| `CanViewLegalMeeting` | `grc:legal_meeting:view` |
+| `CanManageLegalMeeting` | `grc:legal_meeting:manage` |
+| `CanApproveLegalMeeting` | `grc:legal_meeting:approve` |
+| `CanViewLegalMinutes` | `grc:legal_minutes:view` |
+| `CanManageLegalMinutes` | `grc:legal_minutes:manage` |
+| `CanApproveLegalMinutes` | `grc:legal_minutes:approve` |
+| `CanViewLegalDirective` | `grc:legal_directive:view` |
+| `CanManageLegalDirective` | `grc:legal_directive:manage` |
+| `CanViewLegalCase` | `grc:legal_case:view` |
+| `CanManageLegalCase` | `grc:legal_case:manage` |
+| `CanCloseLegalCase` | `grc:legal_case:close` |
+| `CanViewLegalHearing` | `grc:legal_hearing:view` |
+| `CanManageLegalHearing` | `grc:legal_hearing:manage` |
+| `CanViewLegalFiling` | `grc:legal_filing:view` |
+| `CanManageLegalFiling` | `grc:legal_filing:manage` |
+| `CanApproveLegalFiling` | `grc:legal_filing:approve` |
+| `CanViewLegalSettlement` | `grc:legal_settlement:view` |
+| `CanManageLegalSettlement` | `grc:legal_settlement:manage` |
+| `CanApproveLegalSettlement` | `grc:legal_settlement:approve` |
+| `CanViewLegalJudgment` | `grc:legal_judgment:view` |
+| `CanManageLegalJudgment` | `grc:legal_judgment:manage` |
+| `CanRecordLegalJudgment` | `grc:legal_judgment:record` |
+| `CanViewLegalAppeal` | `grc:legal_appeal:view` |
+| `CanManageLegalAppeal` | `grc:legal_appeal:manage` |
+| `CanViewLegalNotice` | `grc:legal_notice:view` |
+| `CanManageLegalNotice` | `grc:legal_notice:manage` |
+
+---
+
+## 14. Create Legal Roles, Users & Assign Permissions (Full Setup)
+
+Run once from `iam-service` after a fresh data wipe. Creates 4 legal roles, assigns permissions (including WO cross-service), creates 4 users, assigns roles.
+
+```bash
+cd /home/simons/Coding/FIMS/iam-service && docker compose exec iam-service python manage.py shell -c "
+from apps.roles.models import Role, Service, RolePermission, ServicePermission, UserRole
+from django.contrib.auth import get_user_model
+User = get_user_model()
+
+grc = Service.objects.get(name='grc-service')
+
+# ── Step 1: Register 28 legal permissions ──
+print('=== Step 1: Registering 28 legal permissions ===')
+legal_perms = [
+    ('grc:legal_governing_body:view',    'View Legal Governing Bodies',    'View governing body records and membership',                      'legal_governing_body', 'view'),
+    ('grc:legal_governing_body:manage',  'Manage Legal Governing Bodies',  'Create and update governing body records and membership',          'legal_governing_body', 'manage'),
+    ('grc:legal_meeting:view',           'View Legal Meetings',            'View legal meeting records, agendas, and attendance',              'legal_meeting',        'view'),
+    ('grc:legal_meeting:manage',         'Manage Legal Meetings',          'Schedule, update, and manage legal meetings and attendance',        'legal_meeting',        'manage'),
+    ('grc:legal_meeting:approve',        'Approve Legal Meetings',         'Approve legal meeting agendas and records through workflow',        'legal_meeting',        'approve'),
+    ('grc:legal_minutes:view',           'View Legal Minutes',             'View meeting minutes and resolutions',                             'legal_minutes',        'view'),
+    ('grc:legal_minutes:manage',         'Manage Legal Minutes',           'Create, update, and submit meeting minutes for approval',           'legal_minutes',        'manage'),
+    ('grc:legal_minutes:approve',        'Approve Legal Minutes',          'Approve meeting minutes through workflow',                          'legal_minutes',        'approve'),
+    ('grc:legal_directive:view',         'View Legal Directives',          'View meeting directives and litigation directives',                 'legal_directive',      'view'),
+    ('grc:legal_directive:manage',       'Manage Legal Directives',        'Create, update, and track meeting and litigation directives',        'legal_directive',      'manage'),
+    ('grc:legal_case:view',              'View Legal Cases',               'View litigation cases (defendant and plaintiff)',                    'legal_case',           'view'),
+    ('grc:legal_case:manage',            'Manage Legal Cases',             'Create, update, and manage litigation cases through workflow',       'legal_case',           'manage'),
+    ('grc:legal_case:close',             'Close Legal Cases',              'Close or archive completed litigation cases',                       'legal_case',           'close'),
+    ('grc:legal_hearing:view',           'View Legal Hearings',            'View hearing records and outcomes',                                 'legal_hearing',        'view'),
+    ('grc:legal_hearing:manage',         'Manage Legal Hearings',          'Create, update, and record hearing details and outcomes',            'legal_hearing',        'manage'),
+    ('grc:legal_filing:view',            'View Legal Filings',             'View court filing records',                                         'legal_filing',         'view'),
+    ('grc:legal_filing:manage',          'Manage Legal Filings',           'Create, update, and submit court filings through workflow',          'legal_filing',         'manage'),
+    ('grc:legal_filing:approve',         'Approve Legal Filings',          'Approve court filings through workflow',                             'legal_filing',         'approve'),
+    ('grc:legal_settlement:view',        'View Legal Settlements',         'View settlement records and terms',                                 'legal_settlement',     'view'),
+    ('grc:legal_settlement:manage',      'Manage Legal Settlements',       'Create, update, and submit settlement proposals through workflow',   'legal_settlement',     'manage'),
+    ('grc:legal_settlement:approve',     'Approve Legal Settlements',      'Approve settlement agreements through workflow',                     'legal_settlement',     'approve'),
+    ('grc:legal_judgment:view',          'View Legal Judgments',            'View judgment records and awarded amounts',                          'legal_judgment',       'view'),
+    ('grc:legal_judgment:manage',        'Manage Legal Judgments',          'Create, update, and submit judgment records through workflow',        'legal_judgment',       'manage'),
+    ('grc:legal_judgment:record',        'Record Legal Judgments',          'Record final judgment outcomes and close judgment records',           'legal_judgment',       'record'),
+    ('grc:legal_appeal:view',            'View Legal Appeals',             'View appeal records and statuses',                                   'legal_appeal',         'view'),
+    ('grc:legal_appeal:manage',          'Manage Legal Appeals',           'Create, update, and manage appeal records',                          'legal_appeal',         'manage'),
+    ('grc:legal_notice:view',            'View Legal Notices',             'View legal notice records',                                          'legal_notice',         'view'),
+    ('grc:legal_notice:manage',          'Manage Legal Notices',           'Create, update, and issue legal notices',                             'legal_notice',         'manage'),
+]
+for code, name, desc, resource, action in legal_perms:
+    sp, created = ServicePermission.objects.get_or_create(
+        service=grc, permission_code=code,
+        defaults={'name': name, 'description': desc, 'resource_type': resource, 'action': action, 'category': resource, 'is_active': True}
+    )
+    print(f'  [{\"CREATED\" if created else \"EXISTS\"}] {code}')
+
+# ── Step 2: Create 4 legal roles ──
+print()
+print('=== Step 2: Creating 4 legal roles ===')
+roles_data = [
+    ('legal_manager',       'Legal Manager',       'Manages all legal module operations'),
+    ('legal_officer',       'Legal Officer',        'Handles day-to-day legal operations'),
+    ('committee_secretary', 'Committee Secretary',  'Manages governing body meetings, minutes, and directives'),
+    ('committee_chair',     'Committee Chair',      'Approves meeting agendas, minutes, and reviews governing body operations'),
+]
+for code, name, desc in roles_data:
+    role, created = Role.objects.get_or_create(
+        code=code, service=grc,
+        defaults={'name': name, 'description': desc, 'is_system': True, 'is_active': True}
+    )
+    print(f'  {\"CREATED\" if created else \"EXISTS\"}: [{code}]')
+
+# ── Step 3: Assign permissions to roles ──
+print()
+print('=== Step 3: Assigning permissions to roles ===')
+role_perm_map = {
+    'legal_manager': [p[0] for p in legal_perms],  # all 28
+    'legal_officer': [
+        'grc:legal_governing_body:view',
+        'grc:legal_meeting:view', 'grc:legal_minutes:view',
+        'grc:legal_directive:view', 'grc:legal_directive:manage',
+        'grc:legal_case:view', 'grc:legal_case:manage',
+        'grc:legal_hearing:view', 'grc:legal_hearing:manage',
+        'grc:legal_filing:view', 'grc:legal_filing:manage',
+        'grc:legal_settlement:view', 'grc:legal_settlement:manage',
+        'grc:legal_judgment:view', 'grc:legal_judgment:manage',
+        'grc:legal_appeal:view', 'grc:legal_appeal:manage',
+        'grc:legal_notice:view', 'grc:legal_notice:manage',
+    ],  # 18 (note: no appeal:manage excluded — legal_officer gets view+manage for appeals)
+    'committee_secretary': [
+        'grc:legal_governing_body:view', 'grc:legal_governing_body:manage',
+        'grc:legal_meeting:view', 'grc:legal_meeting:manage',
+        'grc:legal_minutes:view', 'grc:legal_minutes:manage',
+        'grc:legal_directive:view', 'grc:legal_directive:manage',
+    ],  # 8
+    'committee_chair': [
+        'grc:legal_governing_body:view',
+        'grc:legal_meeting:view', 'grc:legal_meeting:approve',
+        'grc:legal_minutes:view', 'grc:legal_minutes:approve',
+        'grc:legal_directive:view',
+    ],  # 6
+}
+for role_code, perm_codes in role_perm_map.items():
+    role = Role.objects.get(code=role_code, service=grc)
+    assigned = 0
+    for pc in perm_codes:
+        sp = ServicePermission.objects.get(service=grc, permission_code=pc)
+        _, created = RolePermission.objects.get_or_create(role=role, service_permission=sp)
+        if created: assigned += 1
+    print(f'  {role.name}: {assigned} new, {len(perm_codes)} total')
+
+# ── Step 4: Create 4 legal test users ──
+print()
+print('=== Step 4: Creating 4 legal test users ===')
+users_to_create = [
+    {'email':'legalmanager@fcc.go.tz','first_name':'Sarah','last_name':'Mkapa','employee_id':'FCC-LM-001','position':'Legal Manager','department':'Legal','user_type':'internal','status':'active','is_active':True,'is_staff':True,'username':'legalmanager'},
+    {'email':'legalofficer@fcc.go.tz','first_name':'Peter','last_name':'Mushi','employee_id':'FCC-LO-001','position':'Legal Officer','department':'Legal','user_type':'internal','status':'active','is_active':True,'is_staff':True,'username':'legalofficer'},
+    {'email':'secretary@fcc.go.tz','first_name':'Anna','last_name':'Mollel','employee_id':'FCC-CS-001','position':'Committee Secretary','department':'Board Affairs','user_type':'internal','status':'active','is_active':True,'is_staff':True,'username':'secretary'},
+    {'email':'chair@fcc.go.tz','first_name':'Joseph','last_name':'Massawe','employee_id':'FCC-CC-001','position':'Committee Chair','department':'Board Affairs','user_type':'internal','status':'active','is_active':True,'is_staff':True,'username':'chair'},
+]
+for data in users_to_create:
+    user, created = User.objects.get_or_create(email=data['email'], defaults=data)
+    if created:
+        user.set_password('Pass@1234')
+        user.save()
+    print(f'  {\"CREATED\" if created else \"EXISTS\"}: {user.email}')
+
+# ── Step 5: Assign roles to users ──
+print()
+print('=== Step 5: Assigning roles to users ===')
+assignments = [
+    ('legalmanager@fcc.go.tz',  'legal_manager'),
+    ('legalofficer@fcc.go.tz',  'legal_officer'),
+    ('secretary@fcc.go.tz',     'committee_secretary'),
+    ('chair@fcc.go.tz',         'committee_chair'),
+]
+for email, role_code in assignments:
+    user = User.objects.get(email=email)
+    role = Role.objects.get(code=role_code, service=grc)
+    _, created = UserRole.objects.get_or_create(user=user, role=role, defaults={'is_active': True})
+    print(f'  {\"ASSIGNED\" if created else \"ALREADY HAS\"}: {email} -> {role.name}')
+
+# ── Step 6: Grant WO cross-service permissions ──
+print()
+print('=== Step 6: Granting WO cross-service permissions ===')
+try:
+    wo = Service.objects.get(name='work-orchestration-service')
+    initiator_roles = ['legal_manager', 'legal_officer']
+    actor_roles = ['legal_manager', 'legal_officer', 'committee_secretary', 'committee_chair']
+    for role_code in set(initiator_roles + actor_roles):
+        role = Role.objects.get(code=role_code, service=grc)
+        needed = ['workflow:plan:read', 'workflow:stage:action']
+        if role_code in initiator_roles:
+            needed.append('workflow:plan:create')
+        for perm_code in needed:
+            perm = ServicePermission.objects.get(permission_code=perm_code, service=wo)
+            _, created = RolePermission.objects.get_or_create(role=role, service_permission=perm)
+            if created: print(f'  ASSIGNED: {role_code} -> {perm_code}')
+    print('  WO permissions done.')
+except Service.DoesNotExist:
+    print('  [SKIP] work-orchestration-service not registered')
+
+print()
+print('=== All done! ===')
+"
+```
+
+**After running:** users must log out and back in to get a fresh JWT containing the new permissions.
+
+---
+
+## 15. Verify Legal RBAC (post-restart check)
+
+```bash
+cd /home/simons/Coding/FIMS/iam-service && docker compose exec iam-service python manage.py shell -c "
+from apps.roles.models import Role, Service, RolePermission, ServicePermission
+from apps.roles.services import UnifiedPermissionResolutionService
+from django.contrib.auth import get_user_model
+User = get_user_model()
+
+grc = Service.objects.get(name='grc-service')
+
+print('=== Legal RBAC Verification ===')
+print()
+for email in ['legalmanager@fcc.go.tz', 'legalofficer@fcc.go.tz', 'secretary@fcc.go.tz', 'chair@fcc.go.tz']:
+    user = User.objects.get(email=email)
+    data = UnifiedPermissionResolutionService.get_user_permissions(user)
+    legal_p = [p for p in data.get('permissions_flat', []) if p.startswith('grc:legal_')]
+    wo_p = [p for p in data.get('permissions_flat', []) if p.startswith('workflow:')]
+    print(f'  {email}: {len(legal_p)} legal, {len(wo_p)} WO')
+
+print()
+print('Expected:')
+print('  legalmanager@fcc.go.tz:  28 legal, 3 WO')
+print('  legalofficer@fcc.go.tz:  18 legal, 3 WO')
+print('  secretary@fcc.go.tz:      8 legal, 2 WO')
+print('  chair@fcc.go.tz:          6 legal, 2 WO')
+"
+```
+

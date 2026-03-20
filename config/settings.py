@@ -205,7 +205,25 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(hour=7, minute=0),  # Every day at 07:00
         'options': {'queue': 'default'},
     },
+    'check-legal-directive-deadlines-daily': {
+        'task': 'grc.check_legal_directive_deadlines',
+        'schedule': crontab(hour=7, minute=0),  # Every day at 07:00
+        'options': {'queue': 'default'},
+    },
+    'check-legal-task-deadlines-daily': {
+        'task': 'grc.check_legal_task_deadlines',
+        'schedule': crontab(hour=7, minute=15),  # Every day at 07:15
+        'options': {'queue': 'default'},
+    },
+    'archive-closed-legal-cases-daily': {
+        'task': 'grc.archive_closed_legal_cases',
+        'schedule': crontab(hour=2, minute=0),  # Every day at 02:00
+        'options': {'queue': 'default'},
+    },
 }
+
+# Legal archiving: days after closure before auto-archiving
+LEGAL_ARCHIVE_AFTER_DAYS = int(os.getenv('LEGAL_ARCHIVE_AFTER_DAYS', '90'))
 
 # JWT token lifetime settings
 JWT_ACCESS_TOKEN_LIFETIME_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_LIFETIME_MINUTES", "60"))

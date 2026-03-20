@@ -475,10 +475,10 @@ class AuditMeetingListCreateView(APIView):
 
 class AuditMeetingDetailView(APIView):
     """
-    GET    /api/v1/grc/audit/meetings/{pk}/   — Get meeting detail
-    PUT    /api/v1/grc/audit/meetings/{pk}/   — Full update
-    PATCH  /api/v1/grc/audit/meetings/{pk}/   — Partial update
-    DELETE /api/v1/grc/audit/meetings/{pk}/   — Soft delete
+    GET    /api/v1/grc/audit/meetings/<pk>/   — Get meeting detail
+    PUT    /api/v1/grc/audit/meetings/<pk>/   — Full update
+    PATCH  /api/v1/grc/audit/meetings/<pk>/   — Partial update
+    DELETE /api/v1/grc/audit/meetings/<pk>/   — Soft delete
     """
 
     permission_classes = [IsAuthenticated]
@@ -758,7 +758,7 @@ class AuditMeetingDetailView(APIView):
 
 class AuditMeetingStatusUpdateView(APIView):
     """
-    POST /api/v1/grc/audit/meetings/{pk}/update-status/
+    POST /api/v1/grc/audit/meetings/<pk>/update-status/
     Body: { "status": "in_progress" | "completed" | "cancelled" }
 
     Valid transitions:
@@ -922,7 +922,7 @@ class AuditMeetingStatusUpdateView(APIView):
 # ---------------------------------------------------------------------------
 class AuditMeetingSendNotificationView(APIView):
     """
-    POST /meetings/{pk}/send-notification/
+    POST /meetings/<pk>/send-notification/
     SRS Step 23: LA sends Exit Meeting Notification including draft audit report
     to auditee, auditors and other personnel responsible for the finding.
     """

@@ -24,6 +24,14 @@ from .lookup_serializers import (
     FindingTypeSerializer,
     RiskRatingSerializer,
     AuditOpinionSerializer,
+    # Legal lookups
+    CourtLevelSerializer,
+    LitigationUrgencyLevelSerializer,
+    LitigationRiskLevelSerializer,
+    MeetingModeSerializer,
+    MeetingTypeSerializer,
+    DirectivePrioritySerializer,
+    DirectiveCategorySerializer,
 )
 
 from .organizational_serializers import (
@@ -31,6 +39,43 @@ from .organizational_serializers import (
     DepartmentSerializer,
     UnitSerializer,
     SectionSerializer,
+)
+
+from .legal_serializers import (
+    CommitteeTypeSerializer,
+    GoverningBodySerializer,
+    GoverningBodyListSerializer,
+    MemberSerializer,
+    SubmissionForDeterminationSerializer,
+    MeetingSerializer,
+    MeetingListSerializer,
+    MeetingAgendaSerializer,
+    ConflictDeclarationSerializer,
+    MeetingParticipantSerializer,
+    MeetingDirectiveSerializer,
+    MinutesSerializer,
+    ResolutionSerializer,
+    CaseDefendantSerializer,
+    CaseDefendantListSerializer,
+    FilingDefendantSerializer,
+    ResponseDefendantSerializer,
+    HearingSerializer,
+    HearingReportSerializer,
+    SettlementDefendantSerializer,
+    JudgmentDefendantSerializer,
+    FinancialDefendantSerializer,
+    LitigationDirectiveSerializer,
+    TaskLitigationSerializer,
+    CasePlaintiffSerializer,
+    CasePlaintiffListSerializer,
+    FilingPlaintiffSerializer,
+    ResponsePlaintiffSerializer,
+    SettlementPlaintiffSerializer,
+    JudgmentPlaintiffSerializer,
+    FinancialPlaintiffSerializer,
+    AppealDefendantSerializer,
+    AppealPlaintiffSerializer,
+    LegalNoticeSerializer,
 )
 
 __all__ = [
@@ -55,9 +100,62 @@ __all__ = [
     'RiskRatingSerializer',
     'AuditOpinionSerializer',
     
+    # Legal lookups
+    'CourtLevelSerializer',
+    'LitigationUrgencyLevelSerializer',
+    'LitigationRiskLevelSerializer',
+    'MeetingModeSerializer',
+    'MeetingTypeSerializer',
+    'DirectivePrioritySerializer',
+    'DirectiveCategorySerializer',
+    
     # Organizational
     'DirectorateSerializer',
     'DepartmentSerializer',
     'UnitSerializer',
     'SectionSerializer',
+
+    # Legal — Governance
+    'CommitteeTypeSerializer',
+    'GoverningBodySerializer',
+    'GoverningBodyListSerializer',
+    'MemberSerializer',
+    'SubmissionForDeterminationSerializer',
+    'MeetingSerializer',
+    'MeetingListSerializer',
+    'MeetingAgendaSerializer',
+    'ConflictDeclarationSerializer',
+    'MeetingParticipantSerializer',
+    'MeetingDirectiveSerializer',
+    'MinutesSerializer',
+    'ResolutionSerializer',
+
+    # Legal — Defendant litigation
+    'CaseDefendantSerializer',
+    'CaseDefendantListSerializer',
+    'FilingDefendantSerializer',
+    'ResponseDefendantSerializer',
+    'HearingSerializer',
+    'HearingReportSerializer',
+    'SettlementDefendantSerializer',
+    'JudgmentDefendantSerializer',
+    'FinancialDefendantSerializer',
+    'LitigationDirectiveSerializer',
+    'TaskLitigationSerializer',
+
+    # Legal — Plaintiff litigation
+    'CasePlaintiffSerializer',
+    'CasePlaintiffListSerializer',
+    'FilingPlaintiffSerializer',
+    'ResponsePlaintiffSerializer',
+    'SettlementPlaintiffSerializer',
+    'JudgmentPlaintiffSerializer',
+    'FinancialPlaintiffSerializer',
+
+    # Legal — Appeals
+    'AppealDefendantSerializer',
+    'AppealPlaintiffSerializer',
+
+    # Legal — Notices
+    'LegalNoticeSerializer',
 ]

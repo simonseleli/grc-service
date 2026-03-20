@@ -112,6 +112,51 @@ AUDIT_PROGRAM_EVENTS = {
     'PROGRAM_APPROVED': 'grc.audit.program.approved',
 }
 
+# ── Legal Module Events ─────────────────────────────────────────────────
+
+# GRC Legal Case Events
+LEGAL_CASE_EVENTS = {
+    'CASE_CREATED': 'grc.legal.case.created',
+    'CASE_CLOSED': 'grc.legal.case.closed',
+}
+
+# GRC Legal Judgment Events
+LEGAL_JUDGMENT_EVENTS = {
+    'JUDGMENT_RECORDED': 'grc.legal.judgment.recorded',
+    'APPEAL_DECISION_RECORDED': 'grc.legal.judgment.appeal_decision',
+}
+
+# GRC Legal Meeting Events
+LEGAL_MEETING_EVENTS = {
+    'MEETING_COMPLETED': 'grc.legal.meeting.completed',
+    'INVITATIONS_SENT': 'grc.legal.meeting.invitations_sent',
+}
+
+# GRC Legal Minutes Events
+LEGAL_MINUTES_EVENTS = {
+    'MINUTES_APPROVED': 'grc.legal.minutes.approved',
+}
+
+# GRC Legal Directive Events
+LEGAL_DIRECTIVE_EVENTS = {
+    'DIRECTIVE_OVERDUE': 'grc.legal.directive.overdue',
+}
+
+# GRC Legal Filing Events
+LEGAL_FILING_EVENTS = {
+    'FILING_APPROVED': 'grc.legal.filing.approved',
+}
+
+# GRC Legal Settlement Events
+LEGAL_SETTLEMENT_EVENTS = {
+    'SETTLEMENT_APPROVED': 'grc.legal.settlement.approved',
+}
+
+# GRC Legal Notice Events
+LEGAL_NOTICE_EVENTS = {
+    'NOTICE_ISSUED': 'grc.legal.notice.issued',
+}
+
 # All GRC event types combined
 ALL_GRC_EVENT_TYPES = {
     **AUDIT_ENGAGEMENT_EVENTS,
@@ -127,4 +172,12 @@ ALL_GRC_EVENT_TYPES = {
     **AUDIT_SURVEY_EVENTS,
     **RCM_EVENTS,
     **AUDIT_PROGRAM_EVENTS,
+    **LEGAL_CASE_EVENTS,
+    **LEGAL_JUDGMENT_EVENTS,
+    **LEGAL_MEETING_EVENTS,
+    **LEGAL_MINUTES_EVENTS,
+    **LEGAL_DIRECTIVE_EVENTS,
+    **LEGAL_FILING_EVENTS,
+    **LEGAL_SETTLEMENT_EVENTS,
+    **LEGAL_NOTICE_EVENTS,
 }

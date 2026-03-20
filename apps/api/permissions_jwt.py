@@ -528,3 +528,301 @@ class CanApproveEngagementNotification(BasePermission):
         if not request.user or not request.user.is_authenticated:
             return False
         return _check_grc_permission_locally(request, 'grc:engagement_notification:approve')
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Legal Module permission classes
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ── Legal Governing Body ──────────────────────────────────────────────────────
+
+class CanViewLegalGoverningBody(BasePermission):
+    """Check: grc:legal_governing_body:view"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_governing_body:view')
+
+
+class CanManageLegalGoverningBody(BasePermission):
+    """Check: grc:legal_governing_body:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_governing_body:manage')
+
+
+# ── Legal Meeting ─────────────────────────────────────────────────────────────
+
+class CanViewLegalMeeting(BasePermission):
+    """Check: grc:legal_meeting:view"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_meeting:view')
+
+
+class CanManageLegalMeeting(BasePermission):
+    """Check: grc:legal_meeting:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_meeting:manage')
+
+
+class CanApproveLegalMeeting(BasePermission):
+    """Check: grc:legal_meeting:approve"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_meeting:approve')
+
+
+# ── Legal Minutes ─────────────────────────────────────────────────────────────
+
+class CanViewLegalMinutes(BasePermission):
+    """Check: grc:legal_minutes:view"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_minutes:view')
+
+
+class CanManageLegalMinutes(BasePermission):
+    """Check: grc:legal_minutes:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_minutes:manage')
+
+
+class CanApproveLegalMinutes(BasePermission):
+    """Check: grc:legal_minutes:approve"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_minutes:approve')
+
+
+# ── Legal Case ────────────────────────────────────────────────────────────────
+
+class CanViewLegalCase(BasePermission):
+    """Check: grc:legal_case:view"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_case:view')
+
+
+class CanManageLegalCase(BasePermission):
+    """Check: grc:legal_case:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_case:manage')
+
+
+class CanCloseLegalCase(BasePermission):
+    """Check: grc:legal_case:close"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_case:close')
+
+
+# ── Legal Filing ──────────────────────────────────────────────────────────────
+
+class CanViewLegalFiling(BasePermission):
+    """Check: grc:legal_filing:view"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_filing:view')
+
+
+class CanManageLegalFiling(BasePermission):
+    """Check: grc:legal_filing:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_filing:manage')
+
+
+class CanApproveLegalFiling(BasePermission):
+    """Check: grc:legal_filing:approve"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_filing:approve')
+
+
+# ── Legal Hearing ─────────────────────────────────────────────────────────────
+
+class CanViewLegalHearing(BasePermission):
+    """Check: grc:legal_hearing:view"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_hearing:view')
+
+
+class CanManageLegalHearing(BasePermission):
+    """Check: grc:legal_hearing:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_hearing:manage')
+
+
+# ── Legal Settlement ──────────────────────────────────────────────────────────
+
+class CanViewLegalSettlement(BasePermission):
+    """Check: grc:legal_settlement:view"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_settlement:view')
+
+
+class CanManageLegalSettlement(BasePermission):
+    """Check: grc:legal_settlement:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_settlement:manage')
+
+
+class CanApproveLegalSettlement(BasePermission):
+    """Check: grc:legal_settlement:approve"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_settlement:approve')
+
+
+# ── Legal Judgment ────────────────────────────────────────────────────────────
+
+class CanViewLegalJudgment(BasePermission):
+    """Check: grc:legal_judgment:view"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_judgment:view')
+
+
+class CanManageLegalJudgment(BasePermission):
+    """Check: grc:legal_judgment:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_judgment:manage')
+
+
+class CanRecordLegalJudgment(BasePermission):
+    """Check: grc:legal_judgment:record"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_judgment:record')
+
+
+# ── Legal Directive ───────────────────────────────────────────────────────────
+
+class CanViewLegalDirective(BasePermission):
+    """Check: grc:legal_directive:view"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_directive:view')
+
+
+class CanManageLegalDirective(BasePermission):
+    """Check: grc:legal_directive:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_directive:manage')
+
+
+# ── Legal Appeal ──────────────────────────────────────────────────────────────
+
+class CanViewLegalAppeal(BasePermission):
+    """Check: grc:legal_appeal:view"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_appeal:view')
+
+
+class CanManageLegalAppeal(BasePermission):
+    """Check: grc:legal_appeal:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_appeal:manage')
+
+
+# ── Legal Notice ──────────────────────────────────────────────────────────────
+
+class CanViewLegalNotice(BasePermission):
+    """Check: grc:legal_notice:view"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_notice:view')
+
+
+class CanManageLegalNotice(BasePermission):
+    """Check: grc:legal_notice:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_notice:manage')
+
+
+# ── Public Decision (GAP-11) ──────────────────────────────────────────────────
+
+class CanViewPublicDecision(BasePermission):
+    """Check: grc:legal_public_decision:view"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_public_decision:view')
+
+
+class CanManagePublicDecision(BasePermission):
+    """Check: grc:legal_public_decision:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_public_decision:manage')

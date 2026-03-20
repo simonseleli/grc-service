@@ -282,10 +282,10 @@ class AuditReportListCreateView(APIView):
 
 class AuditReportDetailView(APIView):
     """
-    GET   /api/v1/grc/audit/reports/{pk}/   — Get report detail
-    PUT   /api/v1/grc/audit/reports/{pk}/   — Full update (draft only)
-    PATCH /api/v1/grc/audit/reports/{pk}/   — Partial update (draft only)
-    DELETE /api/v1/grc/audit/reports/{pk}/  — Soft delete
+    GET   /api/v1/grc/audit/reports/<pk>/   — Get report detail
+    PUT   /api/v1/grc/audit/reports/<pk>/   — Full update (draft only)
+    PATCH /api/v1/grc/audit/reports/<pk>/   — Partial update (draft only)
+    DELETE /api/v1/grc/audit/reports/<pk>/  — Soft delete
     """
 
     permission_classes = [IsAuthenticated]
@@ -333,7 +333,7 @@ class AuditReportDetailView(APIView):
                 }
             )
         except Exception as e:
-            logger.exception(f'Failed to retrieve audit report {pk}')
+            logger.exception(f'Failed to retrieve audit report <pk>')
             return Response(
                 {
                     'success': False,
@@ -400,7 +400,7 @@ class AuditReportDetailView(APIView):
             )
 
         except Exception as e:
-            logger.exception(f'Failed to update audit report {pk}')
+            logger.exception(f'Failed to update audit report <pk>')
             return Response(
                 {
                     'success': False,
@@ -442,7 +442,7 @@ class AuditReportDetailView(APIView):
             )
 
         except Exception as e:
-            logger.exception(f'Failed to partially update audit report {pk}')
+            logger.exception(f'Failed to partially update audit report <pk>')
             return Response(
                 {
                     'success': False,
@@ -486,7 +486,7 @@ class AuditReportDetailView(APIView):
             )
 
         except Exception as e:
-            logger.exception(f'Failed to delete audit report {pk}')
+            logger.exception(f'Failed to delete audit report <pk>')
             return Response(
                 {
                     'success': False,
@@ -501,7 +501,7 @@ class AuditReportDetailView(APIView):
 
 class AuditReportStatusUpdateView(APIView):
     """
-    POST /api/v1/grc/audit/reports/{pk}/update-status/
+    POST /api/v1/grc/audit/reports/<pk>/update-status/
     Body: { "status": "under_review" | "approved" | "draft" }
 
     Handles all status transitions except 'distributed' (use the distribute endpoint).
@@ -641,7 +641,7 @@ class AuditReportStatusUpdateView(APIView):
             )
 
         except Exception as e:
-            logger.exception(f'Failed to update report status for {pk}')
+            logger.exception(f'Failed to update report status for <pk>')
             return Response(
                 {
                     'success': False,
@@ -656,7 +656,7 @@ class AuditReportStatusUpdateView(APIView):
 
 class AuditReportDistributeView(APIView):
     """
-    POST /api/v1/grc/audit/reports/{pk}/distribute/
+    POST /api/v1/grc/audit/reports/<pk>/distribute/
     Body: { "distribution_list": [{"user_id": "uuid", "name": "...", "role": "..."}] }
 
     Marks the report as distributed to the specified recipients.
@@ -752,7 +752,7 @@ class AuditReportDistributeView(APIView):
             )
 
         except Exception as e:
-            logger.exception(f'Failed to distribute audit report {pk}')
+            logger.exception(f'Failed to distribute audit report <pk>')
             return Response(
                 {
                     'success': False,

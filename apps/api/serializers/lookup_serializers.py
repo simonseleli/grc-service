@@ -8,6 +8,10 @@ from apps.core.models import (
     FiscalYear, Quarter, AuditSeverity, FindingType, 
     RiskRating, AuditOpinion
 )
+from apps.core.models.lookups import (
+    CourtLevel, LitigationUrgencyLevel, LitigationRiskLevel,
+    MeetingMode, MeetingType, DirectivePriority, DirectiveCategory,
+)
 
 
 class FiscalYearSerializer(serializers.ModelSerializer):
@@ -81,3 +85,55 @@ class AuditOpinionSerializer(serializers.ModelSerializer):
             'id', 'code', 'name', 'description', 'is_active', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+# ── Legal Lookup Serializers ─────────────────────────────────────────────────
+
+
+class CourtLevelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CourtLevel
+        fields = ['id', 'code', 'name', 'description', 'order', 'is_active']
+        read_only_fields = ['id']
+
+
+class LitigationUrgencyLevelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LitigationUrgencyLevel
+        fields = ['id', 'code', 'name', 'description', 'color_code', 'order', 'is_active']
+        read_only_fields = ['id']
+
+
+class LitigationRiskLevelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LitigationRiskLevel
+        fields = ['id', 'code', 'name', 'description', 'color_code', 'order', 'is_active']
+        read_only_fields = ['id']
+
+
+class MeetingModeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MeetingMode
+        fields = ['id', 'code', 'name', 'requires_venue_link', 'is_active']
+        read_only_fields = ['id']
+
+
+class MeetingTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MeetingType
+        fields = ['id', 'code', 'name', 'quorum_percentage', 'description', 'is_active']
+        read_only_fields = ['id']
+
+
+class DirectivePrioritySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DirectivePriority
+        fields = ['id', 'code', 'name', 'color_code', 'order', 'is_active']
+        read_only_fields = ['id']
+
+
+class DirectiveCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DirectiveCategory
+        fields = ['id', 'code', 'name', 'description', 'is_active']
+        read_only_fields = ['id']

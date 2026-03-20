@@ -460,3 +460,389 @@ templates:
             breachStrategy: "notify"
           metadata:
             status_on_complete: "approved"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Legal Module — Workflow Templates
+# Reference: Legal_Module_Workflow_Integration.md §4
+# ─────────────────────────────────────────────────────────────────────────────
+
+  - code: "grc.legal_meeting_lifecycle"
+    name: "Legal Meeting Lifecycle"
+    workflow_type: "grc"
+    version: 1
+    definition:
+      description: "3-phase lifecycle: preparation → execution → closure"
+      sla:
+        targetMinutes: 20160
+        breachStrategy: "escalate"
+      metadata:
+        module: "grc"
+        category: "legal_meeting"
+      stages:
+        - definitionKey: "meeting_preparation"
+          name: "Meeting Preparation"
+          order: 1
+          assignees: ["role:secretary"]
+          actions:
+            - name: "confirm_scheduled"
+              label: "Confirm Scheduled"
+              nextState: "completed"
+            - name: "cancel"
+              label: "Cancel Meeting"
+              nextState: "rejected"
+          sla:
+            durationMinutes: 4320
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "scheduled"
+
+        - definitionKey: "meeting_execution"
+          name: "Meeting Execution"
+          order: 2
+          assignees: ["role:secretary"]
+          actions:
+            - name: "mark_held"
+              label: "Mark as Held"
+              nextState: "completed"
+            - name: "adjourn"
+              label: "Adjourn"
+              nextState: "pending"
+          sla:
+            durationMinutes: 14400
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "held"
+
+        - definitionKey: "meeting_closure"
+          name: "Meeting Closure"
+          order: 3
+          assignees: ["role:legal_manager"]
+          actions:
+            - name: "close"
+              label: "Close Meeting"
+              nextState: "completed"
+          sla:
+            durationMinutes: 1440
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "closed"
+
+  - code: "grc.legal_minutes_approval"
+    name: "Legal Minutes Approval"
+    workflow_type: "grc"
+    version: 1
+    definition:
+      description: "2-stage: Secretary review → Committee chair approval"
+      sla:
+        targetMinutes: 10080
+        breachStrategy: "escalate"
+      metadata:
+        module: "grc"
+        category: "legal_minutes"
+      stages:
+        - definitionKey: "minutes_draft_review"
+          name: "Minutes Draft Review"
+          order: 1
+          assignees: ["role:secretary"]
+          actions:
+            - name: "submit_for_approval"
+              label: "Submit for Approval"
+              nextState: "completed"
+            - name: "return"
+              label: "Return for Correction"
+              nextState: "rejected"
+          sla:
+            durationMinutes: 2880
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "pending_approval"
+
+        - definitionKey: "minutes_committee_approval"
+          name: "Committee Approval"
+          order: 2
+          assignees: ["role:committee_chair"]
+          actions:
+            - name: "approve"
+              label: "Approve"
+              nextState: "completed"
+            - name: "request_amendments"
+              label: "Request Amendments"
+              nextState: "pending"
+          sla:
+            durationMinutes: 7200
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "approved"
+
+  - code: "grc.legal_case_closure"
+    name: "Legal Case Closure"
+    workflow_type: "grc"
+    version: 1
+    definition:
+      description: "3-stage: Legal Officer → Legal Manager → DG for final closure note"
+      sla:
+        targetMinutes: 14400
+        breachStrategy: "escalate"
+      metadata:
+        module: "grc"
+        category: "legal_case"
+      stages:
+        - definitionKey: "case_officer_review"
+          name: "Legal Officer Review"
+          order: 1
+          assignees: ["{{legal_officer_id}}"]
+          actions:
+            - name: "submit"
+              label: "Submit for Closure"
+              nextState: "completed"
+            - name: "return"
+              label: "Return to Draft"
+              nextState: "rejected"
+          sla:
+            durationMinutes: 2880
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "pending_closure"
+
+        - definitionKey: "legal_manager_approval"
+          name: "Legal Manager Approval"
+          order: 2
+          assignees: ["role:legal_manager"]
+          actions:
+            - name: "approve"
+              label: "Approve Closure"
+              nextState: "completed"
+            - name: "return"
+              label: "Return to Officer"
+              nextState: "pending"
+          sla:
+            durationMinutes: 4320
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "dg_review"
+
+        - definitionKey: "dg_closure_noting"
+          name: "DG Closure Noting"
+          order: 3
+          assignees: ["role:director_general"]
+          actions:
+            - name: "note"
+              label: "Note and Close"
+              nextState: "completed"
+          sla:
+            durationMinutes: 7200
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "closed"
+
+  - code: "grc.legal_filing_approval"
+    name: "Legal Filing Approval"
+    workflow_type: "grc"
+    version: 2
+    definition:
+      description: "4-stage: Legal Officer review → Legal Manager approval → DG approval → Filing confirmation"
+      sla:
+        targetMinutes: 14400
+        breachStrategy: "escalate"
+      metadata:
+        module: "grc"
+        category: "legal_filing"
+      stages:
+        - definitionKey: "filing_officer_review"
+          name: "Filing Officer Review"
+          order: 1
+          assignees: ["{{legal_officer_id}}"]
+          actions:
+            - name: "submit"
+              label: "Submit for Approval"
+              nextState: "completed"
+            - name: "return"
+              label: "Return to Draft"
+              nextState: "rejected"
+          sla:
+            durationMinutes: 1440
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "approved_lm"
+
+        - definitionKey: "legal_manager_review"
+          name: "Legal Manager Review"
+          order: 2
+          assignees: ["role:legal_manager"]
+          actions:
+            - name: "approve"
+              label: "Approve & Forward to DG"
+              nextState: "completed"
+            - name: "reject"
+              label: "Reject"
+              nextState: "rejected"
+            - name: "request_changes"
+              label: "Request Changes"
+              nextState: "pending"
+          sla:
+            durationMinutes: 4320
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "under_review_dg"
+
+        - definitionKey: "dg_filing_review"
+          name: "DG Filing Review"
+          order: 3
+          assignees: ["role:director_general"]
+          actions:
+            - name: "approve"
+              label: "Approve Filing"
+              nextState: "completed"
+            - name: "reject"
+              label: "Reject"
+              nextState: "rejected"
+            - name: "request_changes"
+              label: "Request Changes"
+              nextState: "pending"
+          sla:
+            durationMinutes: 7200
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "approved"
+
+        - definitionKey: "filing_confirmed"
+          name: "Filing Confirmation"
+          order: 4
+          assignees: ["{{legal_officer_id}}"]
+          actions:
+            - name: "confirm_filed"
+              label: "Confirm Filed at Court"
+              nextState: "completed"
+            - name: "return"
+              label: "Return for Corrections"
+              nextState: "rejected"
+          sla:
+            durationMinutes: 2880
+            breachStrategy: "escalate"
+          metadata:
+            status_on_complete: "filed"
+
+  - code: "grc.legal_settlement_approval"
+    name: "Legal Settlement Approval"
+    workflow_type: "grc"
+    version: 1
+    definition:
+      description: "3-stage: Officer review → Legal Manager → DG final approval"
+      sla:
+        targetMinutes: 20160
+        breachStrategy: "escalate"
+      metadata:
+        module: "grc"
+        category: "legal_settlement"
+      stages:
+        - definitionKey: "settlement_officer_review"
+          name: "Settlement Review"
+          order: 1
+          assignees: ["{{legal_officer_id}}"]
+          actions:
+            - name: "submit"
+              label: "Submit for Approval"
+              nextState: "completed"
+            - name: "return"
+              label: "Return to Draft"
+              nextState: "rejected"
+          sla:
+            durationMinutes: 2880
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "pending_approval"
+
+        - definitionKey: "legal_manager_settlement_review"
+          name: "Legal Manager Review"
+          order: 2
+          assignees: ["role:legal_manager"]
+          actions:
+            - name: "forward_to_dg"
+              label: "Forward to DG"
+              nextState: "completed"
+            - name: "reject"
+              label: "Reject Settlement"
+              nextState: "rejected"
+          sla:
+            durationMinutes: 7200
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "dg_review"
+
+        - definitionKey: "dg_settlement_approval"
+          name: "DG Approval"
+          order: 3
+          assignees: ["role:director_general"]
+          actions:
+            - name: "approve"
+              label: "Approve Settlement"
+              nextState: "completed"
+            - name: "return"
+              label: "Return to Manager"
+              nextState: "pending"
+          sla:
+            durationMinutes: 10080
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "approved"
+
+  - code: "grc.legal_judgment_decision"
+    name: "Legal Judgment Decision"
+    workflow_type: "grc"
+    version: 1
+    definition:
+      description: "3-stage: Officer records judgment → Manager reviews → DG notes decision"
+      sla:
+        targetMinutes: 14400
+        breachStrategy: "escalate"
+      metadata:
+        module: "grc"
+        category: "legal_judgment"
+      stages:
+        - definitionKey: "judgment_officer_review"
+          name: "Judgment Review"
+          order: 1
+          assignees: ["{{legal_officer_id}}"]
+          actions:
+            - name: "submit"
+              label: "Submit Judgment"
+              nextState: "completed"
+            - name: "return"
+              label: "Return to Draft"
+              nextState: "rejected"
+          sla:
+            durationMinutes: 2880
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "pending_review"
+
+        - definitionKey: "legal_manager_judgment_review"
+          name: "Legal Manager Review"
+          order: 2
+          assignees: ["role:legal_manager"]
+          actions:
+            - name: "approve"
+              label: "Approve and Forward"
+              nextState: "completed"
+            - name: "return"
+              label: "Return to Officer"
+              nextState: "pending"
+          sla:
+            durationMinutes: 4320
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "dg_noting"
+
+        - definitionKey: "dg_judgment_noting"
+          name: "DG Noting"
+          order: 3
+          assignees: ["role:director_general"]
+          actions:
+            - name: "note"
+              label: "Note Decision"
+              nextState: "completed"
+          sla:
+            durationMinutes: 7200
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "noted"
