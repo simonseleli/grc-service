@@ -25,6 +25,15 @@ ENTITY_DETAIL_PATHS = {
     'settlement_plaintiff': '/service/grc/legal/cases/plaintiff/{entity_id}/settlements',
     'judgment_defendant':   '/service/grc/legal/cases/defendant/{entity_id}/judgments',
     'judgment_plaintiff':   '/service/grc/legal/cases/plaintiff/{entity_id}/judgments',
+    # Risk Management & Quality Assurance Module
+    'risk_champion_appointment':    '/service/grc/risk/champions',
+    'departmental_risk_register':   '/service/grc/risk/dept-registers',
+    'institutional_risk_register':  '/service/grc/risk/institutional-registers',
+    'risk_treatment_action_plan':   '/service/grc/risk/rtap',
+    'quarterly_performance_report': '/service/grc/risk/quarterly-reports',
+    'quality_auditor_appointment':  '/service/grc/risk/quality-auditors',
+    'qms_audit_program':            '/service/grc/risk/qms-programs',
+    'qms_audit_plan':               '/service/grc/risk/qms-plans',
 }
 
 def get_entity_detail_path(entity_type: str):

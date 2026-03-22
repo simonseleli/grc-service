@@ -406,6 +406,14 @@
       "category": "legal_case"
     },
     {
+      "permission_code": "grc:legal_case:register",
+      "name": "Register Legal Cases",
+      "description": "Register (create) new defendant and plaintiff cases without full case management access (Registry Officer role)",
+      "resource_type": "legal_case",
+      "action": "register",
+      "category": "legal_case"
+    },
+    {
       "permission_code": "grc:legal_filing:view",
       "name": "View Legal Filings",
       "description": "View court filing documents and approval chains",
@@ -510,6 +518,14 @@
       "category": "legal_directive"
     },
     {
+      "permission_code": "grc:legal_directive:approve_closure",
+      "name": "Approve Directive Closure",
+      "description": "DG approves or rejects litigation directive closure requests",
+      "resource_type": "legal_directive",
+      "action": "approve_closure",
+      "category": "legal_directive"
+    },
+    {
       "permission_code": "grc:legal_appeal:view",
       "name": "View Legal Appeals",
       "description": "View appeal records, decisions, and outcomes",
@@ -540,6 +556,222 @@
       "resource_type": "legal_notice",
       "action": "manage",
       "category": "legal_notice"
+    },
+    {
+      "permission_code": "grc:risk_champion:view",
+      "name": "View Risk Champions",
+      "description": "View risk champion records and appointments",
+      "resource_type": "risk_champion",
+      "action": "view",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:risk_champion:manage",
+      "name": "Manage Risk Champions",
+      "description": "Create, update, and manage risk champion nominations and appointments",
+      "resource_type": "risk_champion",
+      "action": "manage",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:risk_assessment:conduct",
+      "name": "Conduct Risk Assessments",
+      "description": "Perform and submit risk assessments",
+      "resource_type": "risk_assessment",
+      "action": "conduct",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:risk_assessment:review",
+      "name": "Review Risk Assessments",
+      "description": "Review and approve submitted risk assessments",
+      "resource_type": "risk_assessment",
+      "action": "review",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:dept_risk_register:manage",
+      "name": "Manage Departmental Risk Register",
+      "description": "Create, update, and submit departmental risk registers",
+      "resource_type": "dept_risk_register",
+      "action": "manage",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:dept_risk_register:approve",
+      "name": "Approve Departmental Risk Register",
+      "description": "Approve departmental risk registers through workflow",
+      "resource_type": "dept_risk_register",
+      "action": "approve",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:institutional_risk_register:manage",
+      "name": "Manage Institutional Risk Register",
+      "description": "Create, update, and submit institutional risk registers",
+      "resource_type": "institutional_risk_register",
+      "action": "manage",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:institutional_risk_register:approve",
+      "name": "Approve Institutional Risk Register",
+      "description": "Approve institutional risk registers through workflow",
+      "resource_type": "institutional_risk_register",
+      "action": "approve",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:rtap:manage",
+      "name": "Manage RTAP",
+      "description": "Create, update, and submit Risk Treatment Action Plans",
+      "resource_type": "rtap",
+      "action": "manage",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:rtap:approve",
+      "name": "Approve RTAP",
+      "description": "Approve Risk Treatment Action Plans through workflow",
+      "resource_type": "rtap",
+      "action": "approve",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:rtap:respond",
+      "name": "Respond to RTAP Items",
+      "description": "Risk Champions provide quarterly updates on RTAP items",
+      "resource_type": "rtap",
+      "action": "respond",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:quarterly_risk_report:manage",
+      "name": "Manage Quarterly Risk Reports",
+      "description": "Prepare and manage quarterly risk performance reports",
+      "resource_type": "quarterly_risk_report",
+      "action": "manage",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:quarterly_risk_report:approve",
+      "name": "Approve Quarterly Risk Reports",
+      "description": "Approve quarterly risk reports through workflow stages",
+      "resource_type": "quarterly_risk_report",
+      "action": "approve",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:quality_auditor:manage",
+      "name": "Manage Quality Auditors",
+      "description": "Manage quality auditor nominations, certifications, and appointments",
+      "resource_type": "quality_auditor",
+      "action": "manage",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:qms_audit_program:manage",
+      "name": "Manage QMS Audit Programs",
+      "description": "Create, update, and submit QMS audit programs",
+      "resource_type": "qms_audit_program",
+      "action": "manage",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:qms_audit_program:approve",
+      "name": "Approve QMS Audit Programs",
+      "description": "Approve QMS audit programs through workflow",
+      "resource_type": "qms_audit_program",
+      "action": "approve",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:qms_audit_plan:manage",
+      "name": "Manage QMS Audit Plans",
+      "description": "Create, update, and submit QMS audit plans",
+      "resource_type": "qms_audit_plan",
+      "action": "manage",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:qms_audit_plan:approve",
+      "name": "Approve QMS Audit Plans",
+      "description": "Approve QMS audit plans through workflow",
+      "resource_type": "qms_audit_plan",
+      "action": "approve",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:qms_checklist:manage",
+      "name": "Manage Audit Checklists",
+      "description": "Create, update, and manage QMS audit checklists",
+      "resource_type": "qms_checklist",
+      "action": "manage",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:qms_audit_report:manage",
+      "name": "Manage QMS Audit Reports",
+      "description": "Create, update, and manage QMS audit reports",
+      "resource_type": "qms_audit_report",
+      "action": "manage",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:qms_audit_report:sign",
+      "name": "Sign QMS Audit Reports",
+      "description": "Sign QMS audit reports as team lead or auditee representative",
+      "resource_type": "qms_audit_report",
+      "action": "sign",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:non_conformance:manage",
+      "name": "Manage Non-Conformances",
+      "description": "Raise, update, and track non-conformance records",
+      "resource_type": "non_conformance",
+      "action": "manage",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:non_conformance:respond",
+      "name": "Respond to Non-Conformances",
+      "description": "Provide corrective action responses to non-conformance findings",
+      "resource_type": "non_conformance",
+      "action": "respond",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:risk_dashboard:view",
+      "name": "View Risk Dashboard",
+      "description": "Access risk management analytics dashboard",
+      "resource_type": "risk_dashboard",
+      "action": "view",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:risk_meeting:manage",
+      "name": "Manage Risk Meetings",
+      "description": "Schedule, update, and manage risk meetings and workshops",
+      "resource_type": "risk_meeting",
+      "action": "manage",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:risk_meeting:view",
+      "name": "View Risk Meetings",
+      "description": "View risk meeting records, attendance, and minutes",
+      "resource_type": "risk_meeting",
+      "action": "view",
+      "category": "risk_management"
+    },
+    {
+      "permission_code": "grc:qa_training:manage",
+      "name": "Manage QA Training Sessions",
+      "description": "Create, update, and manage QA training sessions and attendees",
+      "resource_type": "qa_training",
+      "action": "manage",
+      "category": "risk_management"
     }
   ],
   "roles": [
@@ -704,6 +936,15 @@
       ]
     },
     {
+      "code": "registry_officer",
+      "name": "Registry Officer",
+      "description": "Registers new litigation cases (SRS §4.1) without full case management access. Distinct from Legal Officer.",
+      "permissions": [
+        "grc:legal_case:register",
+        "grc:legal_case:view"
+      ]
+    },
+    {
       "code": "legal_officer",
       "name": "Legal Officer",
       "description": "Handles day-to-day case management, filings, hearings, and directives",
@@ -754,6 +995,96 @@
         "grc:legal_minutes:view",
         "grc:legal_minutes:approve",
         "grc:legal_directive:view"
+      ]
+    },
+    {
+      "code": "rmqam",
+      "name": "Risk Management and Quality Assurance Manager",
+      "description": "Manages risk management module, approves registers, reports, and QMS audits",
+      "permissions": [
+        "grc:risk_champion:view",
+        "grc:risk_champion:manage",
+        "grc:risk_assessment:review",
+        "grc:dept_risk_register:manage",
+        "grc:dept_risk_register:approve",
+        "grc:institutional_risk_register:manage",
+        "grc:institutional_risk_register:approve",
+        "grc:rtap:manage",
+        "grc:rtap:approve",
+        "grc:quarterly_risk_report:manage",
+        "grc:quarterly_risk_report:approve",
+        "grc:quality_auditor:manage",
+        "grc:qa_training:manage",
+        "grc:qms_audit_program:manage",
+        "grc:qms_audit_program:approve",
+        "grc:qms_audit_plan:manage",
+        "grc:qms_audit_plan:approve",
+        "grc:qms_checklist:manage",
+        "grc:qms_audit_report:manage",
+        "grc:qms_audit_report:sign",
+        "grc:non_conformance:manage",
+        "grc:risk_dashboard:view",
+        "grc:risk_meeting:manage",
+        "grc:risk_meeting:view"
+      ]
+    },
+    {
+      "code": "rmo",
+      "name": "Risk Management Officer",
+      "description": "Supports risk management operations, manages champions, assessments, and QMS audits",
+      "permissions": [
+        "grc:risk_champion:view",
+        "grc:risk_champion:manage",
+        "grc:risk_assessment:review",
+        "grc:dept_risk_register:manage",
+        "grc:institutional_risk_register:manage",
+        "grc:rtap:manage",
+        "grc:quarterly_risk_report:manage",
+        "grc:quality_auditor:manage",
+        "grc:qa_training:manage",
+        "grc:qms_audit_program:manage",
+        "grc:qms_audit_plan:manage",
+        "grc:qms_checklist:manage",
+        "grc:qms_audit_report:manage",
+        "grc:non_conformance:manage",
+        "grc:risk_dashboard:view",
+        "grc:risk_meeting:manage",
+        "grc:risk_meeting:view"
+      ]
+    },
+    {
+      "code": "lsm",
+      "name": "Legal Service Manager",
+      "description": "Approves institutional risk registers, RTAPs, and quarterly risk reports",
+      "permissions": [
+        "grc:institutional_risk_register:approve",
+        "grc:rtap:approve",
+        "grc:quarterly_risk_report:approve",
+        "grc:risk_dashboard:view"
+      ]
+    },
+    {
+      "code": "risk_champion",
+      "name": "Risk Champion",
+      "description": "Conducts risk assessments, manages departmental registers, responds to RTAP items",
+      "permissions": [
+        "grc:risk_assessment:conduct",
+        "grc:dept_risk_register:manage",
+        "grc:rtap:respond",
+        "grc:risk_dashboard:view",
+        "grc:risk_meeting:manage",
+        "grc:risk_meeting:view"
+      ]
+    },
+    {
+      "code": "quality_auditor",
+      "name": "Quality Auditor",
+      "description": "Conducts QMS audits, manages checklists and non-conformances",
+      "permissions": [
+        "grc:qms_checklist:manage",
+        "grc:qms_audit_report:manage",
+        "grc:non_conformance:manage",
+        "grc:risk_meeting:view"
       ]
     }
   ]

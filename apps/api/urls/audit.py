@@ -152,7 +152,10 @@ from apps.api.views.engagement_notification_views import (   # P2-GAP 1
 from apps.api.views.lookup_views import (
     LookupDataView, FiscalYearListView, QuarterListView,
     AuditSeverityListView, FindingTypeListView, RiskRatingListView,
-    AuditOpinionListView, GRCUsersByRoleView
+    AuditOpinionListView, GRCUsersByRoleView,
+    RiskLookupDataView, RiskCategoryListView, RiskLikelihoodListView,
+    RiskImpactListView, RiskLevelListView, NonConformanceTypeListView,
+    ISOClauseListView,
 )
 
 urlpatterns = [
@@ -324,5 +327,14 @@ urlpatterns = [
     path("lookups/risk-ratings/", RiskRatingListView.as_view(), name="risk-rating-list"),
     path("lookups/audit-opinions/", AuditOpinionListView.as_view(), name="audit-opinion-list"),
     path("lookups/users/", GRCUsersByRoleView.as_view(), name="grc-users-by-role"),
+
+    # Risk Management lookup endpoints
+    path("lookups/risk/", RiskLookupDataView.as_view(), name="risk-lookup-data-all"),
+    path("lookups/risk-categories/", RiskCategoryListView.as_view(), name="risk-category-list"),
+    path("lookups/risk-likelihoods/", RiskLikelihoodListView.as_view(), name="risk-likelihood-list"),
+    path("lookups/risk-impacts/", RiskImpactListView.as_view(), name="risk-impact-list"),
+    path("lookups/risk-levels/", RiskLevelListView.as_view(), name="risk-level-list"),
+    path("lookups/non-conformance-types/", NonConformanceTypeListView.as_view(), name="non-conformance-type-list"),
+    path("lookups/iso-clauses/", ISOClauseListView.as_view(), name="iso-clause-list"),
 ]
 

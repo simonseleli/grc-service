@@ -506,3 +506,120 @@ class DirectiveCategory(BaseModel, StatusMixin):
 
     def __str__(self):
         return self.name
+
+
+# ── Risk Management Lookup Tables ────────────────────────────────────────────
+
+
+class RiskCategory(TimestampedModel, StatusMixin):
+    """Risk category classification for risk assessment sheets."""
+    code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = 'grc_risk_category'
+        ordering = ['sort_order', 'name']
+        verbose_name = 'Risk Category'
+        verbose_name_plural = 'Risk Categories'
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+
+class RiskLikelihood(TimestampedModel, StatusMixin):
+    """Standardized risk likelihood scale (1–5)."""
+    code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=100)
+    label = models.CharField(max_length=100, blank=True)
+    description = models.TextField(blank=True)
+    numerical_value = models.DecimalField(max_digits=5, decimal_places=2)
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = 'grc_risk_likelihood'
+        ordering = ['sort_order', 'numerical_value']
+        verbose_name = 'Risk Likelihood'
+        verbose_name_plural = 'Risk Likelihoods'
+
+    def __str__(self):
+        return f"{self.name} ({self.numerical_value})"
+
+
+class RiskImpact(TimestampedModel, StatusMixin):
+    """Standardized risk impact scale (1–5)."""
+    code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=100)
+    label = models.CharField(max_length=100, blank=True)
+    description = models.TextField(blank=True)
+    numerical_value = models.DecimalField(max_digits=5, decimal_places=2)
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = 'grc_risk_impact'
+        ordering = ['sort_order', 'numerical_value']
+        verbose_name = 'Risk Impact'
+        verbose_name_plural = 'Risk Impacts'
+
+    def __str__(self):
+        return f"{self.name} ({self.numerical_value})"
+
+
+class RiskLevel(TimestampedModel, StatusMixin):
+    """Risk level thresholds for auto-classification of risk scores."""
+    code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    min_score = models.DecimalField(max_digits=6, decimal_places=2)
+    max_score = models.DecimalField(max_digits=6, decimal_places=2)
+    color_code = models.CharField(max_length=7, default='#6B7280')
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = 'grc_risk_level'
+        ordering = ['sort_order', 'min_score']
+        verbose_name = 'Risk Level'
+        verbose_name_plural = 'Risk Levels'
+
+    def __str__(self):
+        return f"{self.name} ({self.min_score}–{self.max_score})"
+
+
+class NonConformanceType(TimestampedModel, StatusMixin):
+    """Classification of non-conformances for QMS audits."""
+    code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = 'grc_risk_nc_type'
+        ordering = ['sort_order', 'name']
+        verbose_name = 'Non-Conformance Type'
+        verbose_name_plural = 'Non-Conformance Types'
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+
+class ISOClause(TimestampedModel, StatusMixin):
+    """ISO 9001:2015 clause hierarchy for QMS audit checklists."""
+    code = models.CharField(max_length=50, unique=True)
+    clause_number = models.CharField(max_length=20, help_text="e.g. '4.1', '7.1.5'")
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    parent_clause = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='sub_clauses'
+    )
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = 'grc_risk_iso_clause'
+        ordering = ['sort_order', 'clause_number']
+        verbose_name = 'ISO Clause'
+        verbose_name_plural = 'ISO Clauses'
+
+    def __str__(self):
+        return f"{self.clause_number} – {self.title}"

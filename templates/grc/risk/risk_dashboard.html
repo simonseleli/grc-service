@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Risk Management Dashboard Report</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 20mm 25mm 60mm 25mm;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11pt;
+      color: #1a1a1a;
+      line-height: 1.55;
+      margin: 0;
+      padding: 0;
+    }
+
+    .header {
+      text-align: center;
+      border-bottom: 2px solid #1a3a5c;
+      padding-bottom: 12px;
+      margin-bottom: 22px;
+    }
+
+    .org-name {
+      font-size: 13pt;
+      font-weight: bold;
+      color: #1a3a5c;
+      letter-spacing: 0.5px;
+      margin: 0 0 4px;
+    }
+
+    .doc-title {
+      font-size: 12pt;
+      font-weight: bold;
+      color: #222;
+      margin: 0 0 4px;
+    }
+
+    .meta {
+      font-size: 9pt;
+      color: #666;
+      margin: 0;
+    }
+
+    .section {
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-size: 11pt;
+      font-weight: bold;
+      color: #1a3a5c;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 4px;
+      margin-bottom: 10px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10pt;
+      margin-top: 6px;
+    }
+
+    th {
+      background: #1a3a5c;
+      color: #fff;
+      text-align: left;
+      padding: 6px 8px;
+      font-size: 10pt;
+    }
+
+    td {
+      padding: 5px 8px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    tr:nth-child(even) td {
+      background: #f7f9fc;
+    }
+
+    .stat-box {
+      display: inline-block;
+      width: 22%;
+      text-align: center;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 10px 6px;
+      margin-right: 2%;
+      vertical-align: top;
+    }
+
+    .stat-value {
+      font-size: 20pt;
+      font-weight: bold;
+      color: #1a3a5c;
+    }
+
+    .stat-label {
+      font-size: 8pt;
+      color: #666;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <p class="org-name">FIMS — Risk Management</p>
+    <p class="doc-title">Risk Dashboard Summary Report</p>
+    <p class="meta">
+      Generated: {{ generated_at|date:"d M Y H:i" }}
+      {% if fiscal_year %} &nbsp;|&nbsp; Fiscal Year: {{ fiscal_year }}{% endif %}
+    </p>
+  </div>
+
+  <!-- Risk Assessments -->
+  <div class="section">
+    <div class="section-title">Risk Assessments</div>
+    <div class="stat-box">
+      <div class="stat-value">{{ data.assessments.total|default:"0" }}</div>
+      <div class="stat-label">Total</div>
+    </div>
+  </div>
+
+  <!-- Departmental Risk Registers -->
+  {% if data.dept_registers %}
+  <div class="section">
+    <div class="section-title">Departmental Risk Registers</div>
+    <table>
+      <tr><th>Status</th><th>Count</th></tr>
+      {% for status, count in data.dept_registers.items %}
+      <tr><td>{{ status }}</td><td>{{ count }}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+
+  <!-- Institutional Risk Registers -->
+  {% if data.inst_registers %}
+  <div class="section">
+    <div class="section-title">Institutional Risk Registers</div>
+    <table>
+      <tr><th>Status</th><th>Count</th></tr>
+      {% for status, count in data.inst_registers.items %}
+      <tr><td>{{ status }}</td><td>{{ count }}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+
+  <!-- RTAPs -->
+  {% if data.rtaps %}
+  <div class="section">
+    <div class="section-title">Risk Treatment Action Plans</div>
+    <table>
+      <tr><th>Status</th><th>Count</th></tr>
+      {% for status, count in data.rtaps.items %}
+      <tr><td>{{ status }}</td><td>{{ count }}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+
+  <!-- Non-Conformances -->
+  {% if data.non_conformances %}
+  <div class="section">
+    <div class="section-title">Non-Conformances</div>
+    <table>
+      <tr><th>Status</th><th>Count</th></tr>
+      {% for status, count in data.non_conformances.items %}
+      <tr><td>{{ status }}</td><td>{{ count }}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+
+</body>
+</html>

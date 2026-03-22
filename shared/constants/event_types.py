@@ -157,6 +157,41 @@ LEGAL_NOTICE_EVENTS = {
     'NOTICE_ISSUED': 'grc.legal.notice.issued',
 }
 
+# ── Risk Management Module Events ───────────────────────────────────────
+
+# Risk Champion Events
+RISK_CHAMPION_EVENTS = {
+    'CHAMPION_APPOINTED': 'grc.risk.champion.appointed',
+}
+
+# Risk Register Events
+RISK_REGISTER_EVENTS = {
+    'DEPARTMENTAL_APPROVED': 'grc.risk.register.departmental.approved',
+    'INSTITUTIONAL_SUBMITTED': 'grc.risk.register.institutional.submitted',
+}
+
+# Risk Treatment Action Plan Events
+RTAP_EVENTS = {
+    'RTAP_APPROVED': 'grc.risk.rtap.approved',
+    'RTAP_UPDATED': 'grc.risk.rtap.updated',
+}
+
+# Quarterly Risk Report Events
+QUARTERLY_RISK_REPORT_EVENTS = {
+    'RISK_REPORT_SUBMITTED': 'grc.risk.quarterly_report.submitted',
+}
+
+# Quality Auditor Events
+QA_EVENTS = {
+    'QA_APPOINTED': 'grc.risk.qa.appointed',
+}
+
+# QMS Audit Events
+QMS_AUDIT_EVENTS = {
+    'NC_RAISED': 'grc.qms.audit.nc.raised',
+    'REPORT_SIGNED': 'grc.qms.audit.report.signed',
+}
+
 # All GRC event types combined
 ALL_GRC_EVENT_TYPES = {
     **AUDIT_ENGAGEMENT_EVENTS,
@@ -180,4 +215,10 @@ ALL_GRC_EVENT_TYPES = {
     **LEGAL_FILING_EVENTS,
     **LEGAL_SETTLEMENT_EVENTS,
     **LEGAL_NOTICE_EVENTS,
+    **RISK_CHAMPION_EVENTS,
+    **RISK_REGISTER_EVENTS,
+    **RTAP_EVENTS,
+    **QUARTERLY_RISK_REPORT_EVENTS,
+    **QA_EVENTS,
+    **QMS_AUDIT_EVENTS,
 }

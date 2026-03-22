@@ -641,6 +641,15 @@ class CanCloseLegalCase(BasePermission):
         return _check_grc_permission_locally(request, 'grc:legal_case:close')
 
 
+class CanRegisterLegalCase(BasePermission):
+    """Check: grc:legal_case:register — Registry Officer: create cases without full management access."""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_case:register')
+
+
 # ── Legal Filing ──────────────────────────────────────────────────────────────
 
 class CanViewLegalFiling(BasePermission):
@@ -768,6 +777,15 @@ class CanManageLegalDirective(BasePermission):
         return _check_grc_permission_locally(request, 'grc:legal_directive:manage')
 
 
+class CanApproveDirectiveClosure(BasePermission):
+    """Check: grc:legal_directive:approve_closure — DG approves or rejects litigation directive closure."""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_directive:approve_closure')
+
+
 # ── Legal Appeal ──────────────────────────────────────────────────────────────
 
 class CanViewLegalAppeal(BasePermission):
@@ -826,3 +844,280 @@ class CanManagePublicDecision(BasePermission):
         if not request.user or not request.user.is_authenticated:
             return False
         return _check_grc_permission_locally(request, 'grc:legal_public_decision:manage')
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Risk Management Module permission classes
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ── Risk Champion ─────────────────────────────────────────────────────────────
+
+class CanViewRiskChampion(BasePermission):
+    """Check: grc:risk_champion:view"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:risk_champion:view')
+
+
+class CanManageRiskChampion(BasePermission):
+    """Check: grc:risk_champion:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:risk_champion:manage')
+
+
+# ── Risk Assessment (Risk Management) ────────────────────────────────────────
+
+class CanConductRiskAssessmentRM(BasePermission):
+    """Check: grc:risk_assessment:conduct — Risk Champions conduct risk assessments."""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:risk_assessment:conduct')
+
+
+class CanReviewRiskAssessmentRM(BasePermission):
+    """Check: grc:risk_assessment:review — RMQAM reviews submitted risk assessments."""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:risk_assessment:review')
+
+
+# ── Departmental Risk Register ────────────────────────────────────────────────
+
+class CanManageDeptRiskRegister(BasePermission):
+    """Check: grc:dept_risk_register:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:dept_risk_register:manage')
+
+
+class CanApproveDeptRiskRegister(BasePermission):
+    """Check: grc:dept_risk_register:approve"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:dept_risk_register:approve')
+
+
+# ── Institutional Risk Register ───────────────────────────────────────────────
+
+class CanManageInstitutionalRiskRegister(BasePermission):
+    """Check: grc:institutional_risk_register:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:institutional_risk_register:manage')
+
+
+class CanApproveInstitutionalRiskRegister(BasePermission):
+    """Check: grc:institutional_risk_register:approve"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:institutional_risk_register:approve')
+
+
+# ── Risk Treatment Action Plan (RTAP) ────────────────────────────────────────
+
+class CanManageRTAP(BasePermission):
+    """Check: grc:rtap:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:rtap:manage')
+
+
+class CanApproveRTAP(BasePermission):
+    """Check: grc:rtap:approve"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:rtap:approve')
+
+
+class CanRespondRTAP(BasePermission):
+    """Check: grc:rtap:respond — Risk Champions respond to RTAP items."""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:rtap:respond')
+
+
+# ── Quarterly Risk Report ────────────────────────────────────────────────────
+
+class CanManageQuarterlyRiskReport(BasePermission):
+    """Check: grc:quarterly_risk_report:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:quarterly_risk_report:manage')
+
+
+class CanApproveQuarterlyRiskReport(BasePermission):
+    """Check: grc:quarterly_risk_report:approve"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:quarterly_risk_report:approve')
+
+
+# ── Quality Auditor ───────────────────────────────────────────────────────────
+
+class CanManageQualityAuditor(BasePermission):
+    """Check: grc:quality_auditor:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:quality_auditor:manage')
+
+
+# ── QMS Audit Program ────────────────────────────────────────────────────────
+
+class CanManageQMSAuditProgram(BasePermission):
+    """Check: grc:qms_audit_program:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:qms_audit_program:manage')
+
+
+class CanApproveQMSAuditProgram(BasePermission):
+    """Check: grc:qms_audit_program:approve"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:qms_audit_program:approve')
+
+
+# ── QMS Audit Plan ────────────────────────────────────────────────────────────
+
+class CanManageQMSAuditPlan(BasePermission):
+    """Check: grc:qms_audit_plan:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:qms_audit_plan:manage')
+
+
+class CanApproveQMSAuditPlan(BasePermission):
+    """Check: grc:qms_audit_plan:approve"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:qms_audit_plan:approve')
+
+
+# ── QMS Checklist ─────────────────────────────────────────────────────────────
+
+class CanManageQMSChecklist(BasePermission):
+    """Check: grc:qms_checklist:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:qms_checklist:manage')
+
+
+# ── QMS Audit Report ─────────────────────────────────────────────────────────
+
+class CanManageQMSAuditReport(BasePermission):
+    """Check: grc:qms_audit_report:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:qms_audit_report:manage')
+
+
+class CanSignQMSAuditReport(BasePermission):
+    """Check: grc:qms_audit_report:sign"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:qms_audit_report:sign')
+
+
+# ── Non-Conformance ──────────────────────────────────────────────────────────
+
+class CanManageNonConformance(BasePermission):
+    """Check: grc:non_conformance:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:non_conformance:manage')
+
+
+class CanRespondNonConformance(BasePermission):
+    """Check: grc:non_conformance:respond"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:non_conformance:respond')
+
+
+# ── Risk Dashboard ────────────────────────────────────────────────────────────
+
+class CanViewRiskDashboard(BasePermission):
+    """Check: grc:risk_dashboard:view"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:risk_dashboard:view')
+
+
+# ── Risk Meeting [GAP-01] ────────────────────────────────────────────────────
+
+class CanManageRiskMeeting(BasePermission):
+    """Check: grc:risk_meeting:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:risk_meeting:manage')
+
+
+class CanViewRiskMeeting(BasePermission):
+    """Check: grc:risk_meeting:view"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:risk_meeting:view')
+
+
+# ── QA Training [GAP-02] ─────────────────────────────────────────────────────
+
+class CanManageQATraining(BasePermission):
+    """Check: grc:qa_training:manage"""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:qa_training:manage')

@@ -5,7 +5,9 @@ URL configuration for GRC configuration management endpoints
 from django.urls import path
 from apps.api.views.config_views import (
     ConfigFiscalYearView, ConfigQuarterView, ConfigAuditSeverityView, ConfigFindingTypeView,
-    ConfigRiskRatingView, ConfigSystemView
+    ConfigRiskRatingView, ConfigSystemView,
+    ConfigRiskCategoryView, ConfigRiskLikelihoodView, ConfigRiskImpactView,
+    ConfigRiskLevelView, ConfigNonConformanceTypeView, ConfigISOClauseView,
 )
 
 urlpatterns = [
@@ -30,4 +32,18 @@ urlpatterns = [
     
     # System Configuration
     path('system/', ConfigSystemView.as_view(), name='config-system'),
+
+    # Risk Management Lookup Configuration
+    path('risk-categories/', ConfigRiskCategoryView.as_view(), name='config-risk-categories'),
+    path('risk-categories/<uuid:pk>/', ConfigRiskCategoryView.as_view(), name='config-risk-category-detail'),
+    path('risk-likelihoods/', ConfigRiskLikelihoodView.as_view(), name='config-risk-likelihoods'),
+    path('risk-likelihoods/<uuid:pk>/', ConfigRiskLikelihoodView.as_view(), name='config-risk-likelihood-detail'),
+    path('risk-impacts/', ConfigRiskImpactView.as_view(), name='config-risk-impacts'),
+    path('risk-impacts/<uuid:pk>/', ConfigRiskImpactView.as_view(), name='config-risk-impact-detail'),
+    path('risk-levels/', ConfigRiskLevelView.as_view(), name='config-risk-levels'),
+    path('risk-levels/<uuid:pk>/', ConfigRiskLevelView.as_view(), name='config-risk-level-detail'),
+    path('non-conformance-types/', ConfigNonConformanceTypeView.as_view(), name='config-non-conformance-types'),
+    path('non-conformance-types/<uuid:pk>/', ConfigNonConformanceTypeView.as_view(), name='config-non-conformance-type-detail'),
+    path('iso-clauses/', ConfigISOClauseView.as_view(), name='config-iso-clauses'),
+    path('iso-clauses/<uuid:pk>/', ConfigISOClauseView.as_view(), name='config-iso-clause-detail'),
 ]

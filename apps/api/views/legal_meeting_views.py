@@ -10,7 +10,7 @@ from django.conf import settings
 from django.db import transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404
-from rest_framework import status
+from rest_framework import exceptions, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
@@ -38,6 +38,20 @@ from apps.api.utils.response_helpers import (
 logger = logging.getLogger(__name__)
 
 LOCKED_STATUSES = ('closed', 'cancelled')
+
+
+def _generate_meeting_number(gb, sequence: int) -> str:
+    """Generate meeting number using GoverningBody prefix and format config (MIN-18 / B4-5)."""
+    from datetime import datetime
+    now = datetime.now()
+    prefix = (gb.meeting_number_prefix or '').strip() or 'MTG'
+    fmt = gb.meeting_number_format or 'sequential'
+    if fmt == 'financial_year':
+        # Financial year: July-June.  FY = year of July start.
+        fy = now.year if now.month >= 7 else now.year - 1
+        return f"{prefix}-FY{fy}/{fy + 1}-{sequence:03d}"
+    # Default: sequential with YYYYMM
+    return f"{prefix}-{now.strftime('%Y%m')}-{sequence:03d}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -147,8 +161,7 @@ class MeetingListCreateView(APIView):
                     )
                     counter.sequence += 1
                     counter.save(update_fields=['sequence'])
-                    now = datetime.now()
-                    meeting_number = f"MTG-{now.strftime('%Y%m')}-{counter.sequence:03d}"
+                    meeting_number = _generate_meeting_number(gb, counter.sequence)
 
             with transaction.atomic():
                 entity = serializer.save(
@@ -1075,5 +1088,76 @@ class MeetingPopulateMattersArisingView(APIView):
             logger.exception("Failed to populate matters arising")
             return server_error_response(
                 message="Failed to populate matters arising",
+                details=str(e) if settings.DEBUG else None,
+            )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Meeting Directives Sub-Resource (SIG-02 / B4-4)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class MeetingDirectivesSubResourceView(APIView):
+    """
+    GET /legal/meetings/<pk>/directives/
+    Returns directives for a meeting, scoped to invitees (participants).
+    Any authenticated participant of the meeting can view.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            meeting = get_object_or_404(Meeting, pk=pk, is_active=True)
+            user_id = getattr(request.user, 'id', None)
+
+            # Check if user is a participant of this meeting OR has manage permission
+            is_participant = MeetingParticipant.objects.filter(
+                meeting=meeting, user_id=user_id, is_active=True,
+            ).exists()
+            has_manage = CanManageLegalMeeting().has_permission(request, self)
+            has_view = CanViewLegalMeeting().has_permission(request, self)
+
+            if not (is_participant or has_manage or has_view):
+                self.permission_denied(
+                    request,
+                    message='Must be a meeting participant or have meeting view/manage permission.',
+                )
+
+            from apps.api.serializers.legal_serializers import MeetingDirectiveSerializer
+            queryset = MeetingDirective.objects.select_related(
+                'meeting', 'agenda_item', 'directive_priority', 'directive_category',
+            ).filter(meeting=meeting, is_active=True)
+
+            # Optional filters
+            status_filter = request.query_params.get('status')
+            assigned_user = request.query_params.get('assigned_user_id')
+            if status_filter:
+                queryset = queryset.filter(status=status_filter)
+            if assigned_user:
+                queryset = queryset.filter(assigned_user_id=assigned_user)
+
+            from apps.api.utils.pagination import paginate_queryset, get_ordering_param
+            ordering = get_ordering_param(
+                request, default='-created_at',
+                allowed_fields=['due_date', 'status', 'created_at'],
+            )
+            queryset = queryset.order_by(ordering)
+
+            page_data = paginate_queryset(queryset, request)
+            serializer = MeetingDirectiveSerializer(page_data['queryset'], many=True)
+
+            return paginated_list_response(
+                items=serializer.data,
+                count=page_data['total'],
+                page=page_data['page'],
+                page_size=page_data['page_size'],
+                resource='meeting_directive',
+            )
+        except (exceptions.PermissionDenied, exceptions.NotAuthenticated):
+            raise
+        except Exception as e:
+            logger.exception("Failed to retrieve meeting directives sub-resource")
+            return server_error_response(
+                message="Failed to retrieve meeting directives",
                 details=str(e) if settings.DEBUG else None,
             )

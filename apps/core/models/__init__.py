@@ -6,6 +6,7 @@ from .lookups import *
 from .organizational import *
 from .audit_entities import *
 from .legal_entities import *
+from .risk_entities import *
 
 __all__ = [
     'BaseModel',
@@ -14,6 +15,9 @@ __all__ = [
     # Legal Lookup Models
     'CourtLevel', 'LitigationUrgencyLevel', 'LitigationRiskLevel',
     'MeetingMode', 'MeetingType', 'DirectivePriority', 'DirectiveCategory',
+    # Risk Management Lookup Models
+    'RiskCategory', 'RiskLikelihood', 'RiskImpact', 'RiskLevel',
+    'NonConformanceType', 'ISOClause',
     # Organizational Models  
     'Directorate', 'Department', 'Unit', 'Section', 'OrganizationalSyncLog',
     # Core Audit Models
@@ -52,4 +56,23 @@ __all__ = [
     'LegalNotice',
     # Legal Cross-cutting
     'LegalAuditLog',
+    # Risk Management Models — Group 1: Risk Champion & QA Appointment
+    'RiskChampion', 'RiskChampionAppointment',
+    'QualityAuditor', 'QualityAuditorAppointment',
+    # Risk Management Models — Group 2: Risk Assessment & Departmental Register
+    'RiskAssessmentSheet', 'DepartmentalRiskRegister', 'DeptRegisterEntry',
+    # Risk Management Models — Group 3: Institutional Register & RTAP
+    'InstitutionalRiskRegister', 'InstitutionalRiskEntry',
+    'RiskTreatmentActionPlan', 'RTAPItem', 'RTAPQuarterlyUpdate',
+    # Risk Management Models — Group 4: Quarterly Reporting
+    'QuarterlyPerformanceReport', 'ActivityReport',
+    # Risk Management Models — Group 5: QMS Audit
+    'QMSAuditProgram', 'QMSAuditPlan', 'QMSAuditTeamAssignment',
+    'AuditChecklist', 'QMSAuditReport', 'NonConformance',
+    # Risk Management Models — Group 6: Meeting & Workshop [GAP-01, GAP-08]
+    'RiskMeeting', 'MeetingAttendance',
+    # Risk Management Models — Group 7: QA Training [GAP-02]
+    'QATrainingSession', 'QATrainingAttendee',
+    # Risk Management Models — Group 8: QMS Audit Support [GAP-05, GAP-10]
+    'QMSAuditMeeting', 'QMSAuditTimetableEntry',
 ]

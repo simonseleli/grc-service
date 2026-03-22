@@ -11,6 +11,8 @@ from apps.core.models import (
 from apps.core.models.lookups import (
     CourtLevel, LitigationUrgencyLevel, LitigationRiskLevel,
     MeetingMode, MeetingType, DirectivePriority, DirectiveCategory,
+    RiskCategory, RiskLikelihood, RiskImpact, RiskLevel,
+    NonConformanceType, ISOClause,
 )
 
 
@@ -136,4 +138,49 @@ class DirectiveCategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = DirectiveCategory
         fields = ['id', 'code', 'name', 'description', 'is_active']
+
+
+# ── Risk Management Lookup Serializers ───────────────────────────────────────
+
+
+class RiskCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RiskCategory
+        fields = ['id', 'code', 'name', 'description', 'sort_order', 'is_active']
+        read_only_fields = ['id']
+
+
+class RiskLikelihoodSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RiskLikelihood
+        fields = ['id', 'code', 'name', 'label', 'numerical_value', 'sort_order', 'is_active']
+        read_only_fields = ['id']
+
+
+class RiskImpactSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RiskImpact
+        fields = ['id', 'code', 'name', 'label', 'numerical_value', 'sort_order', 'is_active']
+        read_only_fields = ['id']
+
+
+class RiskLevelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RiskLevel
+        fields = ['id', 'code', 'name', 'min_score', 'max_score', 'color_code', 'sort_order', 'is_active']
+        read_only_fields = ['id']
+
+
+class NonConformanceTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NonConformanceType
+        fields = ['id', 'code', 'name', 'description', 'sort_order', 'is_active']
+        read_only_fields = ['id']
+
+
+class ISOClauseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ISOClause
+        fields = ['id', 'code', 'clause_number', 'title', 'description', 'parent_clause', 'sort_order', 'is_active']
+        read_only_fields = ['id']
         read_only_fields = ['id']

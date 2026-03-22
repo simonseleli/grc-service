@@ -22,7 +22,7 @@ from apps.api.serializers.legal_serializers import (
     TaskLitigationSerializer,
 )
 from apps.api.permissions_jwt import (
-    CanViewLegalDirective, CanManageLegalDirective,
+    CanViewLegalDirective, CanManageLegalDirective, CanApproveDirectiveClosure,
 )
 from apps.api.utils.pagination import paginate_queryset, get_ordering_param
 from apps.api.utils.response_helpers import (
@@ -657,3 +657,101 @@ class TaskLitigationOverdueListView(APIView):
                 message="Failed to retrieve overdue litigation tasks",
                 details=str(e) if settings.DEBUG else None,
             )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Litigation Directive — Submit for DG Approval / DG Decision (SIG-03 / B4-3)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+VALID_DIRECTIVE_DG_DECISIONS = ('approve', 'reject')
+
+
+class LitigationDirectiveSubmitForDGApprovalView(APIView):
+    """POST /legal/litigation-directives/<pk>/submit-for-dg-approval/"""
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanManageLegalDirective().has_permission(request, self):
+            self.permission_denied(request, message='grc:legal_directive:manage required.')
+
+    def post(self, request, pk):
+        user_id = getattr(request.user, 'id', None)
+        if not user_id:
+            return error_response(
+                message="User not authenticated", code="AUTH_REQUIRED",
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        entity = get_object_or_404(LitigationDirective, pk=pk, is_active=True)
+
+        if not entity.requires_dg_approval_for_closure:
+            return error_response(
+                message="This directive does not require DG approval for closure",
+                code="DG_APPROVAL_NOT_REQUIRED",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if entity.status not in ('open', 'in_progress'):
+            return error_response(
+                message=f"Cannot submit for DG approval from status '{entity.status}'",
+                code="INVALID_STATUS_TRANSITION",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            entity.status = 'pending_dg_approval'
+            entity.save(update_fields=['status', 'updated_at'])
+
+        return success_response(
+            data=LitigationDirectiveSerializer(entity).data,
+        )
+
+
+class LitigationDirectiveDGDecisionView(APIView):
+    """POST /legal/litigation-directives/<pk>/dg-decision/"""
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanApproveDirectiveClosure().has_permission(request, self):
+            self.permission_denied(request, message='grc:legal_directive:approve_closure required.')
+
+    def post(self, request, pk):
+        user_id = getattr(request.user, 'id', None)
+        if not user_id:
+            return error_response(
+                message="User not authenticated", code="AUTH_REQUIRED",
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        decision = request.data.get('decision')
+        if decision not in VALID_DIRECTIVE_DG_DECISIONS:
+            return error_response(
+                message=f"'decision' must be one of {VALID_DIRECTIVE_DG_DECISIONS}",
+                code="INVALID_DECISION",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        entity = get_object_or_404(LitigationDirective, pk=pk, is_active=True)
+
+        if entity.status != 'pending_dg_approval':
+            return error_response(
+                message="Directive is not pending DG approval",
+                code="NOT_PENDING_APPROVAL",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            if decision == 'approve':
+                entity.status = 'closed'
+                entity.completion_date = timezone.now().date()
+            else:
+                entity.status = 'in_progress'
+            entity.save(update_fields=['status', 'completion_date', 'updated_at'])
+
+        return success_response(
+            data=LitigationDirectiveSerializer(entity).data,
+        )

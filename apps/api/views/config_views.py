@@ -19,9 +19,15 @@ from apps.core.models import (
     FiscalYear, Quarter, AuditSeverity, FindingType, 
     RiskRating, AuditOpinion
 )
+from apps.core.models.lookups import (
+    RiskCategory, RiskLikelihood, RiskImpact, RiskLevel,
+    NonConformanceType, ISOClause,
+)
 from apps.api.serializers.lookup_serializers import (
     FiscalYearSerializer, QuarterSerializer, AuditSeveritySerializer,
-    FindingTypeSerializer, RiskRatingSerializer, AuditOpinionSerializer
+    FindingTypeSerializer, RiskRatingSerializer, AuditOpinionSerializer,
+    RiskCategorySerializer, RiskLikelihoodSerializer, RiskImpactSerializer,
+    RiskLevelSerializer, NonConformanceTypeSerializer, ISOClauseSerializer,
 )
 from rest_framework.permissions import IsAuthenticated
 from apps.api.permissions_jwt import (
@@ -1039,3 +1045,129 @@ class ConfigSystemView(APIView):
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+# ── Risk Management Config Views ────────────────────────────────────────────
+
+
+class _RiskLookupConfigBase(APIView):
+    """
+    Base class for Risk Management lookup CRUD views.
+    Subclasses set model_class, serializer_class, resource_name, and label.
+    """
+    permission_classes = [IsAuthenticated]
+    model_class = None
+    serializer_class = None
+    resource_name = ''
+    label = ''
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if request.method != 'GET' and not CanManageSystemConfig().has_permission(request, self):
+            self.permission_denied(request, message='grc:config:system:manage required.')
+
+    def get(self, request, pk=None):
+        if pk:
+            try:
+                obj = self.model_class.objects.get(pk=pk)
+                return success_response(data=self.serializer_class(obj).data)
+            except self.model_class.DoesNotExist:
+                return not_found_response(message=f'{self.label} not found')
+        try:
+            queryset = self.model_class.objects.all()
+            ordering = get_ordering_param(request, default='sort_order', allowed_fields=['sort_order', 'name', 'code'])
+            queryset = queryset.order_by(ordering)
+            page_data = paginate_queryset(queryset, request)
+            serializer = self.serializer_class(page_data["queryset"], many=True)
+            return paginated_list_response(
+                items=serializer.data, count=page_data["total"],
+                page=page_data["page"], page_size=page_data["page_size"],
+                resource=self.resource_name,
+            )
+        except Exception as e:
+            logger.exception(f"Failed to retrieve {self.label} configuration")
+            return server_error_response(message=f"Failed to retrieve {self.label} configuration", details=str(e) if settings.DEBUG else None)
+
+    def post(self, request):
+        try:
+            serializer = self.serializer_class(data=request.data)
+            if serializer.is_valid():
+                obj = serializer.save(created_by=request.user.id if hasattr(request, 'user') else None)
+                return created_response(data=self.serializer_class(obj).data, message=f'{self.label} created successfully')
+            return validation_error_response(errors=serializer.errors)
+        except Exception as e:
+            logger.exception(f"Failed to create {self.label}")
+            return server_error_response(message=f"Failed to create {self.label}", details=str(e) if settings.DEBUG else None)
+
+    def put(self, request, pk=None):
+        if not pk:
+            return error_response(message='ID is required for update', status_code=status.HTTP_400_BAD_REQUEST)
+        try:
+            obj = self.model_class.objects.get(pk=pk)
+            serializer = self.serializer_class(obj, data=request.data, partial=True)
+            if serializer.is_valid():
+                updated = serializer.save(modified_by=request.user.id if hasattr(request, 'user') else None)
+                return updated_response(data=self.serializer_class(updated).data, message=f'{self.label} updated successfully')
+            return validation_error_response(errors=serializer.errors)
+        except self.model_class.DoesNotExist:
+            return not_found_response(message=f'{self.label} not found')
+        except Exception as e:
+            logger.exception(f"Failed to update {self.label}")
+            return server_error_response(message=f"Failed to update {self.label}", details=str(e) if settings.DEBUG else None)
+
+    def delete(self, request, pk=None):
+        if not pk:
+            return error_response(message='ID is required for delete', status_code=status.HTTP_400_BAD_REQUEST)
+        try:
+            obj = self.model_class.objects.get(pk=pk)
+            obj.is_active = False
+            obj.modified_by = request.user.id if hasattr(request, 'user') else None
+            obj.save()
+            return deleted_response(message=f'{self.label} deactivated successfully')
+        except self.model_class.DoesNotExist:
+            return not_found_response(message=f'{self.label} not found')
+        except Exception as e:
+            logger.exception(f"Failed to deactivate {self.label}")
+            return server_error_response(message=f"Failed to deactivate {self.label}", details=str(e) if settings.DEBUG else None)
+
+
+class ConfigRiskCategoryView(_RiskLookupConfigBase):
+    model_class = RiskCategory
+    serializer_class = RiskCategorySerializer
+    resource_name = 'config_risk_category'
+    label = 'Risk Category'
+
+
+class ConfigRiskLikelihoodView(_RiskLookupConfigBase):
+    model_class = RiskLikelihood
+    serializer_class = RiskLikelihoodSerializer
+    resource_name = 'config_risk_likelihood'
+    label = 'Risk Likelihood'
+
+
+class ConfigRiskImpactView(_RiskLookupConfigBase):
+    model_class = RiskImpact
+    serializer_class = RiskImpactSerializer
+    resource_name = 'config_risk_impact'
+    label = 'Risk Impact'
+
+
+class ConfigRiskLevelView(_RiskLookupConfigBase):
+    model_class = RiskLevel
+    serializer_class = RiskLevelSerializer
+    resource_name = 'config_risk_level'
+    label = 'Risk Level'
+
+
+class ConfigNonConformanceTypeView(_RiskLookupConfigBase):
+    model_class = NonConformanceType
+    serializer_class = NonConformanceTypeSerializer
+    resource_name = 'config_non_conformance_type'
+    label = 'Non-Conformance Type'
+
+
+class ConfigISOClauseView(_RiskLookupConfigBase):
+    model_class = ISOClause
+    serializer_class = ISOClauseSerializer
+    resource_name = 'config_iso_clause'
+    label = 'ISO Clause'

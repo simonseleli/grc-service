@@ -441,6 +441,8 @@ class SubmissionForDeterminationListCreateView(APIView):
 
     def check_permissions(self, request):
         super().check_permissions(request)
+        # POST: any authenticated user may create a submission (SRS §1.1 / CRIT-01).
+        # GET: requires view or manage permission.
         if request.method == 'GET':
             can_view = CanViewLegalGoverningBody().has_permission(request, self)
             can_manage = CanManageLegalGoverningBody().has_permission(request, self)
@@ -448,12 +450,6 @@ class SubmissionForDeterminationListCreateView(APIView):
                 self.permission_denied(
                     request,
                     message='grc:legal_governing_body:view or :manage permission required.',
-                )
-        else:
-            if not CanManageLegalGoverningBody().has_permission(request, self):
-                self.permission_denied(
-                    request,
-                    message='grc:legal_governing_body:manage permission required.',
                 )
 
     def get(self, request):

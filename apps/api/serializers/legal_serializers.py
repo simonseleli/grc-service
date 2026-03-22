@@ -67,6 +67,7 @@ class GoverningBodySerializer(serializers.ModelSerializer):
         fields = [
             'id', 'committee_type', 'committee_type_id', 'name',
             'composite_title', 'description', 'secretary_user_ids',
+            'meeting_number_prefix', 'meeting_number_format',
             'is_active', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -134,6 +135,7 @@ class MeetingSerializer(serializers.ModelSerializer):
             'status', 'secretary_id',
             'total_member_count', 'rsvp_yes_count', 'rsvp_no_count',
             'rsvp_pending_count', 'quorum_met', 'quorum_percentage',
+            'reschedule_reason',
             'workflow_plan_id', 'workflow_stage',
             'is_active', 'created_at', 'updated_at',
         ]
@@ -253,6 +255,7 @@ class CaseDefendantSerializer(serializers.ModelSerializer):
             'assigned_legal_officer_ids', 'assigned_legal_manager_id',
             'next_hearing_date',
             'is_archived', 'archived_at', 'archived_by',
+            'hold_reason',
             'workflow_plan_id', 'workflow_stage',
             'is_active', 'created_at', 'updated_at',
         ]
@@ -365,7 +368,8 @@ class LitigationDirectiveSerializer(serializers.ModelSerializer):
             'id', 'case_defendant', 'case_plaintiff',
             'issued_by_user_id', 'issue_date', 'instruction',
             'due_date', 'status', 'completion_summary', 'completion_date',
-            'attachments', 'is_active', 'created_at', 'updated_at',
+            'attachments', 'requires_dg_approval_for_closure',
+            'is_active', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
@@ -377,6 +381,7 @@ class TaskLitigationSerializer(serializers.ModelSerializer):
             'id', 'case_defendant', 'case_plaintiff',
             'title', 'assigned_to_user_id', 'due_date',
             'status', 'priority', 'related_entity_type', 'related_entity_id',
+            'auto_created',
             'is_active', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -406,6 +411,7 @@ class CasePlaintiffSerializer(serializers.ModelSerializer):
             'assigned_legal_officer_ids', 'assigned_legal_manager_id',
             'next_hearing_date',
             'is_archived', 'archived_at', 'archived_by',
+            'hold_reason',
             'workflow_plan_id', 'workflow_stage',
             'is_active', 'created_at', 'updated_at',
         ]

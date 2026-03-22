@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Quarterly Risk Management Performance Report</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 20mm 25mm 60mm 25mm;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11pt;
+      color: #1a1a1a;
+      line-height: 1.55;
+      margin: 0;
+      padding: 0;
+    }
+
+    .header {
+      text-align: center;
+      border-bottom: 2px solid #1a3a5c;
+      padding-bottom: 12px;
+      margin-bottom: 22px;
+    }
+
+    .org-name {
+      font-size: 13pt;
+      font-weight: bold;
+      color: #1a3a5c;
+      letter-spacing: 0.5px;
+      margin: 0 0 4px;
+    }
+
+    .doc-title {
+      font-size: 12pt;
+      font-weight: bold;
+      color: #222;
+      margin: 0 0 4px;
+    }
+
+    .ref-number {
+      font-size: 9pt;
+      color: #666;
+      margin: 0;
+    }
+
+    .field { margin: 10px 0; }
+    .label { font-weight: bold; font-size: 10pt; color: #333; }
+    .value { margin-top: 3px; padding-left: 4px; }
+
+    .field-row { display: table; width: 100%; margin: 10px 0; }
+    .field-col { display: table-cell; width: 50%; vertical-align: top; }
+
+    .section-title {
+      font-size: 11pt;
+      font-weight: bold;
+      color: #1a3a5c;
+      margin: 18px 0 8px;
+      border-bottom: 1px solid #1a3a5c;
+      padding-bottom: 4px;
+    }
+
+    table.metrics-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0 14px;
+    }
+
+    table.metrics-table th {
+      background: #1a3a5c;
+      color: #fff;
+      font-size: 10pt;
+      padding: 6px 8px;
+      text-align: left;
+      border: 1px solid #1a3a5c;
+    }
+
+    table.metrics-table td {
+      font-size: 10pt;
+      padding: 6px 8px;
+      border: 1px solid #ccc;
+    }
+
+    table.metrics-table tr:nth-child(even) { background: #f8f9fa; }
+
+    .metric-value {
+      font-size: 16pt;
+      font-weight: bold;
+      color: #1a3a5c;
+      text-align: center;
+    }
+
+    .report-body {
+      text-align: justify;
+      line-height: 1.65;
+      margin: 8px 0;
+    }
+
+    .sig-block {
+      margin-top: 28px;
+      padding-top: 10px;
+      border-top: 1px solid #bbb;
+    }
+
+    .sig-block .label { color: #1a3a5c; }
+
+    .footer-note {
+      margin-top: 16px;
+      font-size: 8.5pt;
+      color: #888;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="org-name">FAIR COMPETITION COMMISSION (FCC)</div>
+    <div class="doc-title">Quarterly Risk Management Performance Report</div>
+    <div class="ref-number">{{ report.fiscal_year }} — {{ report.quarter }}</div>
+  </div>
+
+  <div class="field-row">
+    <div class="field-col">
+      <div class="field">
+        <div class="label">Prepared By:</div>
+        <div class="value">{{ report.prepared_by }}</div>
+      </div>
+    </div>
+    <div class="field-col">
+      <div class="field">
+        <div class="label">Status:</div>
+        <div class="value">{{ report.get_status_display }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="field">
+    <div class="label">Report Date:</div>
+    <div class="value">{{ generated_at|date:"d F Y" }}</div>
+  </div>
+
+  <!-- ═══ Risk Summary Metrics ═══ -->
+  <div class="section-title">1. Risk Profile Summary</div>
+
+  <table class="metrics-table">
+    <thead>
+      <tr>
+        <th>Metric</th>
+        <th style="width:20%; text-align:center;">Count</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Total Risks Identified</td>
+        <td class="metric-value">{{ report.total_risks }}</td>
+      </tr>
+      <tr>
+        <td style="color:#c0392b;">High Risks</td>
+        <td class="metric-value" style="color:#c0392b;">{{ report.high_risks }}</td>
+      </tr>
+      <tr>
+        <td style="color:#e67e22;">Medium Risks</td>
+        <td class="metric-value" style="color:#e67e22;">{{ report.medium_risks }}</td>
+      </tr>
+      <tr>
+        <td style="color:#27ae60;">Low Risks</td>
+        <td class="metric-value" style="color:#27ae60;">{{ report.low_risks }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ═══ RTAP Implementation Status ═══ -->
+  <div class="section-title">2. RTAP Implementation Status</div>
+
+  <table class="metrics-table">
+    <thead>
+      <tr>
+        <th>Status</th>
+        <th style="width:20%; text-align:center;">Count</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Completed</td>
+        <td class="metric-value" style="color:#27ae60;">{{ report.rtap_completed }}</td>
+      </tr>
+      <tr>
+        <td>In Progress</td>
+        <td class="metric-value" style="color:#e67e22;">{{ report.rtap_in_progress }}</td>
+      </tr>
+      <tr>
+        <td>Not Started</td>
+        <td class="metric-value" style="color:#95a5a6;">{{ report.rtap_not_started }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ═══ Narrative ═══ -->
+  {% if report.report_body %}
+  <div class="section-title">3. Report Narrative</div>
+  <div class="report-body">{{ report.report_body|linebreaksbr }}</div>
+  {% endif %}
+
+  <!-- ═══ IAGO Tracking ═══ -->
+  {% if report.iago_submitted %}
+  <div class="section-title">4. IAGO Submission</div>
+  <div class="field-row">
+    <div class="field-col">
+      <div class="field">
+        <div class="label">IAGO Submitted:</div>
+        <div class="value">Yes — {{ report.iago_submission_date|date:"d F Y" }}</div>
+      </div>
+    </div>
+    <div class="field-col">
+      <div class="field">
+        <div class="label">IAGO Reference:</div>
+        <div class="value">{{ report.iago_reference|default:"—" }}</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if report.status == 'approved' %}
+  <div class="sig-block">
+    <div class="label">Digitally Approved</div>
+    <div class="value">
+      Status: <strong>Approved</strong><br>
+      Generated: {{ generated_at|date:"d F Y \a\t H:i" }} UTC
+    </div>
+    <!-- DRS will overlay QR code (bottom-left) + approver signature (bottom-right) in the reserved margin -->
+  </div>
+  {% else %}
+  <div class="sig-block">
+    <div class="label">Authorised By</div>
+    <div class="value">
+      Name: ________________________________________<br><br>
+      Signature: ________________________________________<br><br>
+      Date: ________________________________________
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="footer-note">
+    This document was generated by the FIMS Risk Management GRC System on {{ generated_at|date:"d F Y \a\t H:i" }} UTC.
+    {% if report.status == 'approved' %}
+    The QR code at the bottom of this page can be scanned to verify the authenticity of this quarterly report.
+    {% endif %}
+  </div>
+
+</body>
+</html>

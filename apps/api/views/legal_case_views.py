@@ -24,6 +24,7 @@ from apps.api.serializers.legal_serializers import (
 )
 from apps.api.permissions_jwt import (
     CanViewLegalCase, CanManageLegalCase, CanCloseLegalCase,
+    CanRegisterLegalCase,
     HasAnyPermission,
 )
 from apps.core.services.legal_case_service import LegalCaseService
@@ -85,8 +86,10 @@ class CaseDefendantListCreateView(APIView):
                     CanManageLegalCase().has_permission(request, self)):
                 self.permission_denied(request, message='grc:legal_case:view or :manage required.')
         else:
-            if not CanManageLegalCase().has_permission(request, self):
-                self.permission_denied(request, message='grc:legal_case:manage required.')
+            # Registry Officers (grc:legal_case:register) may also create new cases (CRIT-02 / B2-1).
+            if not (CanManageLegalCase().has_permission(request, self) or
+                    CanRegisterLegalCase().has_permission(request, self)):
+                self.permission_denied(request, message='grc:legal_case:manage or :register required.')
 
     def get(self, request):
         try:
@@ -105,6 +108,15 @@ class CaseDefendantListCreateView(APIView):
                 queryset = queryset.filter(status=status_filter)
             if is_active is not None:
                 queryset = queryset.filter(is_active=is_active.lower() == 'true')
+
+            # Row-level access: Legal Officers (view-only) see only cases assigned to them (SIG-05).
+            # Legal Managers and higher (manage permission) see all cases.
+            if not CanManageLegalCase().has_permission(request, self):
+                user_id = getattr(request.user, 'id', None)
+                if user_id:
+                    queryset = queryset.filter(
+                        assigned_legal_officer_ids__contains=[str(user_id)]
+                    )
 
             ordering = get_ordering_param(
                 request, default='-created_at',
@@ -506,8 +518,13 @@ class CasePlaintiffListCreateView(APIView):
                     CanManageLegalCase().has_permission(request, self)):
                 self.permission_denied(request, message='grc:legal_case:view or :manage required.')
         else:
-            if not CanManageLegalCase().has_permission(request, self):
-                self.permission_denied(request, message='grc:legal_case:manage required.')
+            # Simplified breach-report intake is open to any authenticated user (SRS §5.1 / CRIT-05).
+            # Full registration requires CanManageLegalCase OR CanRegisterLegalCase (CRIT-02 / B2-1).
+            registration_type = request.data.get('registration_type', 'full')
+            if registration_type != 'simplified':
+                if not (CanManageLegalCase().has_permission(request, self) or
+                        CanRegisterLegalCase().has_permission(request, self)):
+                    self.permission_denied(request, message='grc:legal_case:manage or :register required.')
 
     def get(self, request):
         try:
@@ -526,6 +543,15 @@ class CasePlaintiffListCreateView(APIView):
                 queryset = queryset.filter(status=status_filter)
             if is_active is not None:
                 queryset = queryset.filter(is_active=is_active.lower() == 'true')
+
+            # Row-level access: Legal Officers (view-only) see only cases assigned to them (SIG-05).
+            # Legal Managers and higher (manage permission) see all cases.
+            if not CanManageLegalCase().has_permission(request, self):
+                user_id = getattr(request.user, 'id', None)
+                if user_id:
+                    queryset = queryset.filter(
+                        assigned_legal_officer_ids__contains=[str(user_id)]
+                    )
 
             ordering = get_ordering_param(
                 request, default='-created_at',
@@ -1007,6 +1033,114 @@ class CaseUnarchiveView(APIView):
 
         return success_response(
             data={'id': str(entity.id), 'is_archived': False},
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Hold / Resume endpoints (SIG-09 / B4-1, B4-2)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class CaseHoldView(APIView):
+    """POST /legal/cases/<side>/<pk>/hold/ — place an active case on hold."""
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanManageLegalCase().has_permission(request, self):
+            self.permission_denied(request, message='grc:legal_case:manage required.')
+
+    def post(self, request, side, pk):
+        Model = ARCHIVE_MODEL_MAP.get(side)
+        if Model is None:
+            return error_response(
+                message=f"Invalid case side: {side}",
+                code="INVALID_SIDE",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            entity = get_object_or_404(Model, pk=pk, is_active=True)
+        except Exception:
+            return error_response(
+                message="Case not found",
+                code="NOT_FOUND",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        if entity.status == 'on_hold':
+            return error_response(
+                message="Case is already on hold",
+                code="ALREADY_ON_HOLD",
+                status_code=status.HTTP_409_CONFLICT,
+            )
+
+        if entity.status == 'closed':
+            return error_response(
+                message="Closed cases cannot be placed on hold",
+                code="CASE_CLOSED",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        hold_reason = request.data.get('hold_reason', '').strip()
+        entity.status = 'on_hold'
+        entity.hold_reason = hold_reason
+        entity.save(update_fields=['status', 'hold_reason', 'updated_at'])
+
+        return success_response(
+            data={'id': str(entity.id), 'status': entity.status, 'hold_reason': entity.hold_reason},
+        )
+
+
+class CaseResumeView(APIView):
+    """POST /legal/cases/<side>/<pk>/resume/ — resume a case from on-hold."""
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanManageLegalCase().has_permission(request, self):
+            self.permission_denied(request, message='grc:legal_case:manage required.')
+
+    def post(self, request, side, pk):
+        Model = ARCHIVE_MODEL_MAP.get(side)
+        if Model is None:
+            return error_response(
+                message=f"Invalid case side: {side}",
+                code="INVALID_SIDE",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            entity = get_object_or_404(Model, pk=pk, is_active=True)
+        except Exception:
+            return error_response(
+                message="Case not found",
+                code="NOT_FOUND",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        if entity.status != 'on_hold':
+            return error_response(
+                message="Case is not on hold",
+                code="NOT_ON_HOLD",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        valid_resume_statuses = [
+            choice[0] for choice in Model.STATUS_CHOICES
+            if choice[0] not in ('on_hold', 'closed')
+        ]
+        resume_to_status = request.data.get('resume_to_status', 'open').strip()
+        if resume_to_status not in valid_resume_statuses:
+            return error_response(
+                message=f"'resume_to_status' must be one of {valid_resume_statuses}",
+                code="INVALID_STATUS",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        entity.status = resume_to_status
+        entity.hold_reason = ''
+        entity.save(update_fields=['status', 'hold_reason', 'updated_at'])
+
+        return success_response(
+            data={'id': str(entity.id), 'status': entity.status},
         )
 
 

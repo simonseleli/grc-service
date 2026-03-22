@@ -13,6 +13,8 @@
 - `Risk_Management_Module_Core_Design.md` — models, relationships, workflows
 - `docs/GRC_INTERNAL_AUDIT_BACKEND_REFERENCE.md` — Internal Audit implementation reference
 
+> **Gap Analysis incorporated:** `Risk_Management_Gap_Analysis.md` — 20 gaps identified vs SRS and incorporated into this plan (v2).
+
 ---
 
 ## Table of Contents
@@ -104,7 +106,7 @@ git checkout -b feature/risk-management-module
 
 **File:** `apps/core/models/risk_entities.py`
 
-This single file contains all 20 Risk Management business models. Follow the exact structure from `Risk_Management_Module_Core_Design.md` §4.
+This single file contains all **31 Risk Management business models** (20 original + 11 added from gap analysis). Follow the exact structure from `Risk_Management_Module_Core_Design.md` §4.
 
 **Implementation order within the file (top to bottom — respecting FK dependencies):**
 
@@ -124,6 +126,7 @@ from .base import TimestampedModel, StatusMixin, WorkflowMixin
 - Inherit: `TimestampedModel, StatusMixin`
 - `db_table`: `grc_risk_champion`
 - Key fields: `org_unit_id` (UUIDField), `org_unit_type` (CharField choices), `user_id` (UUIDField), `nominated_by` (UUIDField), `term_start`, `term_end`, `notes`
+- **Gap fields (GAP-13):** `qualifications` (TextField, blank), `experience_summary` (TextField, blank), `justification` (TextField, blank)
 - Constraint: `UniqueConstraint(fields=['org_unit_id', 'org_unit_type'], condition=Q(is_active=True), name='unique_active_rc_per_org_unit')`
 - Source: Core Design §4.3
 
@@ -131,6 +134,9 @@ from .base import TimestampedModel, StatusMixin, WorkflowMixin
 - Inherit: `TimestampedModel, StatusMixin, WorkflowMixin`
 - `db_table`: `grc_risk_champion_appointment`
 - Key fields: `risk_champion` (FK), `appointment_date`, `document_id` (UUIDField, null), `stamped_document_url` (URLField), `remarks`, `status` (CharField choices: draft/submitted/approved/rejected/signed)
+- **Gap fields (GAP-06):** `dispatched` (BooleanField, default=False), `dispatch_date` (DateField, null), `dispatch_reference` (CharField max_length=100, blank), `recipient_confirmed` (BooleanField, default=False), `recipient_confirmed_date` (DateField, null)
+- **Gap fields (GAP-14):** `rework_count` (IntegerField, default=0) — increment on each `recall_workflow()` call
+- **Gap fields (GAP-17):** `last_review_comment` (TextField, blank), `last_reviewed_by` (UUIDField, null), `last_reviewed_at` (DateTimeField, null)
 - Override: `get_workflow_context()`, `get_workflow_metadata()` — see Core Design §6.2
 - Source: Core Design §4.3
 
@@ -138,12 +144,16 @@ from .base import TimestampedModel, StatusMixin, WorkflowMixin
 - Inherit: `TimestampedModel, StatusMixin`
 - `db_table`: `grc_risk_quality_auditor`
 - Key fields: `user_id`, `nominated_by`, `org_unit_id`, `org_unit_type`, `exam_attempt` (max 2), `exam_score` (DecimalField), `is_certified` (BooleanField), `certification_date`, `term_start`, `term_end`, `notes`
+- **Gap field (GAP-02):** `training_session` (FK to `QATrainingSession`, null, on_delete=SET_NULL) — link to completed training before examination
 - Source: Core Design §4.3
 
 **Step 2.2.4:** Implement `QualityAuditorAppointment`
 - Inherit: `TimestampedModel, StatusMixin, WorkflowMixin`
 - `db_table`: `grc_risk_qa_appointment`
 - Mirror `RiskChampionAppointment` structure exactly with `quality_auditor` FK instead
+- **Gap fields (GAP-06):** `dispatched` (BooleanField, default=False), `dispatch_date` (DateField, null), `dispatch_reference` (CharField max_length=100, blank), `recipient_confirmed` (BooleanField, default=False), `recipient_confirmed_date` (DateField, null)
+- **Gap fields (GAP-14):** `rework_count` (IntegerField, default=0)
+- **Gap fields (GAP-17):** `last_review_comment` (TextField, blank), `last_reviewed_by` (UUIDField, null), `last_reviewed_at` (DateTimeField, null)
 - Override: `get_workflow_context()`, `get_workflow_metadata()`
 - Source: Core Design §4.3
 
@@ -154,12 +164,16 @@ from .base import TimestampedModel, StatusMixin, WorkflowMixin
 - `db_table`: `grc_risk_assessment_sheet`
 - Key fields: `risk_champion` (FK), `org_unit_id`, `fiscal_year` (FK to `core.FiscalYear`), `risk_category` (FK to `RiskCategory`), `risk_title`, `risk_description`, `risk_owner` (UUIDField), `likelihood` (FK to `RiskLikelihood`), `impact` (FK to `RiskImpact`), `inherent_risk_score` (DecimalField, auto), `inherent_risk_level` (FK to `RiskLevel`, auto), residual fields
 - Override `save()`: auto-compute `inherent_risk_score = likelihood.numerical_value × impact.numerical_value`, resolve `inherent_risk_level` from `RiskLevel.min_score/max_score`, same for residual
+- **Gap field (GAP-07):** `references` — `JSONField(default=list)` — stores `[{"type": "audit_finding|previous_risk|lesson_learned|external_report", "id": "uuid_or_null", "title": "...", "url": "..."}]` for historical data cross-referencing
 - Source: Core Design §4.4
 
 **Step 2.3.2:** Implement `DepartmentalRiskRegister`
 - Inherit: `TimestampedModel, StatusMixin, WorkflowMixin`
 - `db_table`: `grc_risk_dept_register`
 - Constraint: `UniqueConstraint(fields=['org_unit_id', 'fiscal_year'], condition=Q(is_active=True), name='unique_active_dept_register_per_unit_year')`
+- **Gap fields (GAP-18):** `endorsed_by` (UUIDField, null), `endorsement_date` (DateField, null), `endorsement_document_id` (UUIDField, null — DRS reference for evidence)
+- **Gap fields (GAP-14):** `rework_count` (IntegerField, default=0)
+- **Gap fields (GAP-17):** `last_review_comment` (TextField, blank), `last_reviewed_by` (UUIDField, null), `last_reviewed_at` (DateTimeField, null)
 - Override: `get_workflow_context()`, `get_workflow_metadata()`
 - Source: Core Design §4.4
 
@@ -176,6 +190,9 @@ from .base import TimestampedModel, StatusMixin, WorkflowMixin
 - `db_table`: `grc_risk_inst_register`
 - DRS pattern: `document_id` + `stamped_document_url`
 - Constraint: `UniqueConstraint(fields=['fiscal_year'], condition=Q(is_active=True), name='unique_active_irr_per_fiscal_year')`
+- **Gap fields (GAP-03):** `committee_meeting_date` (DateField, null), `lsm_submission_date` (DateField, null)
+- **Gap fields (GAP-14):** `rework_count` (IntegerField, default=0)
+- **Gap fields (GAP-17):** `last_review_comment` (TextField, blank), `last_reviewed_by` (UUIDField, null), `last_reviewed_at` (DateTimeField, null)
 - Override: `get_workflow_context()`, `get_workflow_metadata()`
 - Source: Core Design §4.5
 
@@ -191,6 +208,9 @@ from .base import TimestampedModel, StatusMixin, WorkflowMixin
 - `inst_register`: `OneToOneField(InstitutionalRiskRegister, related_name='rtap')`
 - DRS pattern: `document_id` + `stamped_document_url`
 - Constraint: `UniqueConstraint(fields=['fiscal_year'], condition=Q(is_active=True), name='unique_active_rtap_per_fiscal_year')`
+- **Gap fields (GAP-03):** `committee_meeting_date` (DateField, null), `lsm_submission_date` (DateField, null)
+- **Gap fields (GAP-14):** `rework_count` (IntegerField, default=0)
+- **Gap fields (GAP-17):** `last_review_comment` (TextField, blank), `last_reviewed_by` (UUIDField, null), `last_reviewed_at` (DateTimeField, null)
 - Override: `get_workflow_context()`, `get_workflow_metadata()`
 - Source: Core Design §4.5
 
@@ -216,6 +236,10 @@ from .base import TimestampedModel, StatusMixin, WorkflowMixin
 - Snapshot metrics: `total_risks`, `high_risks`, `medium_risks`, `low_risks`, `rtap_completed`, `rtap_in_progress`, `rtap_not_started`
 - DRS pattern: `document_id` + `stamped_document_url`
 - Constraint: `UniqueConstraint(fields=['fiscal_year', 'quarter'], condition=Q(is_active=True), name='unique_active_quarterly_report_per_period')`
+- **Gap fields (GAP-03):** `committee_meeting_date` (DateField, null), `lsm_submission_date` (DateField, null)
+- **Gap fields (GAP-12):** `iago_submitted` (BooleanField, default=False), `iago_submission_date` (DateField, null), `iago_reference` (CharField max_length=100, blank)
+- **Gap fields (GAP-14):** `rework_count` (IntegerField, default=0)
+- **Gap fields (GAP-17):** `last_review_comment` (TextField, blank), `last_reviewed_by` (UUIDField, null), `last_reviewed_at` (DateTimeField, null)
 - Override: `get_workflow_context()`, `get_workflow_metadata()`
 - Source: Core Design §4.6
 
@@ -242,6 +266,10 @@ from .base import TimestampedModel, StatusMixin, WorkflowMixin
 - `db_table`: `grc_risk_qms_plan`
 - DRS pattern: `document_id` + `stamped_document_url`
 - `clean()` validation: `notification_date` must be ≥10 days before `audit_start_date` (Rule E.7)
+- **Gap fields (GAP-04):** `nda_signed` (BooleanField, default=False), `nda_signed_date` (DateField, null), `nda_document_id` (UUIDField, null — DRS reference for signed NDA)
+- **Gap field (GAP-10):** `timetable_agreed` (BooleanField, default=False)
+- **Gap fields (GAP-14):** `rework_count` (IntegerField, default=0)
+- **Gap fields (GAP-17):** `last_review_comment` (TextField, blank), `last_reviewed_by` (UUIDField, null), `last_reviewed_at` (DateTimeField, null)
 - Override: `get_workflow_context()`, `get_workflow_metadata()`
 - Source: Core Design §4.7
 
@@ -273,39 +301,141 @@ from .base import TimestampedModel, StatusMixin, WorkflowMixin
 - Closure fields: `closed_at` (DateTimeField, null), `closure_notes` (TextField, blank) — populated when status transitions to `closed`
 - Source: Core Design §4.7
 
-### 2.7 Register Models in `__init__.py`
+### 2.7 Implement Group 6 — Meeting & Workshop Management (2 models) [GAP-01, GAP-08]
+
+> **SRS References:** §1.9.5 Steps 1–2, §1.9.6 Steps 1–3, §4.11.1.1 #3 and #9. Required for risk discussion meetings, RC workshops, brainstorming sessions, and awareness sessions.
+
+**Step 2.7.1:** Implement `RiskMeeting`
+- Inherit: `TimestampedModel, StatusMixin`
+- `db_table`: `grc_risk_meeting`
+- Key fields:
+  - `meeting_type` (CharField, choices: `risk_discussion/workshop/brainstorming/institutional_workshop/awareness_session`)
+  - `organized_by` (UUIDField — user_id of organizer)
+  - `org_unit_id` (UUIDField, null — nullable for cross-unit workshops)
+  - `fiscal_year` (FK to `core.FiscalYear`)
+  - `title` (CharField max_length=255)
+  - `agenda` (TextField, blank)
+  - `meeting_date` (DateTimeField)
+  - `venue` (CharField max_length=255, blank)
+  - `virtual_link` (URLField, null, blank — clickable join link per SRS)
+  - `status` (CharField, choices: `scheduled/in_progress/completed/cancelled`)
+  - `minutes` (TextField, blank — populated after completion)
+  - `outcomes` (JSONField, default=list — list of key outcomes/decisions)
+
+**Step 2.7.2:** Implement `MeetingAttendance`
+- Inherit: `TimestampedModel, StatusMixin`
+- `db_table`: `grc_risk_meeting_attendance`
+- Key fields:
+  - `meeting` (FK to `RiskMeeting`, related_name=`attendance`)
+  - `user_id` (UUIDField)
+  - `attended` (BooleanField, default=False)
+- `unique_together`: `[['meeting', 'user_id']]`
+
+### 2.8 Implement Group 7 — QA Training Management (2 models) [GAP-02]
+
+> **SRS References:** §1.9.8 Steps 2–5. Required for ISO 9001:2015 training pipeline before QA examination.
+
+**Step 2.8.1:** Implement `QATrainingSession`
+- Inherit: `TimestampedModel, StatusMixin`
+- `db_table`: `grc_risk_qa_training_session`
+- Key fields:
+  - `title` (CharField max_length=255)
+  - `trainer_name` (CharField max_length=255)
+  - `trainer_organization` (CharField max_length=255, blank)
+  - `training_date` (DateField)
+  - `training_time` (TimeField, null)
+  - `venue` (CharField max_length=255, blank)
+  - `approval_status` (CharField, choices: `proposed/approved/completed/cancelled`, default=`proposed`)
+  - `approved_by` (UUIDField, null — RMQAM user_id)
+  - `approval_date` (DateField, null)
+  - `notes` (TextField, blank)
+
+**Step 2.8.2:** Implement `QATrainingAttendee`
+- Inherit: `TimestampedModel, StatusMixin`
+- `db_table`: `grc_risk_qa_training_attendee`
+- Key fields:
+  - `training_session` (FK to `QATrainingSession`, related_name=`attendees`)
+  - `quality_auditor` (FK to `QualityAuditor`, related_name=`training_records`)
+  - `attended` (BooleanField, default=False)
+- `unique_together`: `[['training_session', 'quality_auditor']]`
+
+### 2.9 Implement Group 8 — QMS Audit Support (2 models) [GAP-05, GAP-10]
+
+> **SRS References:** §1.9.9 Steps 9–11 (entry meeting), Steps 15–17 (exit meeting), Steps 8, 10 (timetable).
+
+**Step 2.9.1:** Implement `AuditMeeting`
+- Inherit: `TimestampedModel, StatusMixin`
+- `db_table`: `grc_risk_qms_audit_meeting`
+- Key fields:
+  - `audit_plan` (FK to `QMSAuditPlan`, related_name=`meetings`)
+  - `meeting_type` (CharField, choices: `pre_audit/entry/exit`)
+  - `meeting_date` (DateTimeField)
+  - `minutes` (TextField, blank)
+  - `attendance` (JSONField, default=list — list of user_ids)
+  - `timetable_agreed` (BooleanField, default=False)
+  - `timetable_revised` (BooleanField, default=False)
+- `unique_together`: `[['audit_plan', 'meeting_type']]`
+
+**Step 2.9.2:** Implement `QMSAuditTimetableEntry`
+- Inherit: `TimestampedModel, StatusMixin`
+- `db_table`: `grc_risk_qms_timetable_entry`
+- Key fields:
+  - `audit_plan` (FK to `QMSAuditPlan`, related_name=`timetable_entries`)
+  - `date` (DateField)
+  - `start_time` (TimeField)
+  - `end_time` (TimeField)
+  - `process_or_area` (CharField max_length=255)
+  - `assigned_auditor` (UUIDField)
+  - `auditee_unit_id` (UUIDField)
+  - `sort_order` (IntegerField, default=0)
+
+### 2.10 Register Models in `__init__.py`
 
 **File:** `apps/core/models/__init__.py`
 
-Add imports for all 20 Risk Management models so Django picks them up for migrations:
+Add imports for all 31 Risk Management models so Django picks them up for migrations:
 
 ```python
 # Risk Management models
 from .risk_entities import (
+    # Group 1 — Risk Champion & QA Appointment
     RiskChampion,
     RiskChampionAppointment,
     QualityAuditor,
     QualityAuditorAppointment,
+    # Group 2 — Risk Assessment & Departmental Register
     RiskAssessmentSheet,
     DepartmentalRiskRegister,
     DeptRegisterEntry,
+    # Group 3 — Institutional Register & RTAP
     InstitutionalRiskRegister,
     InstitutionalRiskEntry,
     RiskTreatmentActionPlan,
     RTAPItem,
     RTAPQuarterlyUpdate,
+    # Group 4 — Quarterly Reporting
     QuarterlyPerformanceReport,
     ActivityReport,
+    # Group 5 — QMS Audit
     QMSAuditProgram,
     QMSAuditPlan,
     QMSAuditTeamAssignment,
     AuditChecklist,
     QMSAuditReport,
     NonConformance,
+    # Group 6 — Meeting & Workshop Management [GAP-01, GAP-08]
+    RiskMeeting,
+    MeetingAttendance,
+    # Group 7 — QA Training Management [GAP-02]
+    QATrainingSession,
+    QATrainingAttendee,
+    # Group 8 — QMS Audit Support [GAP-05, GAP-10]
+    AuditMeeting,
+    QMSAuditTimetableEntry,
 )
 ```
 
-### 2.8 Generate and Run Migrations
+### 2.11 Generate and Run Migrations
 
 ```bash
 cd /home/simons/Coding/FIMS/grc-service
@@ -313,7 +443,7 @@ python manage.py makemigrations core
 python manage.py migrate
 ```
 
-Verify all 20+ tables are created with `grc_risk_*` prefix:
+Verify all 31+ tables are created with `grc_risk_*` prefix:
 ```bash
 python manage.py dbshell
 \dt grc_risk_*
@@ -481,6 +611,8 @@ Add admin CRUD URLs for lookup management.
 ---
 
 ## Phase 4 — Workflow Integration
+
+# Reference for workflow integration is: grc-service/implementation/FIMS_summary/services_integration/WORK_ORCHESTRATION_INTEGRATION.md
 
 ### 4.1 Append Workflow Templates to YAML
 
@@ -766,6 +898,20 @@ Add all Risk Management permission codes under a new `"risk_management"` categor
 
 Also define roles and their permission assignments:
 
+> **Permission codes added from gap analysis:**
+> - `grc:risk_meeting:manage` — create/schedule/update meetings and workshops [GAP-01]
+> - `grc:risk_meeting:view` — view meeting records and attendance [GAP-01]
+> - `grc:qa_training:manage` — manage QA training sessions [GAP-02]
+
+Extend the `"permissions"` array with:
+```json
+{"code": "grc:risk_meeting:manage", "name": "Manage Risk Meetings", "category": "risk_management"},
+{"code": "grc:risk_meeting:view",   "name": "View Risk Meetings",   "category": "risk_management"},
+{"code": "grc:qa_training:manage",  "name": "Manage QA Training Sessions", "category": "risk_management"}
+```
+
+Also define roles and their permission assignments:
+
 ```json
 {
   "roles": [
@@ -777,11 +923,12 @@ Also define roles and their permission assignments:
                        "grc:institutional_risk_register:manage", "grc:institutional_risk_register:approve",
                        "grc:rtap:manage", "grc:rtap:approve",
                        "grc:quarterly_risk_report:manage", "grc:quarterly_risk_report:approve",
-                       "grc:quality_auditor:manage",
+                       "grc:quality_auditor:manage", "grc:qa_training:manage",
                        "grc:qms_audit_program:manage", "grc:qms_audit_program:approve",
                        "grc:qms_audit_plan:manage", "grc:qms_audit_plan:approve",
                        "grc:qms_checklist:manage", "grc:qms_audit_report:manage", "grc:qms_audit_report:sign",
-                       "grc:non_conformance:manage", "grc:risk_dashboard:view"]
+                       "grc:non_conformance:manage", "grc:risk_dashboard:view",
+                       "grc:risk_meeting:manage", "grc:risk_meeting:view"]
     },
     {
       "code": "rmo",
@@ -790,21 +937,30 @@ Also define roles and their permission assignments:
                        "grc:risk_assessment:review", "grc:dept_risk_register:manage",
                        "grc:institutional_risk_register:manage", "grc:rtap:manage",
                        "grc:quarterly_risk_report:manage", "grc:quality_auditor:manage",
+                       "grc:qa_training:manage",
                        "grc:qms_audit_program:manage", "grc:qms_audit_plan:manage",
                        "grc:qms_checklist:manage", "grc:qms_audit_report:manage",
-                       "grc:non_conformance:manage", "grc:risk_dashboard:view"]
+                       "grc:non_conformance:manage", "grc:risk_dashboard:view",
+                       "grc:risk_meeting:manage", "grc:risk_meeting:view"]
+    },
+    {
+      "code": "lsm",
+      "name": "Legal Service Manager",
+      "permissions": ["grc:institutional_risk_register:approve", "grc:rtap:approve",
+                       "grc:quarterly_risk_report:approve", "grc:risk_dashboard:view"]
     },
     {
       "code": "risk_champion",
       "name": "Risk Champion",
       "permissions": ["grc:risk_assessment:conduct", "grc:dept_risk_register:manage",
-                       "grc:rtap:respond", "grc:risk_dashboard:view"]
+                       "grc:rtap:respond", "grc:risk_dashboard:view",
+                       "grc:risk_meeting:manage", "grc:risk_meeting:view"]
     },
     {
       "code": "quality_auditor",
       "name": "Quality Auditor",
       "permissions": ["grc:qms_checklist:manage", "grc:qms_audit_report:manage",
-                       "grc:non_conformance:manage"]
+                       "grc:non_conformance:manage", "grc:risk_meeting:view"]
     },
     {
       "code": "director_general",
@@ -870,6 +1026,9 @@ Full list of classes to create (24 total):
 | `CanManageNonConformance` | `grc:non_conformance:manage` |
 | `CanRespondNonConformance` | `grc:non_conformance:respond` |
 | `CanViewRiskDashboard` | `grc:risk_dashboard:view` |
+| `CanManageRiskMeeting` | `grc:risk_meeting:manage` |
+| `CanViewRiskMeeting` | `grc:risk_meeting:view` |
+| `CanManageQATraining` | `grc:qa_training:manage` |
 
 ---
 
@@ -895,6 +1054,9 @@ Create one view file per entity or tightly-related entity group in `apps/api/vie
 | 12 | `qms_audit_report_views.py` | `QMSAuditReport` | CRUD + sign-tl/ + sign-auditee/ |
 | 13 | `non_conformance_views.py` | `NonConformance` | CRUD |
 | 14 | `risk_dashboard_views.py` | — (aggregations) | GET only |
+| 15 | `risk_meeting_views.py` | `RiskMeeting`, `MeetingAttendance` | CRUD + attendance sub-resource [GAP-01] |
+| 16 | `qa_training_views.py` | `QATrainingSession`, `QATrainingAttendee` | CRUD + attendees sub-resource [GAP-02] |
+| 17 | `qms_audit_support_views.py` | `AuditMeeting`, `QMSAuditTimetableEntry` | CRUD, plan-scoped sub-resources [GAP-05, GAP-10] |
 
 ### 7.2 Standard View Implementation Pattern
 
@@ -1051,7 +1213,23 @@ class RiskChampionAppointmentWorkflowStatusView(APIView):
 
 Repeat this 6-view pattern for all 8 workflow entities = 48 workflow views total.
 
-### 7.4 Special Endpoint Views
+### 7.4 Workflow Enforcement — 7-Day LSM Submission Rule [GAP-03]
+
+In `InstitutionalRiskRegisterService`, `RTAPService`, and `QuarterlyRiskReportService`, add validation inside `submit_for_approval()` when the workflow stage targets LSM:
+
+```python
+# Enforced in advance_workflow_stage() when action targets the lsm_submit stage
+if entity.committee_meeting_date and entity.lsm_submission_date:
+    delta = (entity.committee_meeting_date - entity.lsm_submission_date).days
+    if delta < 7:
+        raise ValueError(
+            "LSM submission must be at least 7 days before the committee meeting date."
+        )
+```
+
+Also expose `committee_meeting_date` and `lsm_submission_date` as writable fields in the detail view (PATCH endpoint), so RMQAM can set them before triggering the LSM submission stage.
+
+### 7.5 Special Endpoint Views
 
 **`QMSAuditReportSignTLView`** (POST `sign-tl/`)
 - Sets `tl_signed_by` and `tl_signed_at`
@@ -1065,7 +1243,21 @@ Repeat this 6-view pattern for all 8 workflow entities = 48 workflow views total
 - Returns aggregated stats: risk count by level, RTAP implementation rate, active RC/QA counts
 - Permission: `grc:risk_dashboard:view`
 
-### 7.5 Business Rule Enforcement in Views
+**`RiskDashboardComparativeAnalysisView`** (GET `dashboard/comparative-analysis/`) [GAP-11]
+- Query params: `fiscal_year_id`, `current_quarter_id`
+- Returns quarter-over-quarter implementation rate comparison:
+```python
+# Response shape
+{
+    "current_quarter": {"period": "Q2 2025/26", "total_risks": N, "rtap_completed": N, "completion_rate": 0.62},
+    "previous_quarter": {"period": "Q1 2025/26", "total_risks": N, "rtap_completed": N, "completion_rate": 0.45},
+    "variance": {"rtap_completed_delta": N, "completion_rate_pct_change": 0.17},
+    "trend": [{"quarter": "Q1", "completion_rate": 0.45}, {"quarter": "Q2", "completion_rate": 0.62}]
+}
+```
+- Permission: `grc:risk_dashboard:view`
+
+### 7.6 Business Rule Enforcement in Views
 
 All business rules are enforced in the view layer, between `serializer.is_valid()` and `.save()`:
 
@@ -1227,10 +1419,41 @@ urlpatterns = [
     # ── Non-Conformances ───────────────────────────────────────────────────
     path("non-conformances/", non_conformance_views.NonConformanceListCreateView.as_view()),
     path("non-conformances/<uuid:pk>/", non_conformance_views.NonConformanceDetailView.as_view()),
+
+    # ── Risk Meetings & Workshops [GAP-01, GAP-08] ───────────────────────────────
+    path("meetings/", risk_meeting_views.RiskMeetingListCreateView.as_view()),
+    path("meetings/<uuid:pk>/", risk_meeting_views.RiskMeetingDetailView.as_view()),
+    path("meetings/<uuid:pk>/attendance/", risk_meeting_views.MeetingAttendanceListCreateView.as_view()),
+    path("meetings/attendance/<uuid:pk>/", risk_meeting_views.MeetingAttendanceDetailView.as_view()),
+
+    # ── QA Training Sessions [GAP-02] ────────────────────────────────────────
+    path("qa-training/", qa_training_views.QATrainingSessionListCreateView.as_view()),
+    path("qa-training/<uuid:pk>/", qa_training_views.QATrainingSessionDetailView.as_view()),
+    path("qa-training/<uuid:pk>/attendees/", qa_training_views.QATrainingAttendeeListCreateView.as_view()),
+    path("qa-training/attendees/<uuid:pk>/", qa_training_views.QATrainingAttendeeDetailView.as_view()),
+
+    # ── QMS Audit Support (meetings + timetable) [GAP-05, GAP-10] ─────────────────
+    path("qms-plans/<uuid:pk>/audit-meetings/", qms_audit_support_views.AuditMeetingListCreateView.as_view()),
+    path("qms-plans/audit-meetings/<uuid:pk>/", qms_audit_support_views.AuditMeetingDetailView.as_view()),
+    path("qms-plans/<uuid:pk>/timetable/", qms_audit_support_views.QMSAuditTimetableEntryListCreateView.as_view()),
+    path("qms-plans/timetable/<uuid:pk>/", qms_audit_support_views.QMSAuditTimetableEntryDetailView.as_view()),
+
+    # ── Dashboard — Comparative Analysis [GAP-11] ──────────────────────────────
+    path("dashboard/comparative-analysis/", risk_dashboard_views.RiskDashboardComparativeAnalysisView.as_view()),
 ]
 ```
 
-### 8.2 Mount in Root URL Router
+### 8.2 Update View Imports in `risk.py`
+
+Add the three new view module imports to the `from apps.api.views import (...)` block at the top of `apps/api/urls/risk.py`:
+
+```python
+    risk_meeting_views,
+    qa_training_views,
+    qms_audit_support_views,
+```
+
+### 8.3 Mount in Root URL Router
 
 **File:** `apps/api/urls/urls.py` (extend existing)
 
@@ -1310,7 +1533,46 @@ class RiskRegisterApprovedEvent:
 # ... similar dataclasses for all event types ...
 ```
 
-### 9.3 Add Messaging Service Methods
+### 9.3 Notification Mapping Table [GAP-09]
+
+The table below maps every key system event to who is notified and what content is sent. Use `NotificationPublisher` (already wired in `apps/core/notifications/publisher.py`) for in-app notifications; the Kafka events in §9.1 cover cross-service broadcasting.
+
+| Trigger Event | Recipient(s) | Channel | Content Summary |
+|---|---|---|---|
+| RC Appointment workflow started (`workflow/start/`) | RMQAM | in-app | "New RC appointment letter drafted — {champion_name}, {unit_name}." |
+| RC Appointment approved (DG signs) | RC user, Head of Unit | in-app + email | "You have been appointed as Risk Champion for {unit_name}. Dispatch pending." |
+| RC Appointment returned for rework | RMO | in-app | "Appointment letter returned with comments. Rework required." |
+| Risk Assessment Sheet submitted to RMQAM | RMQAM | in-app | "{rc_name} submitted risk assessment sheet for {unit_name} ({fiscal_year})." |
+| Risk Assessment Sheet returned for rework | RC | in-app | "Risk assessment sheet returned with comments: {comment}." |
+| Dept Risk Register submitted (`workflow/start/`) | RMQAM | in-app | "Departmental risk register from {unit_name} submitted for approval." |
+| Dept Risk Register approved | RC | in-app | "Your departmental risk register for {fiscal_year} has been approved." |
+| RTAP quarterly update due ≤3 days | RC | in-app + email | "Quarterly RTAP update due in {days} days for {fiscal_year} Q{n}." |
+| RTAP quarterly update overdue | RC + RMQAM | in-app | "Overdue: RTAP item '{treatment}' — target date was {date}." |
+| RTAP Item status changed to `completed` | RMQAM | in-app | "RTAP item completed by {rc_name}: '{treatment}'." |
+| QA Training session approved | Trainees (QA attendees) | in-app + email | "ISO 9001:2015 training approved: {date}, {time}, {venue}." |
+| QA Examination passed (is_certified=True) | RMQAM | in-app | "{qa_name} certified. Appointment letter can now be drafted." |
+| QA Examination failed (attempt < 2) | Nominee | in-app | "Examination not passed ({score}%). You may re-sit once." |
+| QA Examination failed (attempt = 2) | RMQAM, Head of Unit | in-app | "{nominee_name} failed both attempts. A replacement nominee is required." |
+| QMS Audit Plan approved (`workflow/start/`) | Assigned QAs | in-app + email | "Audit plan approved. Prepare checklists for assigned processes by {date}." |
+| Audit notification to auditees (≤10 days) | Auditee unit head | in-app + email | "QMS audit scheduled for your unit: {start_date}. Timetable attached." |
+| NC raised | Auditee unit head, responsible officer | in-app | "Non-conformance raised for {unit_name}: {iso_clause} — {nc_type}." |
+| NC past due_date without closure | Responsible officer + RMQAM | in-app | "Overdue NC: {iso_clause} — {description}. Due: {due_date}." |
+| Workflow stage advanced | Next-stage assignee | in-app | "Action required: {entity_type} — {stage_name}." |
+| Committee meeting date set on IRR/RTAP/QPR | LSM | in-app | "Committee meeting date set: {date}. LSM submission required by {deadline}." |
+
+**Implementation:** Publish notifications at the end of the relevant view handler (after `.save()`) by calling:
+```python
+try:
+    NotificationPublisher.publish(
+        recipient_ids=[user_id_1, user_id_2],
+        event_type='grc.risk.{event_key}',
+        payload={'message': '...', 'entity_id': str(entity.id), 'entity_type': '...'},
+    )
+except Exception as e:
+    logger.error("Notification publish failed: %s", e)
+```
+
+### 9.4 Add Messaging Service Methods
 
 **File:** `apps/infrastructure/services/messaging_service.py` (extend existing)
 
@@ -1336,7 +1598,7 @@ def publish_qms_audit_event(self, event_type, audit_id, additional_data=None):
     ...
 ```
 
-### 9.4 Integrate Event Publishing in Views
+### 9.5 Integrate Event Publishing in Views
 
 Events are published in views after successful save operations, wrapped in `try/except`:
 
@@ -1406,7 +1668,55 @@ def _escalate_non_responsive_rcs():
     ...
 ```
 
-### 10.2 Register in Celery Beat
+### 10.2 Create Monthly NC Closure Monitoring Task [GAP-16]
+
+**File:** `apps/core/tasks/risk_nc_monitoring.py` (new)
+
+```python
+import logging
+from celery import shared_task
+from django.utils import timezone
+
+logger = logging.getLogger(__name__)
+
+@shared_task(name='grc.check_nc_closure_status')
+def check_nc_closure_status():
+    """
+    Monthly task (runs on 1st of each month).
+    Responsibilities:
+    1. Find open NCs (status != 'closed') whose due_date has passed.
+    2. Publish overdue notification to responsible_officer and RMQAM.
+    3. Log escalation for RMQAM quarterly Commission reporting.
+    """
+    from apps.core.models.risk_entities import NonConformance
+    from apps.core.notifications.publisher import NotificationPublisher
+
+    today = timezone.now().date()
+    overdue_ncs = NonConformance.objects.filter(
+        is_active=True,
+        due_date__lt=today,
+    ).exclude(status='closed')
+
+    for nc in overdue_ncs:
+        recipients = [r for r in [nc.responsible_officer, nc.raised_by] if r]
+        try:
+            NotificationPublisher.publish(
+                recipient_ids=recipients,
+                event_type='grc.qms.audit.nc.overdue',
+                payload={
+                    'nc_id': str(nc.id),
+                    'description': nc.description[:100],
+                    'due_date': str(nc.due_date),
+                    'days_overdue': (today - nc.due_date).days,
+                },
+            )
+        except Exception as e:
+            logger.error("NC overdue notification failed for NC %s: %s", nc.id, e)
+
+    logger.info("NC closure check complete. Overdue NCs: %d", overdue_ncs.count())
+```
+
+### 10.3 Register Both Tasks in Celery Beat
 
 **File:** `config/celery.py` (extend existing)
 
@@ -1417,6 +1727,10 @@ CELERY_BEAT_SCHEDULE = {
     'grc.check_risk_monitoring_deadlines': {
         'task': 'grc.check_risk_monitoring_deadlines',
         'schedule': crontab(hour=7, minute=0),  # daily at 7:00 AM
+    },
+    'grc.check_nc_closure_status': {
+        'task': 'grc.check_nc_closure_status',
+        'schedule': crontab(day_of_month=1, hour=8, minute=0),  # 1st of each month, 8:00 AM
     },
 }
 ```
@@ -1674,15 +1988,18 @@ This is the recommended implementation sequence. Each phase depends on the prece
 | **12** | Testing | 20+ test files | Phase 1–11 |
 | **13** | Data seeding & smoke testing | `seed_risk_sample_data.py` | Phase 1–11 |
 
-**Total new files:** ~40
+**Total new files:** ~46
 **Total extended files:** ~10
-**Total models:** 20 business + 6 lookup = 26
+**Total models:** 31 business + 6 lookup = 37 (20 original + 11 from gap analysis)
 **Total service classes:** 8
-**Total view classes:** ~80+
-**Total permission classes:** 24
+**Total view classes:** ~100+
+**Total permission classes:** 27 (24 original + 3 from gap analysis)
+**Total RBAC roles:** 6 (5 original + LSM)
 **Total workflow templates:** 8
-**Total API endpoints:** ~85+
+**Total API endpoints:** ~115+
+**Total Celery tasks:** 2
+**New model fields on existing models:** ~35+ (gap field additions across 7 models)
 
 ---
 
-*This implementation plan is ready for direct execution. Each step references the specific design document section and follows the exact patterns established by the Internal Audit module.*
+*This plan is v2 — fully aligned with the SRS after gap analysis. All 20 gaps have been incorporated. Each step references the specific design document section and follows the exact patterns established by the Internal Audit module.*

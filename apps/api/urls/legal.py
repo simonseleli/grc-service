@@ -31,6 +31,7 @@ from apps.api.views.legal_meeting_views import (
     MeetingParticipantListCreateView,
     MeetingParticipantDetailView,
     MeetingPopulateMattersArisingView,
+    MeetingDirectivesSubResourceView,
 )
 
 # ── Minutes ──────────────────────────────────────────────────────────────────
@@ -53,6 +54,8 @@ from apps.api.views.legal_directive_views import (
     MeetingDirectiveOverdueListView,
     LitigationDirectiveListCreateView,
     LitigationDirectiveDetailView,
+    LitigationDirectiveSubmitForDGApprovalView,
+    LitigationDirectiveDGDecisionView,
     TaskLitigationListCreateView,
     TaskLitigationDetailView,
     TaskLitigationOverdueListView,
@@ -76,6 +79,8 @@ from apps.api.views.legal_case_views import (
     CasePlaintiffCancelWorkflowView,
     CaseArchiveView,
     CaseUnarchiveView,
+    CaseHoldView,
+    CaseResumeView,
     CaseReportView,
 )
 
@@ -213,6 +218,7 @@ urlpatterns = [
     path("meetings/<uuid:pk>/cancel-workflow/", MeetingCancelWorkflowView.as_view(), name="legal-meeting-cancel-workflow"),
     path("meetings/<uuid:meeting_pk>/agenda/", MeetingAgendaListCreateView.as_view(), name="legal-meeting-agenda-list"),
     path("meetings/<uuid:pk>/populate-matters-arising/", MeetingPopulateMattersArisingView.as_view(), name="legal-meeting-populate-matters-arising"),
+    path("meetings/<uuid:pk>/directives/", MeetingDirectivesSubResourceView.as_view(), name="legal-meeting-directives-sub"),
     path("meeting-agenda/<uuid:pk>/", MeetingAgendaDetailView.as_view(), name="legal-meeting-agenda-detail"),
     path("meetings/<uuid:meeting_pk>/conflicts/", ConflictDeclarationListCreateView.as_view(), name="legal-meeting-conflict-list"),
     path("meetings/<uuid:meeting_pk>/participants/", MeetingParticipantListCreateView.as_view(), name="legal-meeting-participant-list"),
@@ -248,6 +254,10 @@ urlpatterns = [
     path("cases/<str:side>/<uuid:pk>/archive/", CaseArchiveView.as_view(), name="legal-case-archive"),
     path("cases/<str:side>/<uuid:pk>/unarchive/", CaseUnarchiveView.as_view(), name="legal-case-unarchive"),
 
+    # ── Hold / Resume (SIG-09 / B4-1, B4-2) ─────────────────────────────────
+    path("cases/<str:side>/<uuid:pk>/hold/", CaseHoldView.as_view(), name="legal-case-hold"),
+    path("cases/<str:side>/<uuid:pk>/resume/", CaseResumeView.as_view(), name="legal-case-resume"),
+
     # ── Case Report / Timeline (SRS §4.13) ───────────────────────────────────
     path("cases/<str:side>/<uuid:pk>/report/", CaseReportView.as_view(), name="legal-case-report"),
 
@@ -269,6 +279,8 @@ urlpatterns = [
     # ── Litigation Directives ────────────────────────────────────────────────
     path("litigation-directives/", LitigationDirectiveListCreateView.as_view(), name="legal-litigation-directive-list-create"),
     path("litigation-directives/<uuid:pk>/", LitigationDirectiveDetailView.as_view(), name="legal-litigation-directive-detail"),
+    path("litigation-directives/<uuid:pk>/submit-for-dg-approval/", LitigationDirectiveSubmitForDGApprovalView.as_view(), name="legal-litigation-directive-submit-dg"),
+    path("litigation-directives/<uuid:pk>/dg-decision/", LitigationDirectiveDGDecisionView.as_view(), name="legal-litigation-directive-dg-decision"),
 
     # ── Tasks (Litigation) ───────────────────────────────────────────────────
     # NOTE: static segments (overdue/) BEFORE <uuid:pk>/

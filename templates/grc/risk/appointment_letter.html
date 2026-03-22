@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ role_title }} Appointment Letter</title>
+  <style>
+    /*
+      @page bottom margin = 60 mm
+      DRS stamps QR code  (30×30 mm) at bottom-left  (15 mm from edges)
+      DRS stamps signature (65×22 mm) at bottom-right (15 mm from right edge)
+      Separator line drawn at 42 mm from bottom.
+      60 mm clearance ensures nothing is overlapped.
+    */
+    @page {
+      size: A4;
+      margin: 20mm 25mm 60mm 25mm;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11pt;
+      color: #1a1a1a;
+      line-height: 1.55;
+      margin: 0;
+      padding: 0;
+    }
+
+    .header {
+      text-align: center;
+      border-bottom: 2px solid #1a3a5c;
+      padding-bottom: 12px;
+      margin-bottom: 22px;
+    }
+
+    .org-name {
+      font-size: 13pt;
+      font-weight: bold;
+      color: #1a3a5c;
+      letter-spacing: 0.5px;
+      margin: 0 0 4px;
+    }
+
+    .doc-title {
+      font-size: 12pt;
+      font-weight: bold;
+      color: #222;
+      margin: 0 0 4px;
+    }
+
+    .ref-number {
+      font-size: 9pt;
+      color: #666;
+      margin: 0;
+    }
+
+    .field { margin: 10px 0; }
+    .label { font-weight: bold; font-size: 10pt; color: #333; }
+    .value { margin-top: 3px; padding-left: 4px; }
+
+    .field-row { display: table; width: 100%; margin: 10px 0; }
+    .field-col { display: table-cell; width: 50%; vertical-align: top; }
+
+    .letter-body {
+      text-align: justify;
+      margin: 18px 0;
+      line-height: 1.7;
+    }
+
+    .sig-block {
+      margin-top: 28px;
+      padding-top: 10px;
+      border-top: 1px solid #bbb;
+    }
+
+    .sig-block .label { color: #1a3a5c; }
+
+    .footer-note {
+      margin-top: 16px;
+      font-size: 8.5pt;
+      color: #888;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="org-name">FAIR COMPETITION COMMISSION (FCC)</div>
+    <div class="doc-title">{{ role_title }} Appointment Letter</div>
+    <div class="ref-number">Date: {{ appointment.appointment_date|date:"d F Y" }}</div>
+  </div>
+
+  <div class="field-row">
+    <div class="field-col">
+      <div class="field">
+        <div class="label">Appointee (User&nbsp;ID):</div>
+        <div class="value">{{ person.user_id }}</div>
+      </div>
+    </div>
+    <div class="field-col">
+      <div class="field">
+        <div class="label">Organisational Unit:</div>
+        <div class="value">{{ person.get_org_unit_type_display }} — {{ person.org_unit_id }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="field">
+    <div class="label">Role:</div>
+    <div class="value">{{ role_title }}</div>
+  </div>
+
+  {% if not is_risk_champion %}
+  <div class="field-row">
+    <div class="field-col">
+      <div class="field">
+        <div class="label">Certified:</div>
+        <div class="value">{% if person.is_certified %}Yes — {{ person.certification_date|date:"d F Y" }}{% else %}No{% endif %}</div>
+      </div>
+    </div>
+    <div class="field-col">
+      <div class="field">
+        <div class="label">Exam Score:</div>
+        <div class="value">{% if person.exam_score %}{{ person.exam_score }}%{% else %}—{% endif %}</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if is_risk_champion and person.qualifications %}
+  <div class="field">
+    <div class="label">Qualifications:</div>
+    <div class="value">{{ person.qualifications }}</div>
+  </div>
+  {% endif %}
+
+  <div class="field-row">
+    <div class="field-col">
+      <div class="field">
+        <div class="label">Term Start:</div>
+        <div class="value">{{ person.term_start|date:"d F Y" }}</div>
+      </div>
+    </div>
+    <div class="field-col">
+      <div class="field">
+        <div class="label">Term End:</div>
+        <div class="value">{% if person.term_end %}{{ person.term_end|date:"d F Y" }}{% else %}Open-ended{% endif %}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="letter-body">
+    <p>
+      This letter serves to formally confirm your appointment as <strong>{{ role_title }}</strong>
+      for the organisational unit indicated above, effective
+      {{ appointment.appointment_date|date:"d F Y" }}.
+    </p>
+    <p>
+      You are expected to discharge the duties and responsibilities associated with this role
+      in accordance with the Fair Competition Commission's Risk Management and Quality Assurance
+      framework.
+    </p>
+    {% if appointment.remarks %}
+    <p><strong>Remarks:</strong> {{ appointment.remarks }}</p>
+    {% endif %}
+  </div>
+
+  {% if appointment.status == 'approved' or appointment.status == 'signed' %}
+  <div class="sig-block">
+    <div class="label">Digitally Approved</div>
+    <div class="value">
+      Appointment Status: <strong>{{ appointment.get_status_display }}</strong><br>
+      Approved on: {{ generated_at|date:"d F Y \a\t H:i" }} UTC
+    </div>
+    <!-- DRS will overlay QR code (bottom-left) + approver signature (bottom-right) in the reserved margin -->
+  </div>
+  {% else %}
+  <div class="sig-block">
+    <div class="label">Authorised By</div>
+    <div class="value">
+      Name: ________________________________________<br><br>
+      Signature: ________________________________________<br><br>
+      Date: ________________________________________
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="footer-note">
+    This document was generated by the FIMS Risk Management GRC System on {{ generated_at|date:"d F Y \a\t H:i" }} UTC.
+    {% if appointment.status == 'approved' or appointment.status == 'signed' %}
+    The QR code at the bottom of this page can be scanned to verify the authenticity of this appointment letter.
+    {% endif %}
+  </div>
+
+</body>
+</html>

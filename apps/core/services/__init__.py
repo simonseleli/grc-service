@@ -26,6 +26,16 @@ from .legal_filing_service import LegalFilingService
 from .legal_settlement_service import LegalSettlementService
 from .legal_judgment_service import LegalJudgmentService
 
+# Risk Management & Quality Assurance module services
+from .risk_champion_service import RiskChampionAppointmentService
+from .dept_risk_register_service import DeptRiskRegisterService
+from .institutional_risk_register_service import InstitutionalRiskRegisterService
+from .rtap_service import RTAPService
+from .quarterly_risk_report_service import QuarterlyRiskReportService
+from .quality_auditor_service import QualityAuditorAppointmentService
+from .qms_audit_program_service import QMSAuditProgramService
+from .qms_audit_plan_service import QMSAuditPlanService
+
 __all__ = [
     'CorporateServiceClient',
     'OrganizationalSyncService',
@@ -46,4 +56,13 @@ __all__ = [
     'LegalFilingService',
     'LegalSettlementService',
     'LegalJudgmentService',
+    # Risk Management & Quality Assurance module
+    'RiskChampionAppointmentService',
+    'DeptRiskRegisterService',
+    'InstitutionalRiskRegisterService',
+    'RTAPService',
+    'QuarterlyRiskReportService',
+    'QualityAuditorAppointmentService',
+    'QMSAuditProgramService',
+    'QMSAuditPlanService',
 ]

@@ -1083,3 +1083,328 @@ print('  chair@fcc.go.tz:          6 legal, 2 WO')
 "
 ```
 
+---
+
+## 16. Create Risk Management Roles, Users & Assign Roles (Full Setup)
+
+Run once from `iam-service`. Creates 5 new roles, assigns permissions, creates 5 new users, assigns roles.
+The existing `dg@fcc.go.tz` (Director General) user already exists from Internal Audit setup — here we add risk management permissions to the existing DG role.
+
+> **Password for all test users:** `Pass@1234`
+
+| Email | Role | SRS Actor |
+|---|---|---|
+| `rmqam@fcc.go.tz` | Risk Mgmt & QA Manager | RMQAM — manages and approves all risk/QA items |
+| `rmo@fcc.go.tz` | Risk Management Officer | RMO — supports risk operations, submits workflows |
+| `riskchampion@fcc.go.tz` | Risk Champion | RC — conducts risk assessments, manages dept registers |
+| `qualityauditor@fcc.go.tz` | Quality Auditor | QA — conducts QMS audits, manages checklists/NCs |
+| `lsm@fcc.go.tz` | Legal Service Manager | LSM — approves IRR, RTAP, quarterly reports |
+| `dg@fcc.go.tz` *(existing)* | Director General | DG — signs RC/QA appointments |
+
+> **Why separate RMQAM and RMO?** SRS §1.9.1 Steps 1-3: RMO nominates Risk Champions and drafts appointments, while RMQAM reviews and approves them. WO self-approval guard requires different users for submit vs approve stages.
+
+```bash
+cd /home/simons/Coding/FIMS/iam-service && docker compose exec iam-service python manage.py shell -c "
+from apps.roles.models import Role, Service, RolePermission, ServicePermission, UserRole
+from django.contrib.auth import get_user_model
+User = get_user_model()
+
+grc = Service.objects.get(name='grc-service')
+
+# ── Step 1: Create roles ──────────────────────────────────────────────────────
+print('=== Step 1: Creating Risk Management roles ===')
+roles_data = [
+    ('rmqam', 'Risk Management and Quality Assurance Manager',
+     'Manages risk management module, approves registers, reports, and QMS audits'),
+    ('rmo', 'Risk Management Officer',
+     'Supports risk management operations, manages champions, assessments, and QMS audits'),
+    ('lsm', 'Legal Service Manager',
+     'Approves institutional risk registers, RTAPs, and quarterly risk reports'),
+    ('risk_champion', 'Risk Champion',
+     'Conducts risk assessments, manages departmental registers, responds to RTAP items'),
+    ('quality_auditor', 'Quality Auditor',
+     'Conducts QMS audits, manages checklists and non-conformances'),
+]
+for code, name, desc in roles_data:
+    role, created = Role.objects.get_or_create(
+        code=code, service=grc,
+        defaults={'name': name, 'description': desc, 'is_system': True, 'is_active': True}
+    )
+    print(f\"  {'Created' if created else 'Already exists'}: [{code}]\")
+
+# ── Step 2: Assign permissions ────────────────────────────────────────────────
+print()
+print('=== Step 2: Assigning Risk Management permissions ===')
+role_permission_map = {
+    'rmqam': [
+        'grc:risk_champion:view','grc:risk_champion:manage',
+        'grc:risk_assessment:review',
+        'grc:dept_risk_register:manage','grc:dept_risk_register:approve',
+        'grc:institutional_risk_register:manage','grc:institutional_risk_register:approve',
+        'grc:rtap:manage','grc:rtap:approve',
+        'grc:quarterly_risk_report:manage','grc:quarterly_risk_report:approve',
+        'grc:quality_auditor:manage','grc:qa_training:manage',
+        'grc:qms_audit_program:manage','grc:qms_audit_program:approve',
+        'grc:qms_audit_plan:manage','grc:qms_audit_plan:approve',
+        'grc:qms_checklist:manage',
+        'grc:qms_audit_report:manage','grc:qms_audit_report:sign',
+        'grc:non_conformance:manage',
+        'grc:risk_dashboard:view',
+        'grc:risk_meeting:manage','grc:risk_meeting:view',
+    ],
+    'rmo': [
+        'grc:risk_champion:view','grc:risk_champion:manage',
+        'grc:risk_assessment:review',
+        'grc:dept_risk_register:manage',
+        'grc:institutional_risk_register:manage',
+        'grc:rtap:manage',
+        'grc:quarterly_risk_report:manage',
+        'grc:quality_auditor:manage','grc:qa_training:manage',
+        'grc:qms_audit_program:manage',
+        'grc:qms_audit_plan:manage',
+        'grc:qms_checklist:manage',
+        'grc:qms_audit_report:manage',
+        'grc:non_conformance:manage',
+        'grc:risk_dashboard:view',
+        'grc:risk_meeting:manage','grc:risk_meeting:view',
+    ],
+    'lsm': [
+        'grc:institutional_risk_register:approve',
+        'grc:rtap:approve',
+        'grc:quarterly_risk_report:approve',
+        'grc:risk_dashboard:view',
+    ],
+    'risk_champion': [
+        'grc:risk_assessment:conduct',
+        'grc:dept_risk_register:manage',
+        'grc:rtap:respond',
+        'grc:risk_dashboard:view',
+        'grc:risk_meeting:manage','grc:risk_meeting:view',
+    ],
+    'quality_auditor': [
+        'grc:qms_checklist:manage',
+        'grc:qms_audit_report:manage',
+        'grc:non_conformance:manage',
+        'grc:risk_meeting:view',
+    ],
+    'director_general': [
+        'grc:risk_champion:view',
+        'grc:quality_auditor:manage',
+        'grc:risk_dashboard:view',
+    ],
+}
+for role_code, perm_codes in role_permission_map.items():
+    role = Role.objects.get(code=role_code, service=grc)
+    assigned = 0
+    missing = []
+    for perm_code in perm_codes:
+        try:
+            perm = ServicePermission.objects.get(permission_code=perm_code, service=grc)
+            _, created = RolePermission.objects.get_or_create(role=role, service_permission=perm)
+            if created:
+                assigned += 1
+        except ServicePermission.DoesNotExist:
+            missing.append(perm_code)
+    print(f\"  {role.name}: {assigned} assigned\" + (f\", MISSING: {missing}\" if missing else ''))
+
+# ── Step 3: Create users ──────────────────────────────────────────────────────
+print()
+print('=== Step 3: Creating Risk Management users ===')
+users_to_create = [
+    {'email':'rmqam@fcc.go.tz','first_name':'Sarah','last_name':'Mwalimu','employee_id':'FCC-RMQAM-001','position':'Risk Management & QA Manager','department':'Risk Management','user_type':'internal','status':'active','is_active':True,'is_staff':True,'username':'rmqam'},
+    {'email':'rmo@fcc.go.tz','first_name':'Peter','last_name':'Kileo','employee_id':'FCC-RMO-001','position':'Risk Management Officer','department':'Risk Management','user_type':'internal','status':'active','is_active':True,'is_staff':True,'username':'rmo'},
+    {'email':'riskchampion@fcc.go.tz','first_name':'Anna','last_name':'Mushi','employee_id':'FCC-RC-001','position':'Risk Champion','department':'Operations','user_type':'internal','status':'active','is_active':True,'is_staff':False,'username':'riskchampion'},
+    {'email':'qualityauditor@fcc.go.tz','first_name':'Frank','last_name':'Lupembe','employee_id':'FCC-QA-001','position':'Quality Auditor','department':'Risk Management','user_type':'internal','status':'active','is_active':True,'is_staff':False,'username':'qualityauditor'},
+    {'email':'lsm@fcc.go.tz','first_name':'Hawa','last_name':'Kondo','employee_id':'FCC-LSM-001','position':'Legal Service Manager','department':'Legal Services','user_type':'internal','status':'active','is_active':True,'is_staff':True,'username':'lsm'},
+]
+for data in users_to_create:
+    user, created = User.objects.get_or_create(email=data['email'], defaults=data)
+    if created:
+        user.set_password('Pass@1234')
+        user.save()
+    print(f\"  {'Created' if created else 'Already exists'}: {user.email}\")
+
+# ── Step 4: Assign roles to users ─────────────────────────────────────────────
+print()
+print('=== Step 4: Assigning roles to users ===')
+assignments = [
+    ('rmqam@fcc.go.tz',          'rmqam'),
+    ('rmo@fcc.go.tz',            'rmo'),
+    ('riskchampion@fcc.go.tz',   'risk_champion'),
+    ('qualityauditor@fcc.go.tz', 'quality_auditor'),
+    ('lsm@fcc.go.tz',           'lsm'),
+    ('dg@fcc.go.tz',            'director_general'),
+]
+for email, role_code in assignments:
+    user = User.objects.get(email=email)
+    role = Role.objects.get(code=role_code, service=grc)
+    ua, created = UserRole.objects.get_or_create(user=user, role=role, defaults={'is_active': True})
+    print(f\"  {'Assigned' if created else 'Already has'}: {email} → {role.name}\")
+
+print()
+print('=== All done! ===')
+"
+```
+
+---
+
+## 17. Grant WO Permissions to Risk Management Roles (Required Once Per Environment)
+
+Risk Management roles need cross-service permissions on the Work Orchestration Service so
+that non-admin users can submit workflows (`workflow:plan:create`) and act on
+stages (`workflow:stage:action`).
+
+**Roles that submit workflows (RMQAM, RMO):** need `workflow:plan:create`, `workflow:plan:read`, `workflow:stage:action`
+**Roles that act on stages (RMQAM, RMO, LSM, DG):** need `workflow:plan:read`, `workflow:stage:action`
+**Risk Champion / Quality Auditor:** view only — `workflow:plan:read`
+
+```bash
+cd /home/simons/Coding/FIMS/iam-service && docker compose exec iam-service python manage.py shell -c "
+from apps.roles.models import Service, ServicePermission, Role, RolePermission
+
+grc = Service.objects.get(name='grc-service')
+wo  = Service.objects.get(name='work-orchestration-service')
+
+# Roles that submit workflows (need plan:create + plan:read + stage:action)
+initiator_roles = ['rmqam', 'rmo']
+
+# Roles that act on workflow stages (need plan:read + stage:action)
+actor_roles = ['rmqam', 'rmo', 'lsm', 'director_general']
+
+# Roles that only need read access (to view workflow status)
+viewer_roles = ['risk_champion', 'quality_auditor']
+
+assigned = []
+all_roles = set(initiator_roles + actor_roles + viewer_roles)
+
+for role_code in all_roles:
+    role = Role.objects.get(code=role_code, service=grc)
+    needed = ['workflow:plan:read']
+    if role_code in actor_roles:
+        needed.append('workflow:stage:action')
+    if role_code in initiator_roles:
+        needed.append('workflow:plan:create')
+    for perm_code in needed:
+        perm = ServicePermission.objects.get(permission_code=perm_code, service=wo)
+        _, created = RolePermission.objects.get_or_create(role=role, service_permission=perm)
+        if created:
+            assigned.append(f'{role_code} -> {perm_code}')
+
+if assigned:
+    print('Assigned:')
+    for a in assigned:
+        print(f'  {a}')
+else:
+    print('All WO permissions already assigned.')
+print('Done.')
+"
+```
+
+**After running:** users must log out and back in to get a fresh JWT containing the new permissions.
+
+---
+
+## 18. Grant DRS Permissions to Risk Management Roles (Required Once Per Environment)
+
+RMQAM and RMO roles need cross-service permissions to upload/read documents in the
+Document Records Service (DRS) — used for appointment letters, register PDFs, and
+audit reports.
+
+```bash
+cd /home/simons/Coding/FIMS/iam-service && docker compose exec iam-service python manage.py shell -c "
+from apps.roles.models import Service, ServicePermission, Role, RolePermission
+
+grc = Service.objects.get(name='grc-service')
+drs = Service.objects.get(name='document-service')
+
+role_drs_perms = {
+    'rmqam': [
+        'document:document:create',
+        'document:document:read',
+        'document:classification:confidential',
+    ],
+    'rmo': [
+        'document:document:create',
+        'document:document:read',
+        'document:classification:confidential',
+    ],
+    'lsm': [
+        'document:document:read',
+        'document:classification:confidential',
+    ],
+    'risk_champion': [
+        'document:document:read',
+    ],
+    'quality_auditor': [
+        'document:document:read',
+    ],
+}
+
+for role_code, perm_codes in role_drs_perms.items():
+    role = Role.objects.get(code=role_code, service=grc)
+    for perm_code in perm_codes:
+        perm = ServicePermission.objects.get(service=drs, permission_code=perm_code)
+        rp, created = RolePermission.objects.get_or_create(role=role, service_permission=perm)
+        status = 'CREATED' if created else 'ALREADY EXISTS'
+        print(f'  [{role_code}] {perm_code}: {status}')
+
+print()
+print('Done.')
+"
+```
+
+**Expected output (first run):**
+```
+  [rmqam] document:document:create: CREATED
+  [rmqam] document:document:read: CREATED
+  [rmqam] document:classification:confidential: CREATED
+  [rmo] document:document:create: CREATED
+  [rmo] document:document:read: CREATED
+  [rmo] document:classification:confidential: CREATED
+  [lsm] document:document:read: CREATED
+  [lsm] document:classification:confidential: CREATED
+  [risk_champion] document:document:read: CREATED
+  [quality_auditor] document:document:read: CREATED
+
+Done.
+```
+
+**After running:** users must log out and back in to get a fresh JWT containing `"document-service"` in the `services` array.
+
+---
+
+## 19. Verify Risk Management RBAC Setup
+
+Run this quick verification to confirm all Risk Management users have the expected
+number of permissions:
+
+```bash
+cd /home/simons/Coding/FIMS/iam-service && docker compose exec iam-service python manage.py shell -c "
+from apps.roles.models import Role, Service, RolePermission, ServicePermission
+from apps.roles.services import UnifiedPermissionResolutionService
+from django.contrib.auth import get_user_model
+User = get_user_model()
+
+grc = Service.objects.get(name='grc-service')
+
+print('=== Risk Management RBAC Verification ===')
+print()
+for email in ['rmqam@fcc.go.tz', 'rmo@fcc.go.tz', 'riskchampion@fcc.go.tz', 'qualityauditor@fcc.go.tz', 'lsm@fcc.go.tz', 'dg@fcc.go.tz']:
+    user = User.objects.get(email=email)
+    data = UnifiedPermissionResolutionService.get_user_permissions(user)
+    risk_p = [p for p in data.get('permissions_flat', []) if p.startswith('grc:risk_') or p.startswith('grc:dept_') or p.startswith('grc:institutional_') or p.startswith('grc:rtap') or p.startswith('grc:quarterly_risk') or p.startswith('grc:quality_') or p.startswith('grc:qms_') or p.startswith('grc:non_conformance') or p.startswith('grc:qa_training')]
+    wo_p = [p for p in data.get('permissions_flat', []) if p.startswith('workflow:')]
+    drs_p = [p for p in data.get('permissions_flat', []) if p.startswith('document:')]
+    print(f'  {email}: {len(risk_p)} risk, {len(wo_p)} WO, {len(drs_p)} DRS')
+
+print()
+print('Expected:')
+print('  rmqam@fcc.go.tz:          24 risk, 3 WO, 3 DRS')
+print('  rmo@fcc.go.tz:            17 risk, 3 WO, 3 DRS')
+print('  riskchampion@fcc.go.tz:    6 risk, 1 WO, 1 DRS')
+print('  qualityauditor@fcc.go.tz:  4 risk, 1 WO, 1 DRS')
+print('  lsm@fcc.go.tz:             4 risk, 2 WO, 2 DRS')
+print('  dg@fcc.go.tz:              3 risk, 2 WO, 0 DRS (has DRS from IA setup)')
+"
+```
+

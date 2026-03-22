@@ -100,6 +100,18 @@ class GoverningBody(TimestampedModel, StatusMixin):
     description = models.TextField(blank=True)
     secretary_user_ids = models.JSONField(default=list, blank=True)
 
+    # ── Meeting number configuration (MIN-18) ────────────────────────────────
+    MEETING_NUMBER_FORMAT_CHOICES = [
+        ('sequential', 'Sequential'),
+        ('financial_year', 'Financial Year'),
+    ]
+    meeting_number_prefix = models.CharField(max_length=20, blank=True)
+    meeting_number_format = models.CharField(
+        max_length=20,
+        choices=MEETING_NUMBER_FORMAT_CHOICES,
+        default='sequential',
+    )
+
     class Meta:
         db_table = 'legal_governing_body'
         ordering = ['name']
@@ -253,6 +265,9 @@ class Meeting(TimestampedModel, StatusMixin, WorkflowMixin):
     rsvp_pending_count = models.PositiveIntegerField(default=0)
     quorum_met = models.BooleanField(default=False, db_index=True)
     quorum_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+
+    # ── Rescheduling (SIG-10) ────────────────────────────────────────────────
+    reschedule_reason = models.TextField(blank=True)
 
     class Meta:
         db_table = 'legal_meeting'
@@ -646,6 +661,9 @@ class CaseDefendant(TimestampedModel, StatusMixin, WorkflowMixin):
     archived_at = models.DateTimeField(null=True, blank=True)
     archived_by = models.UUIDField(null=True, blank=True)
 
+    # ── On-hold (SIG-09) ────────────────────────────────────────────────────
+    hold_reason = models.TextField(blank=True)
+
     class Meta:
         db_table = 'legal_case_defendant'
         ordering = ['-created_at']
@@ -1028,6 +1046,7 @@ class LitigationDirective(TimestampedModel, StatusMixin):
     STATUS_CHOICES = [
         ('open', 'Open'),
         ('in_progress', 'In Progress'),
+        ('pending_dg_approval', 'Pending DG Approval'),
         ('closed', 'Closed'),
     ]
 
@@ -1045,6 +1064,12 @@ class LitigationDirective(TimestampedModel, StatusMixin):
     completion_summary = models.TextField(blank=True)
     completion_date = models.DateField(null=True, blank=True)
     attachments = models.JSONField(default=list, blank=True)
+
+    # ── DG approval gate (SIG-03) ────────────────────────────────────────────
+    requires_dg_approval_for_closure = models.BooleanField(
+        default=False,
+        help_text='When True, closure must pass through DG approval before being finalised.',
+    )
 
     class Meta:
         db_table = 'legal_litigation_directive'
@@ -1092,6 +1117,12 @@ class TaskLitigation(TimestampedModel, StatusMixin):
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')
     related_entity_type = models.CharField(max_length=80, blank=True)
     related_entity_id = models.UUIDField(null=True, blank=True)
+
+    # ── Auto-creation flag (MIN-03) ──────────────────────────────────────────
+    auto_created = models.BooleanField(
+        default=False,
+        help_text='True when the task was created programmatically (e.g. appeal deadline, filing review).',
+    )
 
     class Meta:
         db_table = 'legal_task_litigation'
@@ -1160,6 +1191,9 @@ class CasePlaintiff(TimestampedModel, StatusMixin, WorkflowMixin):
     is_archived = models.BooleanField(default=False, db_index=True)
     archived_at = models.DateTimeField(null=True, blank=True)
     archived_by = models.UUIDField(null=True, blank=True)
+
+    # ── On-hold (SIG-09) ────────────────────────────────────────────────────
+    hold_reason = models.TextField(blank=True)
 
     class Meta:
         db_table = 'legal_case_plaintiff'

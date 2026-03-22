@@ -220,6 +220,16 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(hour=2, minute=0),  # Every day at 02:00
         'options': {'queue': 'default'},
     },
+    'check-risk-monitoring-deadlines-daily': {
+        'task': 'grc.check_risk_monitoring_deadlines',
+        'schedule': crontab(hour=7, minute=30),  # Every day at 07:30
+        'options': {'queue': 'default'},
+    },
+    'check-nc-closure-status-monthly': {
+        'task': 'grc.check_nc_closure_status',
+        'schedule': crontab(day_of_month=1, hour=8, minute=0),  # 1st of each month at 08:00
+        'options': {'queue': 'default'},
+    },
 }
 
 # Legal archiving: days after closure before auto-archiving

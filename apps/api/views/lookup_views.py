@@ -18,9 +18,15 @@ from apps.core.models import (
     FiscalYear, Quarter, AuditSeverity, FindingType, 
     RiskRating, AuditOpinion
 )
+from apps.core.models.lookups import (
+    RiskCategory, RiskLikelihood, RiskImpact, RiskLevel,
+    NonConformanceType, ISOClause,
+)
 from apps.api.serializers.lookup_serializers import (
     FiscalYearSerializer, QuarterSerializer, AuditSeveritySerializer,
-    FindingTypeSerializer, RiskRatingSerializer, AuditOpinionSerializer
+    FindingTypeSerializer, RiskRatingSerializer, AuditOpinionSerializer,
+    RiskCategorySerializer, RiskLikelihoodSerializer, RiskImpactSerializer,
+    RiskLevelSerializer, NonConformanceTypeSerializer, ISOClauseSerializer,
 )
 from apps.api.permissions_jwt import CanViewAuditPlan
 
@@ -415,3 +421,221 @@ class AuditOpinionListView(APIView):
                 message="Failed to retrieve audit opinions",
                 details=str(e) if settings.DEBUG else None,
             )
+
+
+# ── Risk Management Lookup Views ───────────────────────────────────────────
+
+
+class RiskLookupDataView(APIView):
+    """Combined endpoint for all Risk Management lookup data"""
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanViewAuditPlan().has_permission(request, self):
+            self.permission_denied(request, message='A valid GRC role is required.')
+
+    def get(self, request):
+        try:
+            risk_categories = RiskCategory.objects.filter(is_active=True).order_by('sort_order')
+            risk_likelihoods = RiskLikelihood.objects.filter(is_active=True).order_by('sort_order')
+            risk_impacts = RiskImpact.objects.filter(is_active=True).order_by('sort_order')
+            risk_levels = RiskLevel.objects.filter(is_active=True).order_by('sort_order')
+            nc_types = NonConformanceType.objects.filter(is_active=True).order_by('sort_order')
+            iso_clauses = ISOClause.objects.filter(is_active=True).order_by('sort_order', 'clause_number')
+
+            response_data = {
+                'risk_categories': RiskCategorySerializer(risk_categories, many=True).data,
+                'risk_likelihoods': RiskLikelihoodSerializer(risk_likelihoods, many=True).data,
+                'risk_impacts': RiskImpactSerializer(risk_impacts, many=True).data,
+                'risk_levels': RiskLevelSerializer(risk_levels, many=True).data,
+                'non_conformance_types': NonConformanceTypeSerializer(nc_types, many=True).data,
+                'iso_clauses': ISOClauseSerializer(iso_clauses, many=True).data,
+            }
+
+            return success_response(
+                data=response_data,
+                meta={
+                    "counts": {
+                        "risk_categories": risk_categories.count(),
+                        "risk_likelihoods": risk_likelihoods.count(),
+                        "risk_impacts": risk_impacts.count(),
+                        "risk_levels": risk_levels.count(),
+                        "non_conformance_types": nc_types.count(),
+                        "iso_clauses": iso_clauses.count(),
+                    },
+                },
+            )
+        except Exception as e:
+            logger.exception("Failed to retrieve risk lookup data")
+            return server_error_response(
+                message="Failed to retrieve risk lookup data",
+                details=str(e) if settings.DEBUG else None,
+            )
+
+
+class RiskCategoryListView(APIView):
+    """Read-only list endpoint for RiskCategory lookup"""
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanViewAuditPlan().has_permission(request, self):
+            self.permission_denied(request, message='A valid GRC role is required.')
+
+    def get(self, request):
+        try:
+            queryset = RiskCategory.objects.filter(is_active=True)
+            ordering = get_ordering_param(request, default='sort_order', allowed_fields=['sort_order', 'name', 'code'])
+            queryset = queryset.order_by(ordering)
+            page_data = paginate_queryset(queryset, request)
+            serializer = RiskCategorySerializer(page_data["queryset"], many=True)
+            return paginated_list_response(
+                items=serializer.data, count=page_data["total"],
+                page=page_data["page"], page_size=page_data["page_size"],
+                resource="risk_category",
+            )
+        except Exception as e:
+            logger.exception("Failed to retrieve risk categories")
+            return server_error_response(message="Failed to retrieve risk categories", details=str(e) if settings.DEBUG else None)
+
+
+class RiskLikelihoodListView(APIView):
+    """Read-only list endpoint for RiskLikelihood lookup"""
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanViewAuditPlan().has_permission(request, self):
+            self.permission_denied(request, message='A valid GRC role is required.')
+
+    def get(self, request):
+        try:
+            queryset = RiskLikelihood.objects.filter(is_active=True)
+            ordering = get_ordering_param(request, default='sort_order', allowed_fields=['sort_order', 'name', 'numerical_value'])
+            queryset = queryset.order_by(ordering)
+            page_data = paginate_queryset(queryset, request)
+            serializer = RiskLikelihoodSerializer(page_data["queryset"], many=True)
+            return paginated_list_response(
+                items=serializer.data, count=page_data["total"],
+                page=page_data["page"], page_size=page_data["page_size"],
+                resource="risk_likelihood",
+            )
+        except Exception as e:
+            logger.exception("Failed to retrieve risk likelihoods")
+            return server_error_response(message="Failed to retrieve risk likelihoods", details=str(e) if settings.DEBUG else None)
+
+
+class RiskImpactListView(APIView):
+    """Read-only list endpoint for RiskImpact lookup"""
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanViewAuditPlan().has_permission(request, self):
+            self.permission_denied(request, message='A valid GRC role is required.')
+
+    def get(self, request):
+        try:
+            queryset = RiskImpact.objects.filter(is_active=True)
+            ordering = get_ordering_param(request, default='sort_order', allowed_fields=['sort_order', 'name', 'numerical_value'])
+            queryset = queryset.order_by(ordering)
+            page_data = paginate_queryset(queryset, request)
+            serializer = RiskImpactSerializer(page_data["queryset"], many=True)
+            return paginated_list_response(
+                items=serializer.data, count=page_data["total"],
+                page=page_data["page"], page_size=page_data["page_size"],
+                resource="risk_impact",
+            )
+        except Exception as e:
+            logger.exception("Failed to retrieve risk impacts")
+            return server_error_response(message="Failed to retrieve risk impacts", details=str(e) if settings.DEBUG else None)
+
+
+class RiskLevelListView(APIView):
+    """Read-only list endpoint for RiskLevel lookup"""
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanViewAuditPlan().has_permission(request, self):
+            self.permission_denied(request, message='A valid GRC role is required.')
+
+    def get(self, request):
+        try:
+            queryset = RiskLevel.objects.filter(is_active=True)
+            ordering = get_ordering_param(request, default='sort_order', allowed_fields=['sort_order', 'name', 'min_score'])
+            queryset = queryset.order_by(ordering)
+            page_data = paginate_queryset(queryset, request)
+            serializer = RiskLevelSerializer(page_data["queryset"], many=True)
+            return paginated_list_response(
+                items=serializer.data, count=page_data["total"],
+                page=page_data["page"], page_size=page_data["page_size"],
+                resource="risk_level",
+            )
+        except Exception as e:
+            logger.exception("Failed to retrieve risk levels")
+            return server_error_response(message="Failed to retrieve risk levels", details=str(e) if settings.DEBUG else None)
+
+
+class NonConformanceTypeListView(APIView):
+    """Read-only list endpoint for NonConformanceType lookup"""
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanViewAuditPlan().has_permission(request, self):
+            self.permission_denied(request, message='A valid GRC role is required.')
+
+    def get(self, request):
+        try:
+            queryset = NonConformanceType.objects.filter(is_active=True)
+            ordering = get_ordering_param(request, default='sort_order', allowed_fields=['sort_order', 'name', 'code'])
+            queryset = queryset.order_by(ordering)
+            page_data = paginate_queryset(queryset, request)
+            serializer = NonConformanceTypeSerializer(page_data["queryset"], many=True)
+            return paginated_list_response(
+                items=serializer.data, count=page_data["total"],
+                page=page_data["page"], page_size=page_data["page_size"],
+                resource="non_conformance_type",
+            )
+        except Exception as e:
+            logger.exception("Failed to retrieve non-conformance types")
+            return server_error_response(message="Failed to retrieve non-conformance types", details=str(e) if settings.DEBUG else None)
+
+
+class ISOClauseListView(APIView):
+    """Read-only list endpoint for ISOClause lookup"""
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanViewAuditPlan().has_permission(request, self):
+            self.permission_denied(request, message='A valid GRC role is required.')
+
+    def get(self, request):
+        try:
+            queryset = ISOClause.objects.filter(is_active=True)
+            ordering = get_ordering_param(request, default='sort_order,clause_number', allowed_fields=['sort_order', 'clause_number', 'title'])
+            if ',' in ordering:
+                ordering_fields = [f.strip() for f in ordering.split(',')]
+                queryset = queryset.order_by(*ordering_fields)
+            else:
+                queryset = queryset.order_by(ordering)
+            page_data = paginate_queryset(queryset, request)
+            serializer = ISOClauseSerializer(page_data["queryset"], many=True)
+            return paginated_list_response(
+                items=serializer.data, count=page_data["total"],
+                page=page_data["page"], page_size=page_data["page_size"],
+                resource="iso_clause",
+            )
+        except Exception as e:
+            logger.exception("Failed to retrieve ISO clauses")
+            return server_error_response(message="Failed to retrieve ISO clauses", details=str(e) if settings.DEBUG else None)

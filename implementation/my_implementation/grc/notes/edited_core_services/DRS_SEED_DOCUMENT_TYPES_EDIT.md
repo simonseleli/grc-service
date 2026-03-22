@@ -72,6 +72,8 @@ A single new dictionary entry was added to the `INITIAL_DOCUMENT_TYPES` list in
         'is_system': False,
     },
 
+4. Risk Management document types 
+
 
 ```
 

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Institutional Risk Register</title>
+  <style>
+    @page {
+      size: A4 landscape;
+      margin: 15mm 15mm 60mm 15mm;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 9pt;
+      color: #1a1a1a;
+      line-height: 1.4;
+      margin: 0;
+      padding: 0;
+    }
+
+    .header {
+      text-align: center;
+      border-bottom: 2px solid #1a3a5c;
+      padding-bottom: 10px;
+      margin-bottom: 14px;
+    }
+
+    .org-name {
+      font-size: 12pt;
+      font-weight: bold;
+      color: #1a3a5c;
+      letter-spacing: 0.5px;
+      margin: 0 0 3px;
+    }
+
+    .doc-title {
+      font-size: 11pt;
+      font-weight: bold;
+      color: #222;
+      margin: 0 0 3px;
+    }
+
+    .ref-number {
+      font-size: 8pt;
+      color: #666;
+      margin: 0;
+    }
+
+    .meta-row {
+      display: table;
+      width: 100%;
+      margin-bottom: 10px;
+      font-size: 9pt;
+    }
+
+    .meta-col {
+      display: table-cell;
+      width: 33%;
+    }
+
+    .meta-col .label { font-weight: bold; color: #333; }
+
+    table.risk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+    }
+
+    table.risk-table th {
+      background: #1a3a5c;
+      color: #fff;
+      font-size: 8pt;
+      padding: 5px 4px;
+      text-align: left;
+      border: 1px solid #1a3a5c;
+    }
+
+    table.risk-table td {
+      font-size: 8pt;
+      padding: 4px;
+      border: 1px solid #ccc;
+      vertical-align: top;
+    }
+
+    table.risk-table tr:nth-child(even) { background: #f8f9fa; }
+
+    .level-high { color: #c0392b; font-weight: bold; }
+    .level-medium { color: #e67e22; font-weight: bold; }
+    .level-low { color: #27ae60; font-weight: bold; }
+
+    .sig-block {
+      margin-top: 20px;
+      padding-top: 8px;
+      border-top: 1px solid #bbb;
+    }
+
+    .sig-block .label { font-weight: bold; color: #1a3a5c; font-size: 9pt; }
+
+    .footer-note {
+      margin-top: 10px;
+      font-size: 7.5pt;
+      color: #888;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="org-name">FAIR COMPETITION COMMISSION (FCC)</div>
+    <div class="doc-title">Institutional Risk Register</div>
+    <div class="ref-number">Fiscal Year: {{ register.fiscal_year }}</div>
+  </div>
+
+  <div class="meta-row">
+    <div class="meta-col">
+      <span class="label">Prepared By:</span> {{ register.prepared_by }}
+    </div>
+    <div class="meta-col">
+      <span class="label">Status:</span> {{ register.get_status_display }}
+    </div>
+    <div class="meta-col">
+      <span class="label">Date:</span> {{ generated_at|date:"d F Y" }}
+    </div>
+  </div>
+
+  <table class="risk-table">
+    <thead>
+      <tr>
+        <th style="width:3%">#</th>
+        <th style="width:8%">Category</th>
+        <th style="width:15%">Risk Title</th>
+        <th style="width:15%">Description</th>
+        <th style="width:5%">L</th>
+        <th style="width:5%">I</th>
+        <th style="width:6%">Score</th>
+        <th style="width:8%">Inherent Level</th>
+        <th style="width:12%">Existing Controls</th>
+        <th style="width:5%">Res.&nbsp;L</th>
+        <th style="width:5%">Res.&nbsp;I</th>
+        <th style="width:6%">Res.&nbsp;Score</th>
+        <th style="width:7%">Residual Level</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for entry in entries %}
+      <tr>
+        <td>{{ entry.risk_ranking }}</td>
+        <td>{{ entry.risk_sheet.risk_category.name }}</td>
+        <td>{{ entry.risk_sheet.risk_title }}</td>
+        <td>{{ entry.risk_sheet.risk_description|truncatewords:20 }}</td>
+        <td>{{ entry.risk_sheet.likelihood.numerical_value }}</td>
+        <td>{{ entry.risk_sheet.impact.numerical_value }}</td>
+        <td>{{ entry.risk_sheet.inherent_risk_score }}</td>
+        <td>{% if entry.risk_sheet.inherent_risk_level %}{{ entry.risk_sheet.inherent_risk_level.name }}{% else %}—{% endif %}</td>
+        <td>{{ entry.risk_sheet.existing_controls|truncatewords:15 }}</td>
+        <td>{% if entry.risk_sheet.residual_likelihood %}{{ entry.risk_sheet.residual_likelihood.numerical_value }}{% else %}—{% endif %}</td>
+        <td>{% if entry.risk_sheet.residual_impact %}{{ entry.risk_sheet.residual_impact.numerical_value }}{% else %}—{% endif %}</td>
+        <td>{{ entry.risk_sheet.residual_risk_score }}</td>
+        <td>{% if entry.risk_sheet.residual_risk_level %}{{ entry.risk_sheet.residual_risk_level.name }}{% else %}—{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="13" style="text-align:center; padding:12px; color:#888;">No risk entries recorded.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if register.remarks %}
+  <div style="margin-top:12px;">
+    <span class="label">Remarks:</span> {{ register.remarks }}
+  </div>
+  {% endif %}
+
+  {% if register.status == 'approved' %}
+  <div class="sig-block">
+    <div class="label">Digitally Approved</div>
+    <div style="font-size:9pt;">
+      Status: <strong>Approved</strong><br>
+      Generated: {{ generated_at|date:"d F Y \a\t H:i" }} UTC
+    </div>
+    <!-- DRS will overlay QR code (bottom-left) + approver signature (bottom-right) in the reserved margin -->
+  </div>
+  {% else %}
+  <div class="sig-block">
+    <div class="label">Authorised By</div>
+    <div style="font-size:9pt;">
+      Name: ________________________________________
+      &nbsp;&nbsp;&nbsp;Signature: ________________________________________
+      &nbsp;&nbsp;&nbsp;Date: ________________________________________
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="footer-note">
+    This document was generated by the FIMS Risk Management GRC System on {{ generated_at|date:"d F Y \a\t H:i" }} UTC.
+    {% if register.status == 'approved' %}
+    The QR code at the bottom of this page can be scanned to verify the authenticity of this register.
+    {% endif %}
+  </div>
+
+</body>
+</html>

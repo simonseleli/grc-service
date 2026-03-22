@@ -32,6 +32,17 @@ from apps.core.events.legal_events import (
     LegalSettlementApprovedEvent,
     LegalNoticeIssuedEvent,
 )
+from apps.core.events.risk_events import (
+    RiskChampionAppointedEvent,
+    DeptRiskRegisterApprovedEvent,
+    InstitutionalRiskRegisterSubmittedEvent,
+    RTAPApprovedEvent,
+    RTAPUpdatedEvent,
+    QuarterlyRiskReportSubmittedEvent,
+    QualityAuditorAppointedEvent,
+    NonConformanceRaisedEvent,
+    QMSAuditReportSignedEvent,
+)
 from shared.constants.event_types import (
     AUDIT_ENGAGEMENT_EVENTS,
     WORKING_PAPER_EVENTS,
@@ -45,6 +56,12 @@ from shared.constants.event_types import (
     LEGAL_FILING_EVENTS,
     LEGAL_SETTLEMENT_EVENTS,
     LEGAL_NOTICE_EVENTS,
+    RISK_CHAMPION_EVENTS,
+    RISK_REGISTER_EVENTS,
+    RTAP_EVENTS,
+    QUARTERLY_RISK_REPORT_EVENTS,
+    QA_EVENTS,
+    QMS_AUDIT_EVENTS,
 )
 
 logger = logging.getLogger(__name__)
@@ -685,6 +702,241 @@ class KafkaMessagingService(MessagingServiceInterface):
 
         except Exception as e:
             logger.error(f"Error publishing legal notice event {event_type}: {e}")
+            return False
+
+    # ── Risk Management Events ─────────────────────────────────────────
+
+    def publish_risk_champion_event(
+        self,
+        event_type: str,
+        champion_id: uuid.UUID,
+        additional_data: Dict[str, Any] = None,
+    ) -> bool:
+        """Publish risk champion event to Kafka"""
+        try:
+            if event_type not in RISK_CHAMPION_EVENTS.values():
+                logger.warning(f"Unknown risk champion event type: {event_type}")
+                return False
+
+            additional_data = additional_data or {}
+
+            if event_type == RISK_CHAMPION_EVENTS.get('CHAMPION_APPOINTED'):
+                event = RiskChampionAppointedEvent(
+                    champion_id=str(champion_id),
+                    appointment_id=additional_data.get('appointment_id', ''),
+                    champion_user_id=additional_data.get('champion_user_id', ''),
+                    org_unit_id=additional_data.get('org_unit_id', ''),
+                    org_unit_type=additional_data.get('org_unit_type', ''),
+                    appointed_by=additional_data.get('appointed_by', ''),
+                    user_id=additional_data.get('user_id', additional_data.get('appointed_by', '')),
+                )
+            else:
+                logger.warning(f"No event class for risk champion type: {event_type}")
+                return False
+
+            publish_event(event)
+            logger.info(f"Published risk champion event: {event_type} for {champion_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error publishing risk champion event {event_type}: {e}")
+            return False
+
+    def publish_risk_register_event(
+        self,
+        event_type: str,
+        register_id: uuid.UUID,
+        additional_data: Dict[str, Any] = None,
+    ) -> bool:
+        """Publish risk register event to Kafka"""
+        try:
+            if event_type not in RISK_REGISTER_EVENTS.values():
+                logger.warning(f"Unknown risk register event type: {event_type}")
+                return False
+
+            additional_data = additional_data or {}
+
+            if event_type == RISK_REGISTER_EVENTS.get('DEPARTMENTAL_APPROVED'):
+                event = DeptRiskRegisterApprovedEvent(
+                    register_id=str(register_id),
+                    org_unit_id=additional_data.get('org_unit_id', ''),
+                    fiscal_year_code=additional_data.get('fiscal_year_code', ''),
+                    approved_by=additional_data.get('approved_by', ''),
+                    user_id=additional_data.get('user_id', additional_data.get('approved_by', '')),
+                )
+            elif event_type == RISK_REGISTER_EVENTS.get('INSTITUTIONAL_SUBMITTED'):
+                event = InstitutionalRiskRegisterSubmittedEvent(
+                    register_id=str(register_id),
+                    fiscal_year_code=additional_data.get('fiscal_year_code', ''),
+                    submitted_by=additional_data.get('submitted_by', ''),
+                    user_id=additional_data.get('user_id', additional_data.get('submitted_by', '')),
+                )
+            else:
+                logger.warning(f"No event class for risk register type: {event_type}")
+                return False
+
+            publish_event(event)
+            logger.info(f"Published risk register event: {event_type} for {register_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error publishing risk register event {event_type}: {e}")
+            return False
+
+    def publish_rtap_event(
+        self,
+        event_type: str,
+        rtap_id: uuid.UUID,
+        additional_data: Dict[str, Any] = None,
+    ) -> bool:
+        """Publish RTAP event to Kafka"""
+        try:
+            if event_type not in RTAP_EVENTS.values():
+                logger.warning(f"Unknown RTAP event type: {event_type}")
+                return False
+
+            additional_data = additional_data or {}
+
+            if event_type == RTAP_EVENTS.get('RTAP_APPROVED'):
+                event = RTAPApprovedEvent(
+                    rtap_id=str(rtap_id),
+                    fiscal_year_code=additional_data.get('fiscal_year_code', ''),
+                    approved_by=additional_data.get('approved_by', ''),
+                    user_id=additional_data.get('user_id', additional_data.get('approved_by', '')),
+                )
+            elif event_type == RTAP_EVENTS.get('RTAP_UPDATED'):
+                event = RTAPUpdatedEvent(
+                    rtap_id=str(rtap_id),
+                    rtap_item_id=additional_data.get('rtap_item_id', ''),
+                    quarter=additional_data.get('quarter', ''),
+                    new_status=additional_data.get('new_status', ''),
+                    updated_by=additional_data.get('updated_by', ''),
+                    user_id=additional_data.get('user_id', additional_data.get('updated_by', '')),
+                )
+            else:
+                logger.warning(f"No event class for RTAP type: {event_type}")
+                return False
+
+            publish_event(event)
+            logger.info(f"Published RTAP event: {event_type} for {rtap_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error publishing RTAP event {event_type}: {e}")
+            return False
+
+    def publish_quarterly_report_event(
+        self,
+        event_type: str,
+        report_id: uuid.UUID,
+        additional_data: Dict[str, Any] = None,
+    ) -> bool:
+        """Publish quarterly risk report event to Kafka"""
+        try:
+            if event_type not in QUARTERLY_RISK_REPORT_EVENTS.values():
+                logger.warning(f"Unknown quarterly report event type: {event_type}")
+                return False
+
+            additional_data = additional_data or {}
+
+            if event_type == QUARTERLY_RISK_REPORT_EVENTS.get('RISK_REPORT_SUBMITTED'):
+                event = QuarterlyRiskReportSubmittedEvent(
+                    report_id=str(report_id),
+                    fiscal_year_code=additional_data.get('fiscal_year_code', ''),
+                    quarter=additional_data.get('quarter', ''),
+                    submitted_by=additional_data.get('submitted_by', ''),
+                    user_id=additional_data.get('user_id', additional_data.get('submitted_by', '')),
+                )
+            else:
+                logger.warning(f"No event class for quarterly report type: {event_type}")
+                return False
+
+            publish_event(event)
+            logger.info(f"Published quarterly report event: {event_type} for {report_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error publishing quarterly report event {event_type}: {e}")
+            return False
+
+    def publish_qa_event(
+        self,
+        event_type: str,
+        auditor_id: uuid.UUID,
+        additional_data: Dict[str, Any] = None,
+    ) -> bool:
+        """Publish quality auditor event to Kafka"""
+        try:
+            if event_type not in QA_EVENTS.values():
+                logger.warning(f"Unknown QA event type: {event_type}")
+                return False
+
+            additional_data = additional_data or {}
+
+            if event_type == QA_EVENTS.get('QA_APPOINTED'):
+                event = QualityAuditorAppointedEvent(
+                    auditor_id=str(auditor_id),
+                    appointment_id=additional_data.get('appointment_id', ''),
+                    auditor_user_id=additional_data.get('auditor_user_id', ''),
+                    org_unit_id=additional_data.get('org_unit_id', ''),
+                    appointed_by=additional_data.get('appointed_by', ''),
+                    user_id=additional_data.get('user_id', additional_data.get('appointed_by', '')),
+                )
+            else:
+                logger.warning(f"No event class for QA type: {event_type}")
+                return False
+
+            publish_event(event)
+            logger.info(f"Published QA event: {event_type} for {auditor_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error publishing QA event {event_type}: {e}")
+            return False
+
+    def publish_qms_audit_event(
+        self,
+        event_type: str,
+        entity_id: uuid.UUID,
+        additional_data: Dict[str, Any] = None,
+    ) -> bool:
+        """Publish QMS audit event to Kafka"""
+        try:
+            if event_type not in QMS_AUDIT_EVENTS.values():
+                logger.warning(f"Unknown QMS audit event type: {event_type}")
+                return False
+
+            additional_data = additional_data or {}
+
+            if event_type == QMS_AUDIT_EVENTS.get('NC_RAISED'):
+                event = NonConformanceRaisedEvent(
+                    nc_id=str(entity_id),
+                    audit_report_id=additional_data.get('audit_report_id', ''),
+                    iso_clause=additional_data.get('iso_clause', ''),
+                    nc_type=additional_data.get('nc_type', ''),
+                    description=additional_data.get('description', ''),
+                    raised_by=additional_data.get('raised_by', ''),
+                    responsible_officer=additional_data.get('responsible_officer'),
+                    user_id=additional_data.get('user_id', additional_data.get('raised_by', '')),
+                )
+            elif event_type == QMS_AUDIT_EVENTS.get('REPORT_SIGNED'):
+                event = QMSAuditReportSignedEvent(
+                    report_id=str(entity_id),
+                    audit_plan_id=additional_data.get('audit_plan_id', ''),
+                    signed_by=additional_data.get('signed_by', ''),
+                    signature_type=additional_data.get('signature_type', ''),
+                    user_id=additional_data.get('user_id', additional_data.get('signed_by', '')),
+                )
+            else:
+                logger.warning(f"No event class for QMS audit type: {event_type}")
+                return False
+
+            publish_event(event)
+            logger.info(f"Published QMS audit event: {event_type} for {entity_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error publishing QMS audit event {event_type}: {e}")
             return False
 
 

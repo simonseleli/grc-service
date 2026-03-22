@@ -125,3 +125,168 @@ def generate_attendance_register_pdf(meeting) -> bytes:
     }
     html_str = render_to_string('grc/attendance_register.html', context)
     return HTML(string=html_str).write_pdf()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Risk Management PDF Generators
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+def generate_appointment_letter_pdf(appointment) -> bytes:
+    """
+    Render RC or QA formal appointment letter as PDF bytes.
+
+    Args:
+        appointment: RiskChampionAppointment or QualityAuditorAppointment
+                     with risk_champion/quality_auditor already select_related.
+
+    Returns:
+        Raw PDF bytes ready to be uploaded to DRS.
+    """
+    from django.template.loader import render_to_string
+    from weasyprint import HTML
+
+    is_rc = hasattr(appointment, 'risk_champion')
+    person = appointment.risk_champion if is_rc else appointment.quality_auditor
+    context = {
+        'appointment': appointment,
+        'person': person,
+        'is_risk_champion': is_rc,
+        'role_title': 'Risk Champion' if is_rc else 'Quality Auditor',
+        'generated_at': timezone.now(),
+    }
+    html_str = render_to_string('grc/risk/appointment_letter.html', context)
+    return HTML(string=html_str).write_pdf()
+
+
+def generate_risk_register_pdf(register) -> bytes:
+    """
+    Render Institutional Risk Register as PDF bytes.
+
+    Args:
+        register: InstitutionalRiskRegister with fiscal_year and
+                  entries__risk_sheet select_related/prefetched.
+
+    Returns:
+        Raw PDF bytes ready to be uploaded to DRS.
+    """
+    from django.template.loader import render_to_string
+    from weasyprint import HTML
+
+    entries = register.entries.select_related(
+        'risk_sheet__risk_category',
+        'risk_sheet__likelihood',
+        'risk_sheet__impact',
+        'risk_sheet__inherent_risk_level',
+        'risk_sheet__residual_risk_level',
+    ).filter(is_active=True).order_by('risk_ranking')
+    context = {
+        'register': register,
+        'entries': entries,
+        'generated_at': timezone.now(),
+    }
+    html_str = render_to_string('grc/risk/institutional_risk_register.html', context)
+    return HTML(string=html_str).write_pdf()
+
+
+def generate_rtap_pdf(rtap) -> bytes:
+    """
+    Render Risk Treatment Action Plan as PDF bytes.
+
+    Args:
+        rtap: RiskTreatmentActionPlan with inst_register, fiscal_year,
+              and items prefetched.
+
+    Returns:
+        Raw PDF bytes ready to be uploaded to DRS.
+    """
+    from django.template.loader import render_to_string
+    from weasyprint import HTML
+
+    items = rtap.items.select_related(
+        'inst_entry__risk_sheet__risk_category',
+    ).filter(is_active=True).order_by('sort_order')
+    context = {
+        'rtap': rtap,
+        'items': items,
+        'generated_at': timezone.now(),
+    }
+    html_str = render_to_string('grc/risk/risk_treatment_action_plan.html', context)
+    return HTML(string=html_str).write_pdf()
+
+
+def generate_quarterly_report_pdf(report) -> bytes:
+    """
+    Render Quarterly Performance Report as PDF bytes.
+
+    Args:
+        report: QuarterlyPerformanceReport with fiscal_year and quarter
+                select_related.
+
+    Returns:
+        Raw PDF bytes ready to be uploaded to DRS.
+    """
+    from django.template.loader import render_to_string
+    from weasyprint import HTML
+
+    context = {
+        'report': report,
+        'generated_at': timezone.now(),
+    }
+    html_str = render_to_string('grc/risk/quarterly_performance_report.html', context)
+    return HTML(string=html_str).write_pdf()
+
+
+def generate_qms_audit_report_pdf(audit_report) -> bytes:
+    """
+    Render QMS Audit Report as PDF bytes.
+
+    Args:
+        audit_report: QMSAuditReport with audit_plan and
+                      audit_plan__audit_program select_related.
+                      nonconformances prefetched.
+
+    Returns:
+        Raw PDF bytes ready to be uploaded to DRS.
+    """
+    from django.template.loader import render_to_string
+    from weasyprint import HTML
+
+    nonconformances = audit_report.nonconformances.select_related(
+        'iso_clause', 'nc_type',
+    ).filter(is_active=True)
+    checklists = audit_report.audit_plan.checklists.select_related(
+        'iso_clause',
+    ).filter(is_active=True)
+    context = {
+        'report': audit_report,
+        'plan': audit_report.audit_plan,
+        'nonconformances': nonconformances,
+        'checklists': checklists,
+        'generated_at': timezone.now(),
+    }
+    html_str = render_to_string('grc/risk/qms_audit_report.html', context)
+    return HTML(string=html_str).write_pdf()
+
+
+def generate_risk_dashboard_pdf(data: dict, fiscal_year=None) -> bytes:
+    """
+    Render Risk Dashboard summary as PDF bytes.  GAP-20.
+
+    Args:
+        data: Dashboard stats dict (same shape as RiskDashboardView response).
+        fiscal_year: Optional FiscalYear instance for the page header.
+
+    Returns:
+        Raw PDF bytes.
+    """
+    from django.template.loader import render_to_string
+    from weasyprint import HTML
+
+    context = {
+        'data': data,
+        'fiscal_year': fiscal_year,
+        'generated_at': timezone.now(),
+    }
+    html_str = render_to_string('grc/risk/risk_dashboard.html', context)
+    return HTML(string=html_str).write_pdf()

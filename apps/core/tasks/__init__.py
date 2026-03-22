@@ -33,6 +33,14 @@ from apps.core.tasks.legal_case_archiving import (
     archive_closed_legal_cases,
 )
 
+from apps.core.tasks.risk_monitoring_deadlines import (
+    check_risk_monitoring_deadlines,
+)
+
+from apps.core.tasks.risk_nc_monitoring import (
+    check_nc_closure_status,
+)
+
 __all__ = [
     # Organizational sync tasks
     'sync_organizational_data',
@@ -55,4 +63,8 @@ __all__ = [
 
     # Legal case archiving (GAP-14)
     'archive_closed_legal_cases',
+
+    # Risk management deadline enforcement
+    'check_risk_monitoring_deadlines',
+    'check_nc_closure_status',
 ]

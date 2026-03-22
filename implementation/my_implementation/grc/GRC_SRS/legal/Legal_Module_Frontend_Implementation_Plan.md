@@ -1241,124 +1241,228 @@ For each workflow-enabled entity, verify:
 
 ---
 
-## Phase 16 — Implementation Order
+## Phase 16 — Consolidated Implementation Order
 
-Execute in this exact sequence. Each step depends on the previous.
+> **This section supersedes all previous fragmented implementation order references** including the original Phase 16, Addendum A.13 (Phase 16 Corrections), A.16.1 (Dashboard insertion), and A.18.15 (Gap Fix Integration Points). Everything is merged into a single flat sequence below. No cross-referencing between sections is needed.
+>
+> Execute in this exact sequence. Each step depends on the previous. Items within a step can be parallelized where no intra-step dependencies exist.
+>
+> **SRS Reference:** `Legal_Service.md` — the source of truth for all functional requirements.
+> **Detailed Specs:** For each item, the "Spec" column references the Addendum section containing full implementation details (field lists, code samples, validation rules). Consult those sections during implementation.
 
-### Step 1: Foundation Layer
-1. `types/legal.ts` — all type definitions and status maps
-2. `hooks/legalKeys.ts` — query key factories
-3. `services/legalService.ts` — all API functions
-4. `hooks/useLegalPermissions.ts` — permission hook
-5. `hooks/useLegalConfig.ts` — lookup hooks
-6. `hooks/useLegalWorkflows.ts` — workflow status/history hooks
-7. `components/grc/legal/LegalStatusBadge.tsx` — shared status badge component
-8. Routing: add Legal routes to `App.tsx`
-9. Sidebar: add Legal nav section to service layout config
+---
 
-### Step 2: Governance Structure (Admin/Setup)
-10. `hooks/useCommitteeTypes.ts`
-11. `components/grc/legal/CreateCommitteeTypeDialog.tsx`
-12. `pages/grc/legal/CommitteeTypesPage.tsx`
-13. `hooks/useGoverningBodies.ts`
-14. `hooks/useMembers.ts`
-15. `components/grc/legal/CreateGoverningBodyDialog.tsx`
-16. `components/grc/legal/CreateMemberDialog.tsx`
-17. `pages/grc/legal/GoverningBodiesPage.tsx`
-18. `pages/grc/legal/GoverningBodyDetailPage.tsx`
-18a. `pages/grc/legal/MembersPage.tsx` — standalone list page for admin-level cross-body member view
+### Step 1: Foundation Layer (SRS §6 — Cross-Cutting Infrastructure)
 
-### Step 3: Determinations
-19. `hooks/useSubmissions.ts`
-20. `components/grc/legal/CreateSubmissionDialog.tsx`
-21. `pages/grc/legal/SubmissionsPage.tsx`
-22. `pages/grc/legal/SubmissionDetailPage.tsx`
+All shared infrastructure needed by every page and component. Nothing renders without this layer.
 
-### Step 4: Meeting Governance
-23. `hooks/useLegalMeetings.ts`
-24. `hooks/useMeetingAgenda.ts`
-25. `hooks/useMeetingParticipants.ts`
-26. `hooks/useMeetingDirectives.ts`
-27. `hooks/useMinutes.ts`
-28. `hooks/useResolutions.ts`
-29. `components/grc/legal/CreateMeetingDialog.tsx`
-30. `components/grc/legal/MeetingAgendaSection.tsx`
-31. `components/grc/legal/MeetingParticipantsSection.tsx`
-32. `components/grc/legal/ConflictDeclarationDialog.tsx`
-33. `components/grc/legal/CreateDirectiveDialog.tsx`
-33a. `components/grc/legal/CloseDirectiveDialog.tsx`
-33b. `components/grc/legal/FullyCloseDirectiveDialog.tsx`
-34. `components/grc/legal/MattersArisingSection.tsx`
-35. `components/grc/legal/CreateMinutesDialog.tsx`
-36. `pages/grc/legal/LegalMeetingsPage.tsx`
-37. `pages/grc/legal/LegalMeetingDetailPage.tsx`
-38. `pages/grc/legal/DirectivesPage.tsx`
-39. `pages/grc/legal/DirectiveDetailPage.tsx`
-40. `pages/grc/legal/MinutesPage.tsx`
-41. `pages/grc/legal/MinutesDetailPage.tsx`
-42. `pages/grc/legal/ResolutionsPage.tsx`
+| # | File / Task | SRS | Spec | Notes |
+|---|---|---|---|---|
+| 1 | `types/legal.ts` — all type definitions and status maps | §1–§5 all entities | Phase 2, A.1, A.17.8, A.18.2 | Include all entity interfaces. Include backend gap fields: `hold_reason`, `reschedule_reason`, `auto_created`, `requires_dg_approval_for_closure`, `meeting_number_prefix`, `meeting_number_format`, `registration_type`, `is_archived`, `archived_at`, `archived_by`. Corrected enums: `CASE_STAGES` (remove `settlement`, `judgment`, `appealed`; add `on_hold`), `LITIGATION_DIRECTIVE_STATUSES` (add `pending_dg_approval`), new `MEETING_NUMBER_FORMATS`, `REGISTRATION_TYPES`. Remove `closure_pending` from all badge maps. Separate const maps for member positions vs roles (MIN-09). Add `DG_REVIEW_STATUSES` (MIN-11). |
+| 2 | `hooks/legalKeys.ts` — query key factories | — | Phase 4, A.3, A.16.1 | Include `legalDashboardKeys` (A.16.1). |
+| 3 | `services/legalService.ts` — all API functions | §6.5 | Phase 3, A.2, A.16.1, A.18.3 | Include base CRUD for all entities. Include new endpoints: `holdCase()`, `resumeCase()`, `archiveCase()`, `unarchiveCase()`, `submitDirectiveForDGApproval()`, `dgDecisionOnDirective()`, `getMeetingDirectivesSub()`, `getLegalDashboardStats()`. |
+| 4 | `hooks/useLegalPermissions.ts` — permission hook (30 codes) | §6.6 | Phase 5, A.16.2, A.18.4, A.18.17 | 30 permission codes (28 original + 2 new). New: `canRegisterLegalCase` (`grc:legal_case:register`), `canApproveDirectiveClosure` (`grc:legal_directive:approve_closure`). Derive: `isRegistryOfficer = canRegisterLegalCase && !canManageCases`. Derive: `canCreateCase = canManageCases || canRegisterLegalCase`. Full list: A.18.17. |
+| 5 | `hooks/useLegalConfig.ts` — lookup hooks | — | Phase 6, A.4 | CourtLevel, MeetingMode, UrgencyLevel, RiskLevel, etc. Lazy-load with `enabled` param. |
+| 6 | `hooks/useLegalWorkflows.ts` — workflow status/history hooks | — | Phase 14 | |
+| 7 | `hooks/useLegalDashboard.ts` — dashboard stats hook | §4.0, §5.0 | A.16.1 | 2-minute stale time. |
+| 8 | `hooks/useLegalAuditLog.ts` — audit log query hook | §6.3 | A.13 | |
+| 9 | `components/grc/legal/LegalStatusBadge.tsx` — shared status badge | — | Phase 7 | Tailwind className overrides (A.14 rule 1). `on_hold`: amber, `pending_dg_approval`: purple. |
+| 10 | `components/grc/legal/ActivityLogSection.tsx` — reusable audit log card | §6.3 | A.13, A.18.13 | Include metadata parsing for hold/resume/status_changed actions (MIN-14). |
+| 11 | `components/grc/legal/ApprovalChainDisplay.tsx` — reusable approval chain | — | A.13 | Used by FilingsSection, SettlementSection, JudgmentSection. |
+| 12 | `components/grc/legal/UserDisplay.tsx` — UUID → user name display | §6.5 | A.13, A.14 rule 3 | Resolves UUID via IAM cache. |
+| 13 | Routing: add Legal routes to `App.tsx` | — | Phase 1.2 | All routes under `<ServiceProtectedRoute serviceKey="grc">`. |
+| 14 | Sidebar: add Legal nav section to service layout config | — | Phase 1.3 | 12 nav entries with lucide-react icons. |
 
-### Step 5: Litigation — FCC Sued
-43. `hooks/useCaseDefendant.ts`
-44. `hooks/useLitigationDirectives.ts`
-45. `hooks/useFilings.ts`
-46. `hooks/useResponses.ts`
-47. `hooks/useHearings.ts`
-48. `hooks/useSettlements.ts`
-49. `hooks/useJudgments.ts`
-50. `hooks/useFinancials.ts`
-51. `hooks/useLitigationTasks.ts`
-52. `components/grc/legal/CreateCaseDefendantDialog.tsx`
-53. `components/grc/legal/CaseDirectivesSection.tsx`
-54. `components/grc/legal/CreateFilingDialog.tsx`
-55. `components/grc/legal/CaseFilingsSection.tsx`
-56. `components/grc/legal/CreateResponseDialog.tsx`
-57. `components/grc/legal/CaseResponsesSection.tsx`
-58. `components/grc/legal/CreateHearingDialog.tsx`
-59. `components/grc/legal/HearingReportDialog.tsx`
-60. `components/grc/legal/CaseHearingsSection.tsx`
-61. `components/grc/legal/CreateSettlementDialog.tsx`
-62. `components/grc/legal/CaseSettlementSection.tsx`
-63. `components/grc/legal/RecordJudgmentDialog.tsx`
-64. `components/grc/legal/CaseJudgmentSection.tsx`
-65. `components/grc/legal/FinancialRecordDialog.tsx`
-66. `components/grc/legal/CaseFinancialsSection.tsx`
-67. `components/grc/legal/CreateLitigationTaskDialog.tsx`
-68. `components/grc/legal/CaseTasksSection.tsx`
-69. `pages/grc/legal/FCCSuedCasesPage.tsx`
-70. `pages/grc/legal/FCCSuedCaseDetailPage.tsx`
+---
 
-### Step 6: Litigation — FCC Suing
-71. `hooks/useCasePlaintiff.ts`
-72. `components/grc/legal/CreateCasePlaintiffDialog.tsx`
-73. `components/grc/legal/BreachReportIntakeDialog.tsx`
-74. `pages/grc/legal/FCCSuingCasesPage.tsx`
-75. `pages/grc/legal/FCCSuingCaseDetailPage.tsx`
+### Step 2: Governance Structure (SRS §2)
 
-> Note: FCC Suing reuses all child section components from Step 5 (`CaseFilingsSection`, etc.) — they already accept `caseType` prop to distinguish defendant vs plaintiff.
+Admin/setup entities. Must be complete before Determinations and Meetings — both reference `GoverningBody`.
 
-### Step 7: Public Register
-76. `hooks/usePublicDecisions.ts`
-77. `components/grc/legal/CreatePublicDecisionDialog.tsx`
-78. `pages/grc/legal/PublicRegisterPage.tsx`
-79. `pages/grc/legal/PublicDecisionDetailPage.tsx`
+| # | File / Task | SRS | Spec | Notes |
+|---|---|---|---|---|
+| 15 | `hooks/useCommitteeTypes.ts` | §2.1 | Phase 7 | CRUD for CommitteeType. |
+| 16 | `components/grc/legal/CreateCommitteeTypeDialog.tsx` | §2.1 | Phase 9 | Admin can create, edit, activate/deactivate. |
+| 17 | `pages/grc/legal/CommitteeTypesPage.tsx` | §2.1 | Phase 7, A.5 | |
+| 18 | `hooks/useGoverningBodies.ts` | §2.2 | Phase 7 | CRUD for GoverningBody. |
+| 19 | `hooks/useMembers.ts` | §2.3 | Phase 7 | CRUD for Member. |
+| 20 | `components/grc/legal/CreateGoverningBodyDialog.tsx` | §2.2 | Phase 9, A.18.7 | Include `meeting_number_prefix` (Input, e.g. "LC", "BOARD") and `meeting_number_format` (Select: sequential / financial_year) fields. Spec: A.18.7 (MIN-18/B3-5). |
+| 21 | `components/grc/legal/CreateMemberDialog.tsx` | §2.3 | Phase 9, A.18.13 | Read-only `email` and `department` resolved from Corporate Service when `user_id` is selected (SIG-08). Use `canManageGoverningBody` — not `canManageMembers` (MIN-07). |
+| 22 | `pages/grc/legal/GoverningBodiesPage.tsx` | §2.2 | Phase 7, A.5 | |
+| 23 | `pages/grc/legal/GoverningBodyDetailPage.tsx` | §2.2 | Phase 8, A.18.9 | Include "Meeting Configuration" card showing `meeting_number_prefix` and `meeting_number_format` — visible to managers only (MIN-18/B3-5). |
+| 24 | `pages/grc/legal/MembersPage.tsx` | §2.3 | A.15.1 | Standalone cross-body member list. Governing body filter, Active/Former toggle. |
 
-### Step 8: Integration Testing & Polish
-80. End-to-end flow testing: Create governing body → Add members → Create submission → Create meeting → Add agenda → Start meeting → Record outcome → Create directives → Draft minutes → Approve minutes
-81. End-to-end litigation flow: Register case → DG review → Create filing → Approve filing → Record hearing → Record judgment → DG decision → Closure
-82. RBAC matrix validation for all roles
-83. Workflow console integration testing for all 10 workflow entities
-84. Status badge color verification across all entity types
-85. Responsive layout verification (mobile, tablet, desktop)
+---
 
-> **Additional from A.15:**
-86. CloseDirectiveDialog form: CompletionSummary (required), CompletionDate (required), evidence doc (optional) — verify submit disabled without summary
-87. FullyCloseDirectiveDialog confirmation: directive disappears from Matters Arising after fully closed
-88. MembersPage: cross-body member list, governing_body filter, Active/Former toggle
-89. MeetingAgendaSection: SmartSelect only shows submissions matching meeting's governing body and status = submitted
-90. CreateMeetingDialog: SmartSelect only shows governing bodies where current user is Secretary (when not Admin)
-91. ResolutionsPage: empty state message shown (not error) when no resolutions accessible; no Create button visible
-92. CaseFinancialsSection: External Payments / Revenue Collection links appear conditionally based on judgment outcome
+### Step 3: Determinations (SRS §1.1)
+
+Unified submission process for items requiring formal decision by a governing body.
+
+| # | File / Task | SRS | Spec | Notes |
+|---|---|---|---|---|
+| 25 | `hooks/useSubmissions.ts` | §1.1 | Phase 7 | CRUD + status transitions. |
+| 26 | `components/grc/legal/CreateSubmissionDialog.tsx` | §1.1 | Phase 9 | No permission gate on creation. |
+| 27 | `pages/grc/legal/SubmissionsPage.tsx` | §1.1 | Phase 7, A.18.8 | **CRIT-01/B1-1:** "Create Submission" button visible to ALL authenticated users — no `canManageGoverningBody` gate. SRS §1.1 rule 1: "Any authenticated user can create a Submission." |
+| 28 | `pages/grc/legal/SubmissionDetailPage.tsx` | §1.1 | Phase 8 | SRS §1.1 rule 2: editable/withdrawable by originator until linked to agenda. Show locking feedback when linked (A.6.11). |
+
+---
+
+### Step 4: Meeting Governance (SRS §1.2)
+
+Full meeting lifecycle: agenda from submissions, participants, conflict of interest, quorum, directives, minutes, resolutions.
+
+| # | File / Task | SRS | Spec | Notes |
+|---|---|---|---|---|
+| 29 | `hooks/useLegalMeetings.ts` | §1.2.1 | Phase 7 | CRUD + lifecycle transitions (draft → closed). |
+| 30 | `hooks/useMeetingAgenda.ts` | §1.2.2 | Phase 7 | |
+| 31 | `hooks/useMeetingParticipants.ts` | §1.2.3 | Phase 7 | |
+| 32 | `hooks/useMeetingDirectives.ts` | §1.2.4 | Phase 7 | |
+| 33 | `hooks/useMinutes.ts` | §1.2.5 | Phase 7 | |
+| 34 | `hooks/useResolutions.ts` | §1.2.6 | Phase 7 | Read-only (auto-created from agenda outcomes). |
+| 35 | `components/grc/legal/CreateMeetingDialog.tsx` | §1.2.1 | Phase 9, A.15.3 | SRS rule 5: auto-populate members. SmartSelect shows only governing bodies where user is Secretary (A.15.3). |
+| 36 | `components/grc/legal/MeetingAgendaSection.tsx` | §1.2.2 | Phase 9, A.15.2 | SmartSelect shows only submissions matching body + status=submitted (A.15.2). |
+| 37 | `components/grc/legal/RecordAgendaOutcomeDialog.tsx` | §1.2.2 | A.17.1 | Record outcome after meeting, propagate back to Submission. |
+| 38 | `components/grc/legal/MeetingParticipantsSection.tsx` | §1.2.3 | Phase 9, A.17.2, A.17.7 | Invitation sending CTA + RSVP responses + quorum calculation (A.17.2). Attendance marking during ongoing meeting. SRS rule 2: only Accepted members counted for quorum. |
+| 39 | `components/grc/legal/ConflictDeclarationDialog.tsx` | §1.2.1 | Phase 9, A.6.4 | SRS rule 7: record conflict, exclude member from votes on that agenda item. |
+| 40 | `components/grc/legal/CreateDirectiveDialog.tsx` | §1.2.4 | Phase 9 | SRS rule 9: during ongoing meeting, Secretary adds directives with assignee, priority, due date. |
+| 41 | `components/grc/legal/CloseDirectiveDialog.tsx` | §1.2.4 | Phase 9 | SRS rule 1: only assigned user performs initial closure (summary + date + evidence). |
+| 42 | `components/grc/legal/FullyCloseDirectiveDialog.tsx` | §1.2.4 | Phase 9 | SRS rule 2: Secretary closes in Matters Arising. Sets `FinallyClosed = true`. |
+| 43 | `components/grc/legal/MattersArisingSection.tsx` | §1.2.1 | Phase 9 | SRS rule 3: auto-populated from unresolved directives where `FinallyClosed = false`. |
+| 44 | `components/grc/legal/CreateMinutesDialog.tsx` | §1.2.5 | Phase 9 | |
+| 45 | `components/grc/legal/RescheduleMeetingDialog.tsx` | §1.2.1 | A.18.7 | SRS rule 4: reschedule if quorum not met. Include `reschedule_reason` field (SIG-10/B3-3). |
+| 46 | `components/grc/legal/EditResolutionDialog.tsx` | §1.2.6 | A.18.14 | Replaces CreateResolutionDialog (MIN-17). SRS rule 1: resolutions are auto-created from agenda outcomes — only edit is allowed. |
+| 47 | `pages/grc/legal/LegalMeetingsPage.tsx` | §1.2.1 | Phase 7, A.5 | |
+| 48 | `pages/grc/legal/LegalMeetingDetailPage.tsx` | §1.2.1 | Phase 8, A.6, A.18.11, A.18.13 | SRS rule 8: "Start Meeting" only if `quorum_met === true` AND current time ≥ start_datetime (MIN-15). SRS rule 6: invitees view directives read-only via participant-scoped endpoint (SIG-02/B4-4). Quorum progress display (A.6.2). Resume meeting CTA (A.6.1). |
+| 49 | `pages/grc/legal/DirectivesPage.tsx` | §1.2.4 | Phase 7 | |
+| 50 | `pages/grc/legal/DirectiveDetailPage.tsx` | §1.2.4 | Phase 8, A.18.11 | SRS rule 1: only assigned user can close → assigned-user identity check (MIN-16). |
+| 51 | `pages/grc/legal/MinutesPage.tsx` | §1.2.5 | Phase 7 | |
+| 52 | `pages/grc/legal/MinutesDetailPage.tsx` | §1.2.5 | Phase 8 | Approval workflow: Draft → Pending Approval → Approved. |
+| 53 | `pages/grc/legal/ResolutionsPage.tsx` | §1.2.6 | Phase 7, A.15.4 | Participant-restricted visibility, empty state (not error), no Create button. Include detail drawer/panel for viewing full `resolution_text` and all fields (MIN-12/G-26). |
+
+---
+
+### Step 5: Litigation — FCC Sued (SRS §4)
+
+Cases where FCC is defendant. All child entities (filings through tasks) are sub-resources of a case.
+
+| # | File / Task | SRS | Spec | Notes |
+|---|---|---|---|---|
+| 54 | `hooks/useCaseDefendant.ts` | §4.1 | Phase 7 | CRUD + stage transitions + `holdCase`/`resumeCase`/`archiveCase`/`unarchiveCase` mutations. |
+| 55 | `hooks/useLitigationDirectives.ts` | §4.2 | Phase 7 | CRUD + `submitDirectiveForDGApproval`/`dgDecisionOnDirective` mutations. |
+| 56 | `hooks/useFilings.ts` | §4.3 | Phase 7 | CRUD + two-stage approval workflow. |
+| 57 | `hooks/useResponses.ts` | §4.4 | Phase 7 | CRUD. |
+| 58 | `hooks/useHearings.ts` | §4.5, §4.6 | Phase 7 | CRUD for Hearing + HearingReport. |
+| 59 | `hooks/useSettlements.ts` | §4.7 | Phase 7 | CRUD + DG approval. |
+| 60 | `hooks/useJudgments.ts` | §4.8 | Phase 7 | CRUD + DG decision (Accept/Appeal). |
+| 61 | `hooks/useFinancials.ts` | §4.9 | Phase 7 | CRUD + recovery/payment records. |
+| 62 | `hooks/useLitigationTasks.ts` | §4.10 | Phase 7 | CRUD + auto-created task awareness. |
+| 63 | `components/grc/legal/CreateCaseDefendantDialog.tsx` | §4.1 | Phase 9 | SRS rule 1: Registry Officer, Legal Officer, or Legal Manager can register. Gate with `canCreateCase` (CRIT-02). |
+| 64 | `components/grc/legal/HoldCaseDialog.tsx` | §4.1 | A.18.7 | `hold_reason` (Textarea, optional). Calls `holdCase(side, id, { hold_reason })`. (SIG-09/B4-1) |
+| 65 | `components/grc/legal/ResumeCaseDialog.tsx` | §4.1 | A.18.7 | `resume_to_status` (Select: valid statuses excluding on_hold and closed). Calls `resumeCase(side, id, { resume_to_status })`. (SIG-09/B4-2) |
+| 66 | `components/grc/legal/DGDirectiveDecisionDialog.tsx` | §4.2 | A.18.7 | `decision` (Radio: Approve/Reject). Calls `dgDecisionOnDirective(id, { decision })`. Approve → closed, Reject → in_progress. (SIG-03/B4-3) |
+| 67 | `components/grc/legal/CaseDirectivesSection.tsx` | §4.2 | Phase 9, A.18.6 | SRS rule 3: closure may require DG approval. Show "Submit for DG Approval" when `requires_dg_approval_for_closure && status in [open, in_progress]`. Show "DG Decision" when `status === pending_dg_approval && canApproveDirectiveClosure`. |
+| 68 | `components/grc/legal/CreateFilingDialog.tsx` | §4.3 | Phase 9 | |
+| 69 | `components/grc/legal/CaseFilingsSection.tsx` | §4.3 | Phase 9 | Two-stage approval chain: LO → LM → DG → Filed. Display with ApprovalChainDisplay. |
+| 70 | `components/grc/legal/CreateResponseDialog.tsx` | §4.4 | Phase 9, A.18.13 | Use correct `RESPONSE_TYPE_DEFENDANT` values (SIG-06). |
+| 71 | `components/grc/legal/CaseResponsesSection.tsx` | §4.4 | Phase 9 | |
+| 72 | `components/grc/legal/CreateHearingDialog.tsx` | §4.5 | Phase 9 | |
+| 73 | `components/grc/legal/HearingReportDialog.tsx` | §4.6 | Phase 9, A.6.12 | Multiple reports per hearing. Most recent `NextHearingDate` propagates to case. |
+| 74 | `components/grc/legal/CaseHearingsSection.tsx` | §4.5 | Phase 9 | |
+| 75 | `components/grc/legal/CreateSettlementDialog.tsx` | §4.7 | Phase 9 | SRS: requires DG approval via Legal Manager review. |
+| 76 | `components/grc/legal/CaseSettlementSection.tsx` | §4.7 | Phase 9, A.17.6 | Settlement payment amount links to Finance tab (A.17.6). Settlement/Judgment approval CTAs (SIG-11). |
+| 77 | `components/grc/legal/RecordJudgmentDialog.tsx` | §4.8 | Phase 9 | |
+| 78 | `components/grc/legal/CaseJudgmentSection.tsx` | §4.8 | Phase 9, A.6.9 | DG decision: Accept → closure/financials. Appeal → auto-create Notice of Appeal filing + deadline task (A.6.9). |
+| 79 | `components/grc/legal/FinancialRecordDialog.tsx` | §4.9 | Phase 9 | |
+| 80 | `components/grc/legal/CaseFinancialsSection.tsx` | §4.9 | Phase 9, A.15.5, A.18.13 | Include `recovered_amount` card for plaintiff cases (SIG-07). Corporate Service links for External Payments / Revenue Collection conditional on judgment outcome (A.15.5). |
+| 81 | `components/grc/legal/CreateLitigationTaskDialog.tsx` | §4.10 | Phase 9 | |
+| 82 | `components/grc/legal/CaseTasksSection.tsx` | §4.10 | Phase 9, A.18.10 | Show "System" badge for `auto_created === true` tasks (MIN-03/B3-4). SRS rule 1: auto-created for appeal deadlines, filing approvals. |
+| 83 | `components/grc/legal/CaseReportSection.tsx` | §4.13 | A.17.5 | Chronological timeline of all case events (registration, filings, hearings, directives, judgments, settlements, closures). |
+| 84 | `pages/grc/legal/FCCSuedCasesPage.tsx` | §4.0 | Phase 7, A.5, A.17.3, A.17.4, A.18.5, A.18.8 | SRS §4.0: case list with filter + global search. Columns: Case Ref, Plaintiffs, Court, Claim Amount, Stage, Risk, Next Hearing, Actions (A.17.4). "Show Archived" toggle — default hidden (SIG-01). "My Cases" toggle for managers — Legal Officers see assigned-only automatically (SIG-05/B1-3). "Register Case" gated by `canCreateCase` — includes Registry Officer (CRIT-02). KPI cards per A.17.3. |
+| 85 | `pages/grc/legal/FCCSuedCaseDetailPage.tsx` | §4.1–§4.15 | Phase 8, A.6, A.18.5, A.18.13 | All child sections assembled here. Hold/Resume CTAs + on-hold banner (SIG-09). Archive/Unarchive CTAs (SIG-01). DG review status indicator (A.6.8). Read-only when closed (A.6.10, SRS §4.14). Case folder link (A.6.7). Activity log with metadata parsing (MIN-14). Digital signature display on approvals (A.6.5). |
+
+---
+
+### Step 6: Litigation — FCC Suing (SRS §5)
+
+Cases where FCC is plaintiff. Reuses all child section components from Step 5 via `caseType` prop.
+
+| # | File / Task | SRS | Spec | Notes |
+|---|---|---|---|---|
+| 86 | `hooks/useCasePlaintiff.ts` | §5.1 | Phase 7 | CRUD + stage transitions + hold/resume/archive. |
+| 87 | `components/grc/legal/CreateCasePlaintiffDialog.tsx` | §5.1 | Phase 9 | Full registration form (all fields + initiation documents). |
+| 88 | `components/grc/legal/BreachReportIntakeDialog.tsx` | §5.1 | Phase 9, A.18.8 | SRS §5.1 simplified intake: Reporting Department, Nature of Breach, Respondent Name, Respondent Type, Description, Urgency Level, optional document. Sets `registration_type: 'simplified'`. **CRIT-05/B1-2:** open to ALL authenticated users — no permission gate. |
+| 89 | `pages/grc/legal/FCCSuingCasesPage.tsx` | §5.0 | Phase 7, A.17.3, A.17.4, A.18.8 | SRS §5.0: case list with filter + global search. Columns: Case Ref, Respondent, Court, Claim Amount, Stage, Risk, Next Hearing, Actions (A.17.4). "Raise Breach Report" button for ALL users (CRIT-05). "Register Case" for `canCreateCase` users. "Show Archived" toggle (SIG-01). "My Cases" toggle for managers (SIG-05). KPI cards including Recoverable Amount, Recovered Amount (SRS §5.0, A.17.3). Use `RESPONSE_TYPE_PLAINTIFF` for response dropdowns (SIG-06). |
+| 90 | `pages/grc/legal/FCCSuingCaseDetailPage.tsx` | §5.1–§5.8 | Phase 8, A.18.5 | Same CTAs as defendant: Hold/Resume, Archive/Unarchive, on-hold banner. SRS §5.7: `recovered_amount` in CaseFinancialsSection. |
+
+> **Note:** FCC Suing reuses `CaseFilingsSection`, `CaseResponsesSection`, `CaseHearingsSection`, `CaseSettlementSection`, `CaseJudgmentSection`, `CaseFinancialsSection`, `CaseTasksSection`, `CaseDirectivesSection`, and `CaseReportSection` from Step 5 — they all accept a `caseType` prop (`'defendant'` | `'plaintiff'`) to distinguish filing types, response types, and financial fields.
+
+---
+
+### Step 7: Public Register (SRS §3)
+
+| # | File / Task | SRS | Spec | Notes |
+|---|---|---|---|---|
+| 91 | `hooks/usePublicDecisions.ts` | §3.1 | Phase 7 | CRUD + publish. |
+| 92 | `components/grc/legal/CreatePublicDecisionDialog.tsx` | §3.1 | Phase 9 | SRS rule 1: only Secretariat can publish. |
+| 93 | `pages/grc/legal/PublicRegisterPage.tsx` | §3.1 | Phase 7 | |
+| 94 | `pages/grc/legal/PublicDecisionDetailPage.tsx` | §3.1 | Phase 8 | |
+
+---
+
+### Step 8: Dashboard (SRS §4.0 / §5.0)
+
+Dashboard aggregates data from all domains — must come after all entity pages exist.
+
+| # | File / Task | SRS | Spec | Notes |
+|---|---|---|---|---|
+| 95 | `pages/grc/legal/LegalDashboardPage.tsx` | §4.0, §5.0 | A.16.1, A.17.3 | KPI cards: Active Meetings, Open Directives, Active Cases (Sued), Active Cases (Suing), Pending Filings, Overdue Tasks, Pending Submissions, Minutes Awaiting Approval. Case KPI sections for Sued (Won/Loss, High Risk, Appeal) and Suing (Recoverable/Recovered). Uses `useLegalDashboardStats()` hook from Step 1 item 7. |
+
+---
+
+### Step 9: Notification Integration (SRS §6.4)
+
+Platform-level shared component — not Legal-specific but required for Legal event visibility.
+
+| # | File / Task | SRS | Spec | Notes |
+|---|---|---|---|---|
+| 96 | Notification bell/inbox in shared header/navigation | §6.4 | A.18.12 | WO notification API: `GET /api/v1/wo/notifications/`, `GET .../unread-count/`, `POST .../mark-read/`, `POST .../mark-all-read/`. Poll unread count every 30s. Legal events: case status changes, filing approval requests, meeting invitations, directive assignments, task overdue warnings. |
+
+---
+
+### Step 10: Integration Testing & Polish (SRS §6)
+
+| # | Test / Verification | SRS | Notes |
+|---|---|---|---|
+| 97 | E2E Governance flow: Create governing body → Add members → Create submission → Create meeting → Add agenda → Start meeting → Record outcome → Create directives → Draft minutes → Approve minutes | §1, §2 | |
+| 98 | E2E Litigation (Sued): Register case → DG review → Create filing → Approve filing → Record hearing → Record judgment → DG decision → Closure | §4 | |
+| 99 | E2E Litigation (Suing): Breach report intake → Full registration → Filing → Hearing → Judgment → Recovery | §5 | |
+| 100 | RBAC matrix: all 6 roles × all entity permissions | §6.6 | Registry Officer registers but cannot manage (CRIT-02). Submissions open to all (CRIT-01). Breach intake open to all (CRIT-05). |
+| 101 | Workflow console integration for all 10 workflow entities | §6 | |
+| 102 | Hold/Resume: CTAs visible/hidden correctly, on-hold banner, target status selection, works for both defendant and plaintiff | §4.1 | SIG-09 |
+| 103 | Archive: Archive/Unarchive CTAs, "Show Archived" toggle, archived hidden by default | §4.15 | SIG-01 |
+| 104 | DG directive approval: Submit → DG Decision (approve → closed, reject → in_progress). Conditional on `requires_dg_approval_for_closure` | §4.2 | SIG-03 |
+| 105 | My Cases filtering: Officers see assigned-only; Managers see all + "My Cases" toggle | §6.6 | SIG-05 |
+| 106 | Meeting number config: prefix + format fields on governing body; new meetings use configured prefix | §6.2 | MIN-18 |
+| 107 | Auto-created task badge: "System" badge on `auto_created` tasks | §4.10 | MIN-03 |
+| 108 | Notification bell: unread count, mark-as-read, inbox drawer | §6.4 | SIG-04 |
+| 109 | Start Meeting time guard: cannot start before scheduled time; informational alert shown | §1.2.1 rule 8 | MIN-15 |
+| 110 | Invitee read-only directives: invitees view but cannot create/modify | §1.2.1 rule 6 | SIG-02 |
+| 111 | Assigned-user directive check: only assigned user can perform initial closure | §1.2.4 rule 1 | MIN-16 |
+| 112 | Status badge colors: all entity types correct, `on_hold` amber, `pending_dg_approval` purple, no invalid stages | — | CRIT-03, CRIT-04 |
+| 113 | Audit history display: all detail pages show ActivityLogSection | §6.3 | |
+| 114 | Approval chain display: filings, settlements, judgments show ApprovalChainDisplay | §4.3 | |
+| 115 | Quorum counter + RSVP tally: real-time quorum percentage ≥ 51% | §6.7 | |
+| 116 | Conflict of interest: declaration recorded, member excluded from votes on that agenda | §6.8 | |
+| 117 | Appeal auto-creation: DG Appeal decision → auto-create Notice of Appeal filing + deadline task | §4.8 | |
+| 118 | Read-only closed cases: no edit CTAs when case status = closed | §4.14 | |
+| 119 | CloseDirectiveDialog: CompletionSummary + CompletionDate required, evidence optional | §1.2.4 | |
+| 120 | FullyCloseDirectiveDialog: directive disappears from Matters Arising after fully closed | §1.2.4 | |
+| 121 | MeetingAgendaSection: SmartSelect only shows submissions matching meeting's governing body + status=submitted | §1.2.2 | |
+| 122 | CreateMeetingDialog: SmartSelect only shows governing bodies where user is Secretary (non-Admin) | §1.2.1 | |
+| 123 | ResolutionsPage: empty state (not error) when no resolutions; no Create button | §1.2.6 | |
+| 124 | CaseFinancialsSection: Corporate Service links conditional on judgment outcome | §4.9 | |
+| 125 | Responsive layout verification (mobile, tablet, desktop) | — | |
+| 126 | Digital signature display on approval documents | §6.1 | |
 
 ---
 
@@ -3091,9 +3195,868 @@ Add to Phase 15 test checklist:
 
 ---
 
+### A.18 — Backend Gap Fixes Integration (All Phases Unblocked)
+
+> **Context:** Backend Phases 1–5 from `Legal_Backend_Gap_Support_Analysis.md` are now **fully implemented and deployed**. This addendum integrates every backend change into the frontend plan, promotes all Phase B + Phase C items to "immediately implementable," and provides exact implementation specs sourced from the deployed backend code.
+
+---
+
+#### A.18.1 Implementation Sequence Update — All Gaps Unblocked
+
+The three-phase frontend sequence from Section 7 (`Phase A` / `Phase B` / `Phase C`) is **collapsed into a single unified sequence**. All 26 gap items are now unblocked. The revised order is:
+
+**Unified Gap Fix Sequence (implement alongside or after Phase 16 core steps):**
+
+| Order | Gap ID | Fix Summary | Backend Phase |
+|-------|--------|-------------|---------------|
+| G-1 | CRIT-03 | Fix CASE_STAGES badge table | — (frontend-only) |
+| G-2 | CRIT-04 | Remove `closure_pending` from badge colors | — (frontend-only) |
+| G-3 | CRIT-01 | Submissions create open to all users | B1-1 ✅ |
+| G-4 | CRIT-02 | Registry Officer RBAC + `canRegisterLegalCase` | B2-1 ✅ |
+| G-5 | CRIT-05 | Breach report intake for department users | B1-2 ✅ |
+| G-6 | SIG-01 | Archive/Unarchive CTAs + archived case filter | — (endpoints exist) |
+| G-7 | SIG-02 | Invitee directive read-only access | B4-4 ✅ |
+| G-8 | SIG-03 | Configurable DG approval for directive closure | B3-1 + B4-3 ✅ |
+| G-9 | SIG-04 | Notification bell/inbox (WO integration) | B5-1 ✅ |
+| G-10 | SIG-05 | My Cases server-side filtering | B1-3 ✅ |
+| G-11 | SIG-06 | Response types dropdown correction | — (frontend-only) |
+| G-12 | SIG-07 | `recovered_amount` card in plaintiff financials | — (frontend-only) |
+| G-13 | SIG-08 | CreateMemberDialog read-only Corporate fields | — (frontend-only) |
+| G-14 | SIG-09 | Dedicated hold/resume endpoints + reason | B3-2 + B4-1/2 ✅ |
+| G-15 | SIG-10 | RescheduleMeetingDialog with `reschedule_reason` | B3-3 ✅ |
+| G-16 | SIG-11 | Settlement/Judgment approval CTAs | — (endpoints exist) |
+| G-17 | MIN-03 | `auto_created` task badge | B3-4 ✅ |
+| G-18 | MIN-07 | Fix `canManageMembers` → `canManageGoverningBody` | — (frontend-only) |
+| G-19 | MIN-09 | Separate const maps for positions vs roles | — (frontend-only) |
+| G-20 | MIN-11 | `DG_REVIEW_STATUSES` enum map | — (frontend-only) |
+| G-21 | MIN-14 | Activity log metadata parsing | — (frontend-only) |
+| G-22 | MIN-15 | Time-window guard on "Start Meeting" CTA | — (frontend-only) |
+| G-23 | MIN-16 | Assigned-user identity check for directives | — (frontend-only) |
+| G-24 | MIN-17 | Remove CreateResolutionDialog; use EditResolutionDialog | — (frontend-only) |
+| G-25 | MIN-18 | Meeting number prefix config in GoverningBody | B3-5 + B4-5 ✅ |
+| G-26 | MIN-12 | ResolutionDetailPage or detail drawer | — (frontend-only) |
+
+---
+
+#### A.18.2 Phase 2 Type Updates — New Fields from Backend Phases 3 + 2
+
+Add these fields to `types/legal.ts`:
+
+**CaseDefendant / CasePlaintiff — add:**
+```ts
+hold_reason?: string;           // B3-2: blank when not on hold
+is_archived: boolean;           // read-only, from ArchiveMixin
+archived_at?: string | null;    // ISO timestamp, read-only
+archived_by?: string | null;    // UUID, read-only
+```
+
+**LegalMeeting — add:**
+```ts
+reschedule_reason?: string;     // B3-3: populated when rescheduled
+```
+
+**TaskLitigation — add:**
+```ts
+auto_created: boolean;          // B3-4: true when system-created (e.g. appeal deadline)
+```
+
+**LitigationDirective — add:**
+```ts
+requires_dg_approval_for_closure: boolean;  // B3-1: gates DG approval flow
+```
+
+**GoverningBody — add:**
+```ts
+meeting_number_prefix?: string;                          // B3-5: e.g. 'LC', 'BOARD'
+meeting_number_format?: 'sequential' | 'financial_year'; // B3-5: controls number pattern
+```
+
+**CasePlaintiff — add:**
+```ts
+registration_type: 'simplified' | 'full';  // B1-2: distinguishes breach intake vs full report
+```
+
+**Phase 2.2 Status Enum Updates:**
+
+```ts
+// LITIGATION_DIRECTIVE_STATUSES — add pending_dg_approval (B3-1):
+LITIGATION_DIRECTIVE_STATUSES = ['open', 'in_progress', 'pending_dg_approval', 'closed']
+
+// MEETING_NUMBER_FORMATS — new enum (B3-5):
+MEETING_NUMBER_FORMATS = ['sequential', 'financial_year'] as const;
+
+// REGISTRATION_TYPES — new enum (B1-2):
+REGISTRATION_TYPES = ['simplified', 'full'] as const;
+```
+
+**Update `CASE_STAGES` badge colors — add `on_hold`:**
+```ts
+on_hold: 'bg-amber-100 text-amber-800'
+```
+
+**Remove from badge color maps (CRIT-03 / CRIT-04):**
+- Remove `settlement`, `judgment`, `appealed` from `CASE_STAGES` (not valid backend values)
+- Remove `closure_pending` from any badge color map (not a backend status)
+
+---
+
+#### A.18.3 Phase 3 Service Updates — New Endpoints from Backend Phase 4
+
+Add to `legalService.ts` endpoint table:
+
+**Case Hold/Resume (B4-1/B4-2):**
+
+| Function | Method | Endpoint | Body |
+|---|---|---|---|
+| `holdCase(side, id, data)` | POST | `/api/v1/grc/legal/cases/{side}/{id}/hold/` | `{ hold_reason?: string }` |
+| `resumeCase(side, id, data)` | POST | `/api/v1/grc/legal/cases/{side}/{id}/resume/` | `{ resume_to_status?: string }` |
+| `archiveCase(side, id)` | POST | `/api/v1/grc/legal/cases/{side}/{id}/archive/` | — |
+| `unarchiveCase(side, id)` | POST | `/api/v1/grc/legal/cases/{side}/{id}/unarchive/` | — |
+
+Where `side` is `'defendant'` or `'plaintiff'`.
+
+**Litigation Directive DG Approval (B4-3):**
+
+| Function | Method | Endpoint | Body |
+|---|---|---|---|
+| `submitDirectiveForDGApproval(id)` | POST | `/api/v1/grc/legal/litigation-directives/{id}/submit-for-dg-approval/` | — |
+| `dgDecisionOnDirective(id, data)` | POST | `/api/v1/grc/legal/litigation-directives/{id}/dg-decision/` | `{ decision: 'approve' \| 'reject' }` |
+
+**Meeting Directives Sub-Resource (B4-4):**
+
+| Function | Method | Endpoint | Notes |
+|---|---|---|---|
+| `getMeetingDirectivesSub(meetingId, params?)` | POST | `/api/v1/grc/legal/meetings/{id}/directives/` | Supports `?status=` and `?assigned_user_id=` filters. Participant-restricted. |
+
+> Note: This endpoint is an alternative to the existing `getMeetingDirectives(meetingId)` for invitee use — it enforces participant membership checks. Use this endpoint when the current user may be an invitee (not a governing body member or secretary).
+
+---
+
+#### A.18.4 Phase 5 Permission Updates — New Codes from Backend Phase 2 + 4
+
+Add to `useLegalPermissions.ts`:
+
+**New permission convenience booleans:**
+```ts
+// Registry Officer (B2-1 / CRIT-02):
+canRegisterLegalCase    → grc:legal_case:register
+
+// DG Directive Approval (B4-3 / SIG-03):
+canApproveDirectiveClosure → grc:legal_directive:approve_closure
+```
+
+**Updated total: 30 permission codes** (28 original + 2 new).
+
+**New role derivation:**
+```ts
+// Registry Officer: can register cases but cannot manage them
+const isRegistryOfficer = canRegisterLegalCase && !canManageCases;
+```
+
+**Updated RBAC role table (add to A.8.2):**
+
+| Role | Code | Key Permissions |
+|---|---|---|
+| `registry_officer` | Registry Officer | `grc:legal_case:register`, `grc:legal_case:view` |
+| `director_general` | Director General | (existing) + `grc:legal_directive:approve_closure` |
+
+**Permission-gated CTA updates across pages:**
+
+```ts
+// Case registration: Registry Officer OR Legal Manager/Officer can create
+const canCreateCase = canManageCases || canRegisterLegalCase;
+
+// FCCSuedCasesPage + FCCSuingCasesPage — "Register Case" button:
+{canCreateCase && <Button onClick={...}>Register Case</Button>}
+
+// Submissions — open to ALL authenticated users (no permission check):
+// Always show "Create Submission" button (B1-1 / CRIT-01)
+<Button onClick={() => setIsCreateOpen(true)}>Create Submission</Button>
+
+// Breach report intake — open to ALL authenticated users (B1-2 / CRIT-05):
+<Button onClick={() => setIsBreachIntakeOpen(true)}>Raise Breach Report</Button>
+```
+
+---
+
+#### A.18.5 Phase 8 Detail Page CTA Updates — Hold/Resume, DG Approval, Archive
+
+**FCCSuedCaseDetailPage / FCCSuingCaseDetailPage — Updated CTA list:**
+
+Add these CTAs to the existing CTA set (NOT replacing existing CTAs):
+
+```tsx
+// ── Hold/Resume CTAs (SIG-09 / B4-1/2) ──
+// "Place On Hold" — case NOT already on_hold or closed, Legal Manager only
+{canManageCases && !isCaseClosed && caseData.status !== 'on_hold' && (
+  <Button variant="outline" onClick={() => setIsHoldOpen(true)}>
+    <PauseCircle className="mr-2 h-4 w-4" /> Place On Hold
+  </Button>
+)}
+
+// "Resume" — case IS on_hold, Legal Manager only
+{canManageCases && caseData.status === 'on_hold' && (
+  <Button variant="outline" onClick={() => setIsResumeOpen(true)}>
+    <PlayCircle className="mr-2 h-4 w-4" /> Resume Case
+  </Button>
+)}
+
+// ── On Hold Banner ──
+{caseData.status === 'on_hold' && (
+  <Alert className="border-amber-200 bg-amber-50">
+    <PauseCircle className="h-4 w-4 text-amber-600" />
+    <AlertTitle>Case On Hold</AlertTitle>
+    <AlertDescription>
+      {caseData.hold_reason || 'No reason provided.'}
+    </AlertDescription>
+  </Alert>
+)}
+
+// ── Archive/Unarchive CTAs (SIG-01) ──
+// "Archive" — case IS closed AND not already archived, Legal Manager only
+{canManageCases && caseData.status === 'closed' && !caseData.is_archived && (
+  <Button variant="outline" onClick={() => handleArchive()}>
+    <Archive className="mr-2 h-4 w-4" /> Archive
+  </Button>
+)}
+
+// "Unarchive" — case IS archived, Legal Manager only
+{canManageCases && caseData.is_archived && (
+  <Button variant="outline" onClick={() => handleUnarchive()}>
+    <ArchiveRestore className="mr-2 h-4 w-4" /> Unarchive
+  </Button>
+)}
+```
+
+**Archive validation rules (from backend):**
+- Archive: rejects if `status !== 'closed'` (409) or already archived (409)
+- Unarchive: rejects if not archived (400)
+
+**Case list pages — "Show Archived" toggle (SIG-01):**
+```tsx
+const [showArchived, setShowArchived] = useState(false);
+// Add filter: { ...filters, is_archived: showArchived ? undefined : false }
+// Default: hide archived. Toggle shows archived-only or all.
+
+<div className="flex items-center gap-2">
+  <Switch checked={showArchived} onCheckedChange={setShowArchived} />
+  <label className="text-sm text-muted-foreground">Show archived cases</label>
+</div>
+```
+
+---
+
+#### A.18.6 CaseDirectivesSection — DG Approval Flow (SIG-03 / B4-3)
+
+Add conditional DG approval CTAs to litigation directives within case detail pages:
+
+```tsx
+// Per litigation directive row in CaseDirectivesSection:
+
+// "Submit for DG Approval" — requires_dg_approval_for_closure=true,
+// status in (open, in_progress), directive:manage permission
+{directive.requires_dg_approval_for_closure &&
+ ['open', 'in_progress'].includes(directive.status) &&
+ canManageDirectives && (
+  <Button size="sm" variant="outline"
+    onClick={() => handleSubmitForDGApproval(directive.id)}>
+    Submit for DG Approval
+  </Button>
+)}
+
+// "DG Decision" — status=pending_dg_approval, approve_closure permission
+{directive.status === 'pending_dg_approval' && canApproveDirectiveClosure && (
+  <Button size="sm" onClick={() => openDGDecisionDialog(directive)}>
+    DG Decision
+  </Button>
+)}
+```
+
+**Status badge for `pending_dg_approval`:**
+```ts
+pending_dg_approval: 'bg-purple-100 text-purple-800'
+```
+
+**Backend validation rules:**
+- `submitDirectiveForDGApproval`: rejects if `requires_dg_approval_for_closure === false` (400) or status not in `['open', 'in_progress']` (400)
+- `dgDecisionOnDirective`: rejects if status is not `'pending_dg_approval'` (400); `decision` must be `'approve'` or `'reject'` (400)
+- `approve` → sets status to `'closed'` + sets `completion_date` to today
+- `reject` → sets status back to `'in_progress'`
+
+---
+
+#### A.18.7 Phase 9 Forms — New Dialogs
+
+**Add to dialog inventory (Section 9.2):**
+
+| Dialog | Fields | Size | Trigger |
+|---|---|---|---|
+| `HoldCaseDialog` | `hold_reason` (Textarea, optional) | `max-w-lg` | "Place On Hold" CTA |
+| `ResumeCaseDialog` | `resume_to_status` (Select: valid statuses excluding `on_hold` and `closed`) | `max-w-lg` | "Resume Case" CTA |
+| `DGDirectiveDecisionDialog` | `decision` (Radio: Approve / Reject) | `max-w-lg` | "DG Decision" CTA |
+
+**`HoldCaseDialog` spec:**
+```tsx
+// Props: caseId, caseType ('defendant' | 'plaintiff'), open, onOpenChange
+// Fields:
+//   hold_reason: z.string().optional()
+// On submit: holdCase(caseType, caseId, { hold_reason })
+// On success: invalidate caseDefendantKeys.detail(caseId) or casePlaintiffKeys.detail(caseId)
+// Toast: "Case placed on hold"
+```
+
+**`ResumeCaseDialog` spec:**
+```tsx
+// Props: caseId, caseType, open, onOpenChange
+// Fields:
+//   resume_to_status: z.enum(['new', 'under_dg_review', 'directive_issued',
+//     'hearing_stage', 'judgment_received', 'appeal_filed'])
+//   Default: 'new'
+// On submit: resumeCase(caseType, caseId, { resume_to_status })
+// On success: invalidate case detail query
+// Toast: "Case resumed"
+```
+
+**`DGDirectiveDecisionDialog` spec:**
+```tsx
+// Props: directiveId, open, onOpenChange
+// Fields:
+//   decision: z.enum(['approve', 'reject']) — Radio group
+// On submit: dgDecisionOnDirective(directiveId, { decision })
+// On success: invalidate litigationDirectiveKeys.byCase(caseId)
+// Toast (approve): "Directive closure approved"
+// Toast (reject): "Directive returned to in-progress"
+```
+
+**Update `RescheduleMeetingDialog` — add `reschedule_reason` field (SIG-10 / B3-3):**
+```tsx
+// Existing fields: new_start_datetime, new_end_datetime
+// ADD: reschedule_reason (Textarea, optional)
+//   z.string().optional()
+// Sent in PATCH body: { reschedule_reason, scheduled_start, scheduled_end }
+// The backend stores reschedule_reason on the Meeting model
+```
+
+**Update `CreateGoverningBodyDialog` — add meeting number config fields (MIN-18 / B3-5):**
+```tsx
+// After existing fields (committee_type, name, composite_title, description, secretary_user_ids):
+// ADD section heading: "Meeting Number Configuration"
+
+// meeting_number_prefix: z.string().max(20).optional()
+//   <Input placeholder="e.g. LC, BOARD (default: MTG)" />
+//   Help text: "Prefix used for auto-generated meeting numbers"
+
+// meeting_number_format: z.enum(['sequential', 'financial_year']).default('sequential')
+//   <Select>
+//     <option value="sequential">Sequential (MTG-202603-001)</option>
+//     <option value="financial_year">Financial Year (MTG-FY2025/2026-001)</option>
+//   </Select>
+```
+
+---
+
+#### A.18.8 Phase 7 List Page Updates — My Cases, Breach Intake, Submissions
+
+**FCCSuedCasesPage / FCCSuingCasesPage — My Cases filter (SIG-05 / B1-3):**
+
+The backend **automatically** filters cases for users with only `grc:legal_case:view` (no `:manage`). Users with `:manage` see all cases. No frontend filter parameter is needed — the backend handles it based on the JWT.
+
+For Legal Managers who want to toggle between "All Cases" and "My Cases":
+```tsx
+// Only show toggle for managers (who see all by default):
+{canManageCases && (
+  <div className="flex items-center gap-2">
+    <Switch checked={showMyCasesOnly} onCheckedChange={setShowMyCasesOnly} />
+    <label className="text-sm text-muted-foreground">My cases only</label>
+  </div>
+)}
+// When toggled on, pass filter: { assigned_legal_officer_ids__contains: currentUserId }
+```
+
+**FCCSuingCasesPage — Breach Report Intake button (CRIT-05 / B1-2):**
+
+Show **two** create buttons:
+```tsx
+// Full case registration — requires manage or register permission
+{canCreateCase && (
+  <Button onClick={() => setIsCreateFullOpen(true)}>
+    <Plus className="mr-2 h-4 w-4" /> Register Case
+  </Button>
+)}
+
+// Breach Report Intake — open to ALL authenticated users (no permission check)
+<Button variant="outline" onClick={() => setIsBreachIntakeOpen(true)}>
+  <AlertTriangle className="mr-2 h-4 w-4" /> Raise Breach Report
+</Button>
+```
+
+The `BreachReportIntakeDialog` must include `registration_type: 'simplified'` in the POST payload. The backend skips permission checks for simplified registrations.
+
+**SubmissionsPage — Create button for all users (CRIT-01 / B1-1):**
+
+Remove the `canManageGoverningBody` gate from the "Create Submission" button:
+```tsx
+// BEFORE (incorrect — was permission-gated):
+// {canManageGoverningBody && <Button>Create Submission</Button>}
+
+// AFTER (correct — open to all authenticated users):
+<Button onClick={() => setIsCreateOpen(true)}>
+  <Plus className="mr-2 h-4 w-4" /> Create Submission
+</Button>
+```
+
+The backend `SubmissionForDeterminationListCreateView.post()` requires only `IsAuthenticated` for POST. GET still requires `grc:legal_governing_body:view` or `:manage`.
+
+---
+
+#### A.18.9 GoverningBodyDetailPage — Meeting Number Config Display (MIN-18 / B3-5)
+
+Add a "Meeting Configuration" card to `GoverningBodyDetailPage`:
+```tsx
+<Card>
+  <CardHeader className="pb-2">
+    <CardTitle className="text-base flex items-center gap-2">
+      <Settings className="h-4 w-4" /> Meeting Configuration
+    </CardTitle>
+  </CardHeader>
+  <CardContent className="grid gap-4 md:grid-cols-2">
+    <div>
+      <span className="text-sm text-muted-foreground">Meeting Number Prefix</span>
+      <p className="font-medium">{body.meeting_number_prefix || 'MTG (default)'}</p>
+    </div>
+    <div>
+      <span className="text-sm text-muted-foreground">Number Format</span>
+      <p className="font-medium">
+        {body.meeting_number_format === 'financial_year'
+          ? 'Financial Year (FY2025/2026-001)'
+          : 'Sequential (202603-001)'}
+      </p>
+    </div>
+  </CardContent>
+</Card>
+```
+
+This card is rendered conditionally only when `canManageGoverningBody` is true (config is admin-visible only).
+
+---
+
+#### A.18.10 CaseTasksSection — Auto-Created Task Badge (MIN-03 / B3-4)
+
+In the tasks table within both case detail pages, show a "System" badge for auto-created tasks:
+
+```tsx
+// In task row:
+<div className="flex items-center gap-2">
+  <span className="text-sm">{task.title}</span>
+  {task.auto_created && (
+    <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+      System
+    </span>
+  )}
+</div>
+```
+
+Auto-created tasks (e.g., appeal deadline tasks, filing review tasks) are created by backend automation via Celery. They are read-only in terms of who created them — the badge helps users distinguish system tasks from manually created ones.
+
+---
+
+#### A.18.11 Invitee Directive Access (SIG-02 / B4-4)
+
+The `MeetingDirectivesSubResourceView` at `GET /legal/meetings/{id}/directives/` enforces participant membership. Invitees can view directives from meetings they were invited to but **cannot** create or modify them.
+
+**In `LegalMeetingDetailPage` → Directives Section:**
+
+When the current user is a meeting participant (member or invitee):
+- Fetch directives using `getMeetingDirectivesSub(meetingId)` (participant-scoped endpoint)
+- Show directives table in **read-only mode** for invitees (no "Create Directive" or "Close Directive" buttons)
+- Invitee detection: `participant.role === 'invitee'` from the participants list
+
+```tsx
+const currentParticipant = participants?.find(p => p.user_id === currentUserId);
+const isInvitee = currentParticipant?.role === 'invitee';
+
+// Show Create Directive button ONLY for Secretary/members, NOT invitees:
+{canManageDirectives && !isInvitee && meeting.status === 'ongoing' && (
+  <Button onClick={() => setIsCreateDirectiveOpen(true)}>Add Directive</Button>
+)}
+```
+
+**In `DirectiveDetailPage`:**
+
+Add assigned-user identity check (MIN-16):
+```tsx
+const isAssignedUser = directive.assigned_user_id === currentUser?.id;
+
+// "Mark In Progress" — status = open, assigned user only
+{directive.status === 'open' && isAssignedUser && (
+  <Button onClick={handleMarkInProgress}>Mark In Progress</Button>
+)}
+
+// "Close Directive" — status in (open, in_progress), assigned user only
+{['open', 'in_progress'].includes(directive.status) && isAssignedUser && (
+  <Button onClick={() => setIsCloseOpen(true)}>Close Directive</Button>
+)}
+```
+
+---
+
+#### A.18.12 Notification Integration Notes (SIG-04 / B5-1)
+
+The Work Orchestration Service provides a full notification API:
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/v1/wo/notifications/` | GET | List notifications (supports `?unread=true` filter) |
+| `/api/v1/wo/notifications/unread-count/` | GET | Get unread notification count |
+| `/api/v1/wo/notifications/<pk>/mark-read/` | POST | Mark single notification as read |
+| `/api/v1/wo/notifications/mark-all-read/` | POST | Mark all notifications as read |
+
+**Notification model fields:** `user_id`, `is_read`, `notification_type`, `title`, `message`, `metadata`, `source_service`, `source_object_id`.
+
+**Frontend implementation guidance:**
+
+The notification bell/inbox is a **platform-level component** (shared across all services), not Legal-specific. Implementation should go in the shared shell/layout layer:
+
+```tsx
+// In shared header/navigation:
+function NotificationBell() {
+  const { data: unreadCount } = useQuery({
+    queryKey: ['wo', 'notifications', 'unread-count'],
+    queryFn: () => woClient.get('/api/v1/wo/notifications/unread-count/'),
+    refetchInterval: 30_000, // Poll every 30s
+  });
+
+  return (
+    <Button variant="ghost" size="icon" onClick={() => setInboxOpen(true)}>
+      <Bell className="h-5 w-5" />
+      {unreadCount?.count > 0 && (
+        <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">
+          {unreadCount.count}
+        </span>
+      )}
+    </Button>
+  );
+}
+```
+
+GRC legal events that generate notifications (via Kafka → WO):
+- Case status changes (new assignment, DG review needed, closure approved)
+- Filing approval requests (LM review pending, DG review pending)
+- Meeting invitations sent
+- Directive assignments
+- Task overdue warnings (7/2/1 days before due)
+
+No grc-service changes needed — it already publishes Kafka events consumed by WO.
+
+---
+
+#### A.18.13 Additional Frontend-Only Fixes (Phase A Items)
+
+These items require NO backend changes but were listed in Phase A and need explicit implementation specs:
+
+**G-11 (SIG-06) — Response Types Dropdown Correction:**
+
+Update response type dropdowns to use exact backend values:
+
+```ts
+// ResponseDefendant — verified from backend:
+RESPONSE_TYPE_DEFENDANT = [
+  { value: 'preliminary_objections', label: 'Preliminary Objections' },
+  { value: 'counter_claim', label: 'Counter Claim' },
+  { value: 'reply_to_defence', label: 'Reply to Defence' },
+  { value: 'other', label: 'Other' },
+];
+
+// ResponsePlaintiff — verified from backend:
+RESPONSE_TYPE_PLAINTIFF = [
+  { value: 'preliminary_objections', label: 'Preliminary Objections' },
+  { value: 'response_to_ruling', label: 'Response to Ruling' },
+  { value: 'response_to_orders', label: 'Response to Orders' },
+  { value: 'response_to_affidavits', label: 'Response to Affidavits' },
+  { value: 'counter_claim', label: 'Counter Claim' },
+  { value: 'initial_response', label: 'Initial Response' },
+  { value: 'other', label: 'Other' },
+];
+```
+
+**G-12 (SIG-07) — Recovered Amount Card in Plaintiff Financials:**
+
+In `CaseFinancialsSection` when `caseType === 'plaintiff'`:
+```tsx
+{caseType === 'plaintiff' && financials?.recovered_amount !== undefined && (
+  <Card>
+    <CardHeader className="pb-2">
+      <CardTitle className="text-base">Recovered Amount</CardTitle>
+    </CardHeader>
+    <CardContent>
+      <p className="text-2xl font-semibold">
+        {formatCurrency(financials.recovered_amount)}
+      </p>
+    </CardContent>
+  </Card>
+)}
+```
+
+**G-13 (SIG-08) — CreateMemberDialog Read-Only Corporate Fields:**
+
+When `user_id` is selected via SmartSelect, resolve the user's `email` and `department` from the Corporate Service and display as read-only:
+```tsx
+const selectedUser = useCorporateUser(form.watch('user_id'), !!form.watch('user_id'));
+
+{selectedUser && (
+  <>
+    <div>
+      <label className="text-sm text-muted-foreground">Email</label>
+      <p className="text-sm font-medium">{selectedUser.email}</p>
+    </div>
+    <div>
+      <label className="text-sm text-muted-foreground">Department</label>
+      <p className="text-sm font-medium">{selectedUser.department}</p>
+    </div>
+  </>
+)}
+```
+
+These are **preview-only** — not submitted in the form. The member record stored in grc-service references only the `user_id` UUID.
+
+**G-17 (MIN-03 status) — `auto_created` field already handled in A.18.10.**
+
+**G-21 (MIN-14) — Activity Log Metadata Parsing:**
+
+In the `ActivityLogSection` component, update the action detail display:
+```tsx
+const getActionDetail = (entry: LegalAuditLog) => {
+  if (entry.action === 'status_changed' && entry.metadata?.from_status) {
+    return `Status: ${formatStatusLabel(entry.metadata.from_status as string)} → ${formatStatusLabel(entry.metadata.to_status as string)}`;
+  }
+  if (entry.action === 'hold' && entry.metadata?.hold_reason) {
+    return `Placed on hold: ${entry.metadata.hold_reason}`;
+  }
+  if (entry.action === 'resume' && entry.metadata?.resume_to_status) {
+    return `Resumed to: ${formatStatusLabel(entry.metadata.resume_to_status as string)}`;
+  }
+  return `${entry.action}${entry.comment ? ` — ${entry.comment}` : ''}`;
+};
+```
+
+**G-22 (MIN-15) — Start Meeting Time Guard:**
+```tsx
+const now = new Date();
+const canStartMeeting =
+  meeting.status === 'quorum_ready' &&
+  meeting.quorum_met &&
+  isSecretary &&
+  new Date(meeting.start_datetime) <= now;
+
+// Show informational alert when quorum met but too early:
+{meeting.status === 'quorum_ready' && meeting.quorum_met && isSecretary &&
+ new Date(meeting.start_datetime) > now && (
+  <Alert>
+    <Clock className="h-4 w-4" />
+    <AlertDescription>
+      Meeting cannot start until {formatDateTime(meeting.start_datetime)}.
+    </AlertDescription>
+  </Alert>
+)}
+```
+
+---
+
+#### A.18.14 Phase 1 Folder Structure — New Components
+
+Add to the component folder structure (Section 1.1):
+
+```
+components/grc/legal/
+├── HoldCaseDialog.tsx               ← NEW (SIG-09 / B4-1)
+├── ResumeCaseDialog.tsx             ← NEW (SIG-09 / B4-1)
+├── DGDirectiveDecisionDialog.tsx    ← NEW (SIG-03 / B4-3)
+├── RescheduleMeetingDialog.tsx      ← NEW (SIG-10 / B3-3)
+├── EditResolutionDialog.tsx         ← NEW (MIN-17, replaces CreateResolutionDialog)
+├── RecordAgendaOutcomeDialog.tsx    ← (from A.17.1)
+├── CaseReportSection.tsx            ← (from A.17.5)
+├── ActivityLogSection.tsx           ← (from A.13)
+├── ApprovalChainDisplay.tsx         ← (from A.13)
+└── UserDisplay.tsx                  ← (from A.13)
+```
+
+**Remove from folder structure:**
+```
+├── CreateResolutionDialog.tsx       ← REMOVED (MIN-17: resolutions are auto-created)
+```
+
+---
+
+#### A.18.15 Phase 16 Implementation Order — Gap Fix Integration Points
+
+Insert gap fixes at the following points in the Phase 16 execution sequence:
+
+**After Step 1 item 1 (`types/legal.ts`):**
+```
+1a. Apply A.18.2 type updates: hold_reason, reschedule_reason, auto_created,
+    requires_dg_approval_for_closure, meeting_number_prefix/format,
+    registration_type, is_archived fields
+1b. Apply A.18.2 status enum updates: LITIGATION_DIRECTIVE_STATUSES,
+    MEETING_NUMBER_FORMATS, REGISTRATION_TYPES, on_hold badge, remove
+    invalid CASE_STAGES values
+```
+
+**After Step 1 item 3 (`legalService.ts`):**
+```
+3a. Add A.18.3 service functions: holdCase, resumeCase, archiveCase,
+    unarchiveCase, submitDirectiveForDGApproval, dgDecisionOnDirective,
+    getMeetingDirectivesSub
+```
+
+**After Step 1 item 4 (`useLegalPermissions.ts`):**
+```
+4a. Apply A.18.4 permission updates: canRegisterLegalCase,
+    canApproveDirectiveClosure, isRegistryOfficer derivation
+```
+
+**During Step 5 (Litigation — FCC Sued):**
+```
+52a. components/grc/legal/HoldCaseDialog.tsx
+52b. components/grc/legal/ResumeCaseDialog.tsx
+68a. CaseReportSection.tsx (from A.17.5)
+```
+
+**During Step 5 item 67 (`CaseDirectivesSection`):**
+```
+67a. Integrate DG approval CTAs per A.18.6
+67b. components/grc/legal/DGDirectiveDecisionDialog.tsx
+```
+
+**During Step 5 items 69-70 (`FCCSuedCasesPage`, `FCCSuedCaseDetailPage`):**
+```
+69a. Add archived case toggle per A.18.5
+69b. Add "My Cases" toggle for managers per A.18.8
+70a. Add Hold/Resume CTAs per A.18.5
+70b. Add Archive/Unarchive CTAs per A.18.5
+```
+
+**During Step 6 items 74-75 (`FCCSuingCasesPage`, `FCCSuingCaseDetailPage`):**
+```
+74a. Add "Raise Breach Report" button per A.18.8
+74b. Add archived case toggle and "My Cases" toggle per A.18.8
+75a. Add Hold/Resume and Archive/Unarchive CTAs (same as defendant)
+```
+
+---
+
+#### A.18.16 Phase 15 Test Scenarios — Backend Gap Fix Verification
+
+Add to the Phase 15 test checklist:
+
+**Hold/Resume (SIG-09):**
+- [ ] "Place On Hold" button visible when case is not on_hold/closed AND user has `canManageCases`
+- [ ] "Place On Hold" button hidden for on_hold or closed cases
+- [ ] Hold dialog submits `hold_reason`; case status transitions to `on_hold`
+- [ ] On-hold banner displays with hold reason text
+- [ ] "Resume Case" button visible only when `status === 'on_hold'`
+- [ ] Resume dialog allows selecting target status (excluding on_hold and closed)
+- [ ] After resume, hold_reason cleared from display
+- [ ] Hold/Resume CTAs work identically for both defendant and plaintiff cases
+
+**Archive (SIG-01):**
+- [ ] "Archive" button visible only when case is `closed` and not archived
+- [ ] "Unarchive" button visible only when case is archived
+- [ ] "Show Archived" toggle on case list pages toggles visibility
+- [ ] Archived cases not shown by default in case list
+
+**DG Directive Approval (SIG-03):**
+- [ ] "Submit for DG Approval" visible only when `requires_dg_approval_for_closure === true` and status is open/in_progress
+- [ ] "DG Decision" button visible only when status is `pending_dg_approval` and user has `canApproveDirectiveClosure`
+- [ ] `approve` → directive status becomes `closed`
+- [ ] `reject` → directive status returns to `in_progress`
+- [ ] Directives without `requires_dg_approval_for_closure` do not show DG approval buttons
+
+**Permissions (CRIT-01, CRIT-02, CRIT-05):**
+- [ ] "Create Submission" button shows for ALL authenticated users (no permission gate)
+- [ ] "Raise Breach Report" button shows for ALL authenticated users
+- [ ] "Register Case" button shows for users with `canManageCases` OR `canRegisterLegalCase`
+- [ ] Registry Officer can create cases but cannot manage/edit existing cases
+- [ ] `isRegistryOfficer` correctly derived as `canRegisterLegalCase && !canManageCases`
+
+**My Cases (SIG-05):**
+- [ ] Legal Officers (view-only) see only their assigned cases
+- [ ] Legal Managers see all cases by default
+- [ ] "My Cases" toggle for managers filters to assigned cases only
+
+**Meeting Number Config (MIN-18):**
+- [ ] `meeting_number_prefix` and `meeting_number_format` fields appear in CreateGoverningBodyDialog
+- [ ] GoverningBodyDetailPage shows Meeting Configuration card for managers
+- [ ] New meetings created under configured body use the configured prefix
+
+**Auto-Created Tasks (MIN-03):**
+- [ ] Tasks with `auto_created === true` show "System" badge
+- [ ] Manually created tasks do not show the badge
+
+**Notification Bell (SIG-04):**
+- [ ] Notification bell appears in navigation header
+- [ ] Unread count badge shows correct number
+- [ ] Clicking bell opens notification inbox/drawer
+- [ ] Mark-as-read updates the unread count
+
+---
+
+#### A.18.17 Complete Permission Code Reference (30 codes)
+
+Final consolidated list of all Legal permission codes (original 28 + 2 new):
+
+| # | Permission Code | Convenience Boolean | Source |
+|---|---|---|---|
+| 1 | `grc:legal_governing_body:view` | `canViewGoverningBody` | Original |
+| 2 | `grc:legal_governing_body:manage` | `canManageGoverningBody` | Original |
+| 3 | `grc:legal_meeting:view` | `canViewMeetings` | Original |
+| 4 | `grc:legal_meeting:manage` | `canManageMeetings` | Original |
+| 5 | `grc:legal_meeting:approve` | `canApproveMeetings` | Original |
+| 6 | `grc:legal_minutes:view` | `canViewMinutes` | Original |
+| 7 | `grc:legal_minutes:manage` | `canManageMinutes` | Original |
+| 8 | `grc:legal_minutes:approve` | `canApproveMinutes` | Original |
+| 9 | `grc:legal_case:view` | `canViewCases` | Original |
+| 10 | `grc:legal_case:manage` | `canManageCases` | Original |
+| 11 | `grc:legal_case:close` | `canCloseCases` | Original |
+| 12 | `grc:legal_case:register` | `canRegisterLegalCase` | **B2-1 NEW** |
+| 13 | `grc:legal_filing:view` | `canViewFilings` | Original |
+| 14 | `grc:legal_filing:manage` | `canManageFilings` | Original |
+| 15 | `grc:legal_filing:approve` | `canApproveFilings` | Original |
+| 16 | `grc:legal_hearing:view` | `canViewHearings` | Original |
+| 17 | `grc:legal_hearing:manage` | `canManageHearings` | Original |
+| 18 | `grc:legal_settlement:view` | `canViewSettlements` | Original |
+| 19 | `grc:legal_settlement:manage` | `canManageSettlements` | Original |
+| 20 | `grc:legal_settlement:approve` | `canApproveSettlements` | Original |
+| 21 | `grc:legal_judgment:view` | `canViewJudgments` | Original |
+| 22 | `grc:legal_judgment:manage` | `canManageJudgments` | Original |
+| 23 | `grc:legal_judgment:record` | `canRecordJudgments` | Original |
+| 24 | `grc:legal_directive:view` | `canViewDirectives` | Original |
+| 25 | `grc:legal_directive:manage` | `canManageDirectives` | Original |
+| 26 | `grc:legal_directive:approve_closure` | `canApproveDirectiveClosure` | **B4-3 NEW** |
+| 27 | `grc:legal_appeal:view` | `canViewAppeals` | Original |
+| 28 | `grc:legal_appeal:manage` | `canManageAppeals` | Original |
+| 29 | `grc:legal_notice:view` | `canViewNotices` | Original |
+| 30 | `grc:legal_notice:manage` | `canManageNotices` | Original |
+
+**Complete role permission matrix:**
+
+| Role | Permission Codes |
+|---|---|
+| `legal_manager` | All 30 codes (full access) |
+| `legal_officer` | View all + manage cases/filings/hearings/settlements/judgments/directives/notices (no close/approve/record) |
+| `registry_officer` | `grc:legal_case:register`, `grc:legal_case:view` |
+| `committee_secretary` | Gov body/meeting/minutes/directive view + manage |
+| `committee_chair` | Gov body/meeting/minutes view + meeting/minutes approve |
+| `director_general` | (Existing DG codes) + `grc:legal_directive:approve_closure` |
+
+---
+
+*End of Addendum A.18*
+
+---
+
 *End of Addendum A*
 
 ---
 
 *End of Frontend Implementation Plan*  
-*Source: LEGAL_DOMAIN_EXTRACTION.md, Legal_Module_Architecture_Mapping.md, Legal_Module_Data_Models_Part1–3.md, Legal_Module_Workflow_Integration.md, Legal_Module_Base_Models_Mixins.md, Legal_Module_Lookup_Tables.md, Legal_Module_Architecture_Overview.md, Internal_Audit_Backend_Patterns.md, Legal_Service.md, frontend_core_patterns.md, frontend_component_patterns.md, NEW_DETAIL_PAGE_REFERENCE.md*
+*Source: LEGAL_DOMAIN_EXTRACTION.md, Legal_Module_Architecture_Mapping.md, Legal_Module_Data_Models_Part1–3.md, Legal_Module_Workflow_Integration.md, Legal_Module_Base_Models_Mixins.md, Legal_Module_Lookup_Tables.md, Legal_Module_Architecture_Overview.md, Internal_Audit_Backend_Patterns.md, Legal_Service.md, Legal_Backend_Gap_Support_Analysis.md, frontend_core_patterns.md, frontend_component_patterns.md, NEW_DETAIL_PAGE_REFERENCE.md*

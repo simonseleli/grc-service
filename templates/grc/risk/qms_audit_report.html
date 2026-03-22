@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>QMS Internal Audit Report</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 20mm 25mm 60mm 25mm;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11pt;
+      color: #1a1a1a;
+      line-height: 1.55;
+      margin: 0;
+      padding: 0;
+    }
+
+    .header {
+      text-align: center;
+      border-bottom: 2px solid #1a3a5c;
+      padding-bottom: 12px;
+      margin-bottom: 22px;
+    }
+
+    .org-name {
+      font-size: 13pt;
+      font-weight: bold;
+      color: #1a3a5c;
+      letter-spacing: 0.5px;
+      margin: 0 0 4px;
+    }
+
+    .doc-title {
+      font-size: 12pt;
+      font-weight: bold;
+      color: #222;
+      margin: 0 0 4px;
+    }
+
+    .ref-number {
+      font-size: 9pt;
+      color: #666;
+      margin: 0;
+    }
+
+    .field { margin: 10px 0; }
+    .label { font-weight: bold; font-size: 10pt; color: #333; }
+    .value { margin-top: 3px; padding-left: 4px; }
+
+    .field-row { display: table; width: 100%; margin: 10px 0; }
+    .field-col { display: table-cell; width: 50%; vertical-align: top; }
+
+    .section-title {
+      font-size: 11pt;
+      font-weight: bold;
+      color: #1a3a5c;
+      margin: 18px 0 8px;
+      border-bottom: 1px solid #1a3a5c;
+      padding-bottom: 4px;
+    }
+
+    table.report-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0 14px;
+    }
+
+    table.report-table th {
+      background: #1a3a5c;
+      color: #fff;
+      font-size: 10pt;
+      padding: 6px 8px;
+      text-align: left;
+      border: 1px solid #1a3a5c;
+    }
+
+    table.report-table td {
+      font-size: 10pt;
+      padding: 6px 8px;
+      border: 1px solid #ccc;
+      vertical-align: top;
+    }
+
+    table.report-table tr:nth-child(even) { background: #f8f9fa; }
+
+    .conforming { color: #27ae60; }
+    .minor_nc { color: #e67e22; font-weight: bold; }
+    .major_nc { color: #c0392b; font-weight: bold; }
+    .observation { color: #3498db; }
+
+    .summary-text {
+      text-align: justify;
+      line-height: 1.65;
+      margin: 8px 0;
+    }
+
+    .sig-block {
+      margin-top: 28px;
+      padding-top: 10px;
+      border-top: 1px solid #bbb;
+    }
+
+    .sig-block .label { color: #1a3a5c; }
+
+    .sig-row {
+      display: table;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    .sig-col {
+      display: table-cell;
+      width: 50%;
+      vertical-align: top;
+      padding-right: 12px;
+    }
+
+    .footer-note {
+      margin-top: 16px;
+      font-size: 8.5pt;
+      color: #888;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="org-name">FAIR COMPETITION COMMISSION (FCC)</div>
+    <div class="doc-title">QMS Internal Audit Report</div>
+    <div class="ref-number">{{ report.report_title }}</div>
+  </div>
+
+  <!-- ═══ Audit Details ═══ -->
+  <div class="field-row">
+    <div class="field-col">
+      <div class="field">
+        <div class="label">Audit Plan:</div>
+        <div class="value">{{ plan.plan_title }}</div>
+      </div>
+    </div>
+    <div class="field-col">
+      <div class="field">
+        <div class="label">Audit Program:</div>
+        <div class="value">{{ plan.audit_program.program_title }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="field-row">
+    <div class="field-col">
+      <div class="field">
+        <div class="label">Audit Period:</div>
+        <div class="value">{{ plan.audit_start_date|date:"d M Y" }} — {{ plan.audit_end_date|date:"d M Y" }}</div>
+      </div>
+    </div>
+    <div class="field-col">
+      <div class="field">
+        <div class="label">Auditee Unit:</div>
+        <div class="value">{{ plan.auditee_unit_id }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="field">
+    <div class="label">Status:</div>
+    <div class="value">{{ report.get_status_display }}</div>
+  </div>
+
+  <!-- ═══ Executive Summary ═══ -->
+  {% if report.executive_summary %}
+  <div class="section-title">1. Executive Summary</div>
+  <div class="summary-text">{{ report.executive_summary|linebreaksbr }}</div>
+  {% endif %}
+
+  <!-- ═══ Scope Summary ═══ -->
+  {% if report.scope_summary %}
+  <div class="section-title">2. Scope Summary</div>
+  <div class="summary-text">{{ report.scope_summary|linebreaksbr }}</div>
+  {% endif %}
+
+  <!-- ═══ Audit Checklist Findings ═══ -->
+  <div class="section-title">3. Audit Checklist Findings</div>
+
+  <table class="report-table">
+    <thead>
+      <tr>
+        <th style="width:15%">ISO Clause</th>
+        <th style="width:20%">Clause Title</th>
+        <th style="width:15%">Conformity</th>
+        <th style="width:50%">Auditor Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in checklists %}
+      <tr>
+        <td>{{ item.iso_clause.clause_number }}</td>
+        <td>{{ item.iso_clause.title }}</td>
+        <td class="{{ item.conformity }}">{{ item.get_conformity_display }}</td>
+        <td>{% if item.findings_detail.auditor_notes %}{{ item.findings_detail.auditor_notes }}{% else %}—{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="4" style="text-align:center; padding:12px; color:#888;">No checklist items recorded.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- ═══ Non-Conformances ═══ -->
+  <div class="section-title">4. Non-Conformances</div>
+
+  {% if nonconformances %}
+  <table class="report-table">
+    <thead>
+      <tr>
+        <th style="width:12%">ISO Clause</th>
+        <th style="width:10%">Type</th>
+        <th style="width:25%">Description</th>
+        <th style="width:20%">Objective Evidence</th>
+        <th style="width:20%">Corrective Action</th>
+        <th style="width:13%">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for nc in nonconformances %}
+      <tr>
+        <td>{{ nc.iso_clause.clause_number }}</td>
+        <td>{{ nc.nc_type.name }}</td>
+        <td>{{ nc.description }}</td>
+        <td>{{ nc.objective_evidence|truncatewords:20 }}</td>
+        <td>{{ nc.corrective_action|default:"—" }}</td>
+        <td>{{ nc.get_status_display }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color:#27ae60; font-style:italic;">No non-conformances raised in this audit.</p>
+  {% endif %}
+
+  <!-- ═══ Signatures ═══ -->
+  <div class="sig-block">
+    <div class="sig-row">
+      <div class="sig-col">
+        {% if report.tl_signed_by %}
+        <div class="label">Team Leader — Digitally Signed</div>
+        <div class="value">
+          Signer ID: {{ report.tl_signed_by }}<br>
+          Signed: {{ report.tl_signed_at|date:"d F Y \a\t H:i" }} UTC
+        </div>
+        {% else %}
+        <div class="label">Team Leader</div>
+        <div class="value">
+          Name: ________________________________________<br><br>
+          Signature: ________________________________________<br><br>
+          Date: ________________________________________
+        </div>
+        {% endif %}
+      </div>
+      <div class="sig-col">
+        {% if report.auditee_signed_by %}
+        <div class="label">Auditee Representative — Digitally Signed</div>
+        <div class="value">
+          Signer ID: {{ report.auditee_signed_by }}<br>
+          Signed: {{ report.auditee_signed_at|date:"d F Y \a\t H:i" }} UTC
+        </div>
+        {% else %}
+        <div class="label">Auditee Representative</div>
+        <div class="value">
+          Name: ________________________________________<br><br>
+          Signature: ________________________________________<br><br>
+          Date: ________________________________________
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    <!-- DRS will overlay QR code (bottom-left) + approver signature (bottom-right) in the reserved margin -->
+  </div>
+
+  <div class="footer-note">
+    This document was generated by the FIMS Risk Management GRC System on {{ generated_at|date:"d F Y \a\t H:i" }} UTC.
+    {% if report.tl_signed_by and report.auditee_signed_by %}
+    The QR code at the bottom of this page can be scanned to verify the authenticity of this audit report.
+    {% endif %}
+  </div>
+
+</body>
+</html>

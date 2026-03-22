@@ -846,3 +846,544 @@ templates:
             breachStrategy: "notify"
           metadata:
             status_on_complete: "noted"
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # RISK MANAGEMENT & QUALITY ASSURANCE MODULE
+  # ════════════════════════════════════════════════════════════════════════════
+
+  # ── Template 1: Risk Champion Appointment (3-stage) ─────────────────────
+  - code: "grc.risk_champion_appointment"
+    name: "Risk Champion Appointment"
+    workflow_type: "grc"
+    version: 1
+    definition:
+      description: "Approval workflow for Risk Champion appointment letters (3-stage: RMO → RMQAM → DG)"
+      sla:
+        targetMinutes: 10080
+        breachStrategy: "escalate"
+      metadata:
+        module: "grc"
+        category: "risk_champion_appointment"
+      stages:
+        - definitionKey: "rmo_draft"
+          name: "RMO Draft"
+          order: 1
+          assignees: ["role:grc.rmo"]
+          actions:
+            - name: "submit_for_review"
+              label: "Submit for RMQAM Review"
+              nextState: "completed"
+            - name: "save_draft"
+              label: "Save as Draft"
+              nextState: "pending"
+          sla:
+            durationMinutes: 4320
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "submitted"
+
+        - definitionKey: "rmqam_review"
+          name: "RMQAM Review"
+          order: 2
+          assignees: ["role:grc.rmqam"]
+          actions:
+            - name: "approve_forward_dg"
+              label: "Approve and Forward to DG"
+              nextState: "completed"
+            - name: "return_rework"
+              label: "Return for Rework"
+              nextState: "pending"
+              requiresComment: true
+          sla:
+            durationMinutes: 2880
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "approved"
+
+        - definitionKey: "dg_signature"
+          name: "DG Signature"
+          order: 3
+          assignees: ["role:grc.dg"]
+          actions:
+            - name: "sign_letter"
+              label: "Sign Appointment Letter"
+              nextState: "completed"
+            - name: "return_rmqam"
+              label: "Return to RMQAM"
+              nextState: "pending"
+              requiresComment: true
+          sla:
+            durationMinutes: 4320
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "signed"
+
+  # ── Template 2: Departmental Risk Register Approval (2-stage) ───────────
+  - code: "grc.dept_risk_register_approval"
+    name: "Departmental Risk Register Approval"
+    workflow_type: "grc"
+    version: 1
+    definition:
+      description: "2-stage approval: Risk Champion submits, RMQAM approves"
+      sla:
+        targetMinutes: 10080
+        breachStrategy: "escalate"
+      metadata:
+        module: "grc"
+        category: "dept_risk_register"
+      stages:
+        - definitionKey: "rc_submit"
+          name: "RC Submission"
+          order: 1
+          assignees: ["role:grc.risk_champion"]
+          actions:
+            - name: "submit"
+              label: "Submit for Approval"
+              nextState: "completed"
+          sla:
+            durationMinutes: 7200
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "submitted"
+
+        - definitionKey: "rmqam_approve"
+          name: "RMQAM Approval"
+          order: 2
+          assignees: ["role:grc.rmqam"]
+          actions:
+            - name: "approve"
+              label: "Approve"
+              nextState: "completed"
+            - name: "return_rework"
+              label: "Return for Rework"
+              nextState: "pending"
+              requiresComment: true
+          sla:
+            durationMinutes: 4320
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "approved"
+
+  # ── Template 3: Institutional Risk Register Approval (4-stage) ──────────
+  - code: "grc.institutional_risk_register_approval"
+    name: "Institutional Risk Register Approval"
+    workflow_type: "grc"
+    version: 1
+    definition:
+      description: "4-stage governance approval chain for the organisation-wide risk register"
+      sla:
+        targetMinutes: 20160
+        breachStrategy: "escalate"
+      metadata:
+        module: "grc"
+        category: "institutional_risk_register"
+      stages:
+        - definitionKey: "rmqam_review"
+          name: "RMQAM Review"
+          order: 1
+          assignees: ["role:grc.rmqam"]
+          actions:
+            - name: "forward_management"
+              label: "Forward to Management"
+              nextState: "completed"
+            - name: "return_rework"
+              label: "Return for Internal Rework"
+              nextState: "pending"
+              requiresComment: true
+          sla:
+            durationMinutes: 7200
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "rmqam_review"
+
+        - definitionKey: "management_discussion"
+          name: "Management Discussion"
+          order: 2
+          assignees: ["role:grc.management"]
+          actions:
+            - name: "endorse_forward_committee"
+              label: "Endorse and Forward to Committee"
+              nextState: "completed"
+            - name: "return_rmqam"
+              label: "Return to RMQAM"
+              nextState: "pending"
+              requiresComment: true
+          sla:
+            durationMinutes: 4320
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "management_review"
+
+        - definitionKey: "committee_review"
+          name: "Risk & Governance Committee Review"
+          order: 3
+          assignees: ["role:grc.risk_governance_committee"]
+          actions:
+            - name: "recommend_commission"
+              label: "Recommend to Commission"
+              nextState: "completed"
+            - name: "return_management"
+              label: "Return to Management"
+              nextState: "pending"
+              requiresComment: true
+          sla:
+            durationMinutes: 10080
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "committee_review"
+
+        - definitionKey: "commission_approval"
+          name: "Commission Approval"
+          order: 4
+          assignees: ["role:grc.commission"]
+          actions:
+            - name: "approve"
+              label: "Approve"
+              nextState: "completed"
+            - name: "defer"
+              label: "Defer"
+              nextState: "pending"
+              requiresComment: true
+          sla:
+            durationMinutes: 10080
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "approved"
+
+  # ── Template 4: Risk Treatment Action Plan Approval (4-stage) ───────────
+  - code: "grc.rtap_approval"
+    name: "Risk Treatment Action Plan Approval"
+    workflow_type: "grc"
+    version: 1
+    definition:
+      description: "4-stage governance approval for the RTAP — mirrors IRR approval chain"
+      sla:
+        targetMinutes: 20160
+        breachStrategy: "escalate"
+      metadata:
+        module: "grc"
+        category: "rtap"
+      stages:
+        - definitionKey: "rmqam_review"
+          name: "RMQAM Review"
+          order: 1
+          assignees: ["role:grc.rmqam"]
+          actions:
+            - name: "forward_management"
+              label: "Forward to Management"
+              nextState: "completed"
+            - name: "return_rework"
+              label: "Return for Rework"
+              nextState: "pending"
+              requiresComment: true
+          sla:
+            durationMinutes: 7200
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "rmqam_review"
+
+        - definitionKey: "management_discussion"
+          name: "Management Discussion"
+          order: 2
+          assignees: ["role:grc.management"]
+          actions:
+            - name: "endorse_forward_committee"
+              label: "Endorse and Forward to Committee"
+              nextState: "completed"
+            - name: "return_rmqam"
+              label: "Return to RMQAM"
+              nextState: "pending"
+              requiresComment: true
+          sla:
+            durationMinutes: 4320
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "management_review"
+
+        - definitionKey: "committee_review"
+          name: "Risk & Governance Committee Review"
+          order: 3
+          assignees: ["role:grc.risk_governance_committee"]
+          actions:
+            - name: "recommend_commission"
+              label: "Recommend to Commission"
+              nextState: "completed"
+            - name: "return_management"
+              label: "Return to Management"
+              nextState: "pending"
+              requiresComment: true
+          sla:
+            durationMinutes: 10080
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "committee_review"
+
+        - definitionKey: "commission_approval"
+          name: "Commission Approval"
+          order: 4
+          assignees: ["role:grc.commission"]
+          actions:
+            - name: "approve"
+              label: "Approve"
+              nextState: "completed"
+            - name: "defer"
+              label: "Defer"
+              nextState: "pending"
+              requiresComment: true
+          sla:
+            durationMinutes: 10080
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "approved"
+
+  # ── Template 5: Quarterly Risk Report Approval (5-stage) ────────────────
+  - code: "grc.quarterly_risk_report_approval"
+    name: "Quarterly Risk Management Performance Report Approval"
+    workflow_type: "grc"
+    version: 1
+    definition:
+      description: "5-stage approval: RMQAM prepares → LSM routes → Management → Committee → Commission"
+      sla:
+        targetMinutes: 30240
+        breachStrategy: "escalate"
+      metadata:
+        module: "grc"
+        category: "quarterly_risk_report"
+      stages:
+        - definitionKey: "rmqam_prepare"
+          name: "RMQAM Preparation"
+          order: 1
+          assignees: ["role:grc.rmqam"]
+          actions:
+            - name: "submit_lsm"
+              label: "Submit to LSM"
+              nextState: "completed"
+          sla:
+            durationMinutes: 7200
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "rmqam_prepare"
+
+        - definitionKey: "lsm_submit"
+          name: "LSM Submission"
+          order: 2
+          assignees: ["role:grc.lsm"]
+          actions:
+            - name: "route_committee"
+              label: "Route to Committee"
+              nextState: "completed"
+            - name: "return_rmqam"
+              label: "Return to RMQAM"
+              nextState: "pending"
+              requiresComment: true
+          sla:
+            durationMinutes: 2880
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "lsm_submit"
+
+        - definitionKey: "management_discussion"
+          name: "Management Discussion"
+          order: 3
+          assignees: ["role:grc.management"]
+          actions:
+            - name: "endorse"
+              label: "Endorse Report"
+              nextState: "completed"
+            - name: "return_lsm"
+              label: "Return to LSM"
+              nextState: "pending"
+              requiresComment: true
+          sla:
+            durationMinutes: 4320
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "management_review"
+
+        - definitionKey: "committee_review"
+          name: "Risk & Governance Committee Review"
+          order: 4
+          assignees: ["role:grc.risk_governance_committee"]
+          actions:
+            - name: "forward_commission"
+              label: "Forward to Commission"
+              nextState: "completed"
+            - name: "return_management"
+              label: "Return to Management"
+              nextState: "pending"
+              requiresComment: true
+          sla:
+            durationMinutes: 10080
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "committee_review"
+
+        - definitionKey: "commission_submit"
+          name: "Commission Submission"
+          order: 5
+          assignees: ["role:grc.commission"]
+          actions:
+            - name: "acknowledge"
+              label: "Acknowledge Receipt"
+              nextState: "completed"
+          sla:
+            durationMinutes: 10080
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "approved"
+
+  # ── Template 6: Quality Auditor Appointment (3-stage) ───────────────────
+  - code: "grc.qa_appointment"
+    name: "Quality Auditor Appointment"
+    workflow_type: "grc"
+    version: 1
+    definition:
+      description: "Approval workflow for Quality Auditor appointment letters (3-stage: RMO → RMQAM → DG)"
+      sla:
+        targetMinutes: 10080
+        breachStrategy: "escalate"
+      metadata:
+        module: "grc"
+        category: "qa_appointment"
+      stages:
+        - definitionKey: "rmo_draft"
+          name: "RMO Draft"
+          order: 1
+          assignees: ["role:grc.rmo"]
+          actions:
+            - name: "submit_for_review"
+              label: "Submit for RMQAM Review"
+              nextState: "completed"
+          sla:
+            durationMinutes: 4320
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "submitted"
+
+        - definitionKey: "rmqam_review"
+          name: "RMQAM Review"
+          order: 2
+          assignees: ["role:grc.rmqam"]
+          actions:
+            - name: "approve_forward_dg"
+              label: "Approve and Forward to DG"
+              nextState: "completed"
+            - name: "return_rework"
+              label: "Return for Rework"
+              nextState: "pending"
+              requiresComment: true
+          sla:
+            durationMinutes: 2880
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "approved"
+
+        - definitionKey: "dg_signature"
+          name: "DG Signature"
+          order: 3
+          assignees: ["role:grc.dg"]
+          actions:
+            - name: "sign_letter"
+              label: "Sign Appointment Letter"
+              nextState: "completed"
+            - name: "return_rmqam"
+              label: "Return to RMQAM"
+              nextState: "pending"
+              requiresComment: true
+          sla:
+            durationMinutes: 4320
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "signed"
+
+  # ── Template 7: QMS Audit Program Approval (2-stage) ────────────────────
+  - code: "grc.qms_audit_program_approval"
+    name: "QMS Audit Program Approval"
+    workflow_type: "grc"
+    version: 1
+    definition:
+      description: "2-stage approval: RMO submits, RMQAM approves the annual audit program"
+      sla:
+        targetMinutes: 14400
+        breachStrategy: "escalate"
+      metadata:
+        module: "grc"
+        category: "qms_audit_program"
+      stages:
+        - definitionKey: "rmo_submit"
+          name: "RMO Submission"
+          order: 1
+          assignees: ["role:grc.rmo"]
+          actions:
+            - name: "submit"
+              label: "Submit for Approval"
+              nextState: "completed"
+          sla:
+            durationMinutes: 10080
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "submitted"
+
+        - definitionKey: "rmqam_approve"
+          name: "RMQAM Approval"
+          order: 2
+          assignees: ["role:grc.rmqam"]
+          actions:
+            - name: "approve"
+              label: "Approve Program"
+              nextState: "completed"
+            - name: "return_rework"
+              label: "Return for Rework"
+              nextState: "pending"
+              requiresComment: true
+          sla:
+            durationMinutes: 7200
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "approved"
+
+  # ── Template 8: QMS Audit Plan Approval (2-stage) ───────────────────────
+  - code: "grc.qms_audit_plan_approval"
+    name: "QMS Audit Plan Approval"
+    workflow_type: "grc"
+    version: 1
+    definition:
+      description: "2-stage approval: RMO submits audit plan, RMQAM approves"
+      sla:
+        targetMinutes: 10080
+        breachStrategy: "escalate"
+      metadata:
+        module: "grc"
+        category: "qms_audit_plan"
+      stages:
+        - definitionKey: "rmo_submit"
+          name: "RMO Submission"
+          order: 1
+          assignees: ["role:grc.rmo"]
+          actions:
+            - name: "submit"
+              label: "Submit Audit Plan for Approval"
+              nextState: "completed"
+          sla:
+            durationMinutes: 7200
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "submitted"
+
+        - definitionKey: "rmqam_approve"
+          name: "RMQAM Approval"
+          order: 2
+          assignees: ["role:grc.rmqam"]
+          actions:
+            - name: "approve"
+              label: "Approve Audit Plan"
+              nextState: "completed"
+            - name: "return_rework"
+              label: "Return for Rework"
+              nextState: "pending"
+              requiresComment: true
+          sla:
+            durationMinutes: 4320
+            breachStrategy: "notify"
+          metadata:
+            status_on_complete: "approved"
