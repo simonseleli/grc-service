@@ -1419,7 +1419,7 @@ Dashboard aggregates data from all domains — must come after all entity pages 
 
 ---
 
-### Step 9: Notification Integration (SRS §6.4)
+### Step 9: Notification Integration (SRS §6.4) // NOTIFICATION STILL NOT YET IMPLEMENTED IN WO, WHEN IS IMPLEMENTED WE SHALL IMPLEMENT HERE TOO
 
 Platform-level shared component — not Legal-specific but required for Legal event visibility.
 

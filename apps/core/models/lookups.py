@@ -623,3 +623,37 @@ class ISOClause(TimestampedModel, StatusMixin):
 
     def __str__(self):
         return f"{self.clause_number} – {self.title}"
+
+
+class RiskSector(TimestampedModel, StatusMixin):
+    """Risk sector classification (Health, Services, Finance, etc.)"""
+    code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = 'grc_risk_sector'
+        ordering = ['sort_order', 'name']
+        verbose_name = 'Risk Sector'
+        verbose_name_plural = 'Risk Sectors'
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+
+class StrategicObjective(TimestampedModel, StatusMixin):
+    """Organization strategic objectives for risk alignment tracking."""
+    code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = 'grc_strategic_objective'
+        ordering = ['sort_order', 'name']
+        verbose_name = 'Strategic Objective'
+        verbose_name_plural = 'Strategic Objectives'
+
+    def __str__(self):
+        return f"{self.code} — {self.name}"

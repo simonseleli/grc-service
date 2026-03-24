@@ -22,6 +22,21 @@
       └── Non-Conformances
 ```
 
+
+Risk Management
+
+Risk Settings
+Risk Champions
+Departmental Risks
+Institutional Risks
+Risk Treatment Plans
+
+
+Quality Assurance
+
+Quality Auditors
+Quality Audits
+
 > NOTE: QMS Audit Plans are NOT in the sidebar — they are always accessed from a QMS Audit Program
 > detail page. "Risk Rate" from the demo does NOT exist — the correct model is `RiskLevel`.
 > Non-Conformances are raised from Audit Report pages but have a top-level list view for tracking.

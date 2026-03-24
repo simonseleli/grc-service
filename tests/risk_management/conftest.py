@@ -42,6 +42,7 @@ from apps.core.models.lookups import (
     FiscalYear, Quarter,
     RiskCategory, RiskLikelihood, RiskImpact, RiskLevel,
     NonConformanceType, ISOClause,
+    RiskSector, StrategicObjective,
 )
 
 
@@ -274,6 +275,42 @@ def iso_clause(db, iso_clause_parent):
         code='9.2', clause_number='9.2', title='Internal audit',
         parent_clause=iso_clause_parent,
         sort_order=92, created_by=SYSTEM_USER_ID,
+    )
+
+
+@pytest.fixture
+def risk_sector(db):
+    return RiskSector.objects.create(
+        code='health', name='Health',
+        description='Health sector risks',
+        sort_order=1, created_by=SYSTEM_USER_ID,
+    )
+
+
+@pytest.fixture
+def risk_sector_finance(db):
+    return RiskSector.objects.create(
+        code='finance', name='Finance',
+        description='Financial sector risks',
+        sort_order=2, created_by=SYSTEM_USER_ID,
+    )
+
+
+@pytest.fixture
+def strategic_objective(db):
+    return StrategicObjective.objects.create(
+        code='SO-01', name='Enhance regulatory compliance across all sectors',
+        description='Primary compliance objective',
+        sort_order=1, created_by=SYSTEM_USER_ID,
+    )
+
+
+@pytest.fixture
+def strategic_objective_secondary(db):
+    return StrategicObjective.objects.create(
+        code='SO-02', name='Strengthen institutional capacity',
+        description='Capacity building objective',
+        sort_order=2, created_by=SYSTEM_USER_ID,
     )
 
 

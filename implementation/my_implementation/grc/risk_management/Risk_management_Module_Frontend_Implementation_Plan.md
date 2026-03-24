@@ -23,7 +23,8 @@
 10. [Navigation & UX Consistency](#10-navigation--ux-consistency)
 11. [Integration with Workflow Service](#11-integration-with-workflow-service)
 12. [Testing & Validation](#12-testing--validation)
-13. [Implementation Order](#13-implementation-order)
+13. [Gap-Resolved Features](#13-gap-resolved-features--frontend-implementation-details)
+14. [Implementation Order](#14-implementation-order)
 
 ---
 
@@ -3241,8 +3242,8 @@ export function useDisputeNC() {
 ## 14. Implementation Order
 
 > **Note:** All backend gaps (Phases 1–4) are fully resolved. No backend work is blocking frontend implementation. All 29 gaps from `Backend_Gap_Support_Analysis.md` have been addressed. The phases below cover pure frontend work.
-
-Execute phases in this sequence. Each phase must be complete before starting the next.
+>
+> Execute phases in this exact sequence. Each phase must be complete and TypeScript-error-free before starting the next. The ordering follows the dependency graph: **types → services → RBAC → hooks → dialogs/sections → list pages → detail pages → routing → dashboard → QA**.
 
 ### Phase A — Foundation (Day 1)
 1. Add/update TypeScript types to `types/grc.ts` — including all gap-resolved fields (§13 entity interfaces)
@@ -3251,11 +3252,11 @@ Execute phases in this sequence. Each phase must be complete before starting the
 4. Add new permission codes to `GRCPermissions` interface in `grc.ts`
 
 ### Phase B — RBAC & Query Keys (Day 1)
-5. Add risk management permission booleans to `useGRCPermissions.ts`
-6. Create query key factories (add to `grcKeys.ts`)
+5. Add risk management permission booleans to `useGRCPermissions.ts` (§7.1)
+6. Create query key factories in `grcKeys.ts` (§4.1)
 
-### Phase C — Hooks (Day 2)
-7. Implement all data hooks (list + detail + mutations) — one file per entity group:
+### Phase C — Data Hooks (Day 2)
+7. Implement all list + detail + mutation hooks — one file per entity:
    - `useRiskChampions.ts` + `useRCAppointments.ts`
    - `useRiskAssessmentSheets.ts` — include RAS status-transition mutation hooks (§13.15)
    - `useDeptRiskRegisters.ts`
@@ -3270,57 +3271,116 @@ Execute phases in this sequence. Each phase must be complete before starting the
    - `useQMSChecklists.ts`
    - `useQMSAuditReports.ts` — include governance chain mutation hooks (§13.15)
    - `useNonConformances.ts` — include dispute/resolve mutation hooks (§13.15)
+   - `useRiskDashboard.ts`
 
-### Phase D — List Pages (Day 3–4)
-8. `RiskAssessmentSheetsPage.tsx` — row click navigates to detail (not dialog)
-9. `RiskMeetingsPage.tsx` — row click opens view dialog
-10. `QATrainingPage.tsx` — row click navigates to detail
-11. `QMSChecklistsPage.tsx` — row click opens view dialog
-12. `NonConformancesPage.tsx` — row click navigates to detail (not dialog; Gap 4 actions live here)
-13. `RiskChampionsPage.tsx` (replace mock, add navigate to detail)
-14. `DepartmentalRisksPage.tsx` (replace placeholder)
-15. `InstitutionalRisksPage.tsx` (replace placeholder)
-16. `RiskTreatmentPlansPage.tsx` (replace placeholder, now RTAP list)
-17. `RiskPerformanceReportsPage.tsx`
-18. `QualityAuditorsPage.tsx` (replace placeholder)
-19. `QMSProgramsPage.tsx`
-20. `QMSPlansPage.tsx`
-21. `QMSAuditReportsPage.tsx` (replace QualityAuditsPage.tsx content)
-22. Update routing in `App.tsx` for all new pages + detail routes
+### Phase D — Dialogs & Section Components (Day 3–4)
 
-### Phase E — Detail Pages (Days 5–7)
-23. `RiskChampionDetailPage.tsx` + `RCAppointmentSection.tsx` + `CreateRCAppointmentDialog.tsx`
-24. `RiskAssessmentSheetDetailPage.tsx` + `RASStatusActionButtons.tsx` (Gap 15/28)
-25. `DeptRiskRegisterDetailPage.tsx` + `DeptRegisterEntriesSection.tsx` + `CreateDeptRegisterEntryDialog.tsx`
-26. `InstitutionalRiskDetailPage.tsx` + `IRREntriesSection.tsx` + `IRRActivityReportsSection.tsx` + `IRRWorkshopNotifyButtons.tsx` (Gap 8) + `IRRDistributeButton.tsx` (Gap 24)
-27. `RTAPDetailPage.tsx` + `RTAPItemsSection.tsx` + `CreateRTAPItemDialog.tsx` + `RTAPSendReminderButton.tsx` (Gap 7) + `RTAPDistributeButton.tsx` (Gap 24)
-28. `RiskPerformanceReportDetailPage.tsx`
-29. `QualityAuditorDetailPage.tsx` + `QAAppointmentSection.tsx` + `CreateQAAppointmentDialog.tsx` (with is_certified gate — Gap 13)
-30. `QATrainingDetailPage.tsx` + `QATrainingAttendeesSection.tsx` + `QATrainingApprovalButtons.tsx` (Gap 23) — attendees show exam fields (Gap 3)
-31. `QMSProgramDetailPage.tsx`
-32. `QMSPlanDetailPage.tsx` + `QMSTeamAssignmentSection.tsx` + `QMSTimetableSection.tsx`
-33. `QMSAuditReportDetailPage.tsx` + `SignReportButtons.tsx` + `QMSReportGovernanceButtons.tsx` (Gap 12/25/26)
-34. `NonConformanceDetailPage.tsx` + `NCDisputeDialog.tsx` + `NCResolveDisputeDialog.tsx` (Gap 4) — overdue indicator (Gap 5)
+> **Critical:** Dialogs and section components are leaf components — they depend on hooks (Phase C) but nothing depends on them from above yet. List pages and detail pages both import these, so all of Phase D must be complete before starting Phase E or Phase F.
 
-### Phase F — Create/Edit Dialogs (Day 7–8)
-35. All Create dialogs not yet implemented in Phase E
-36. Implement edit mode for existing dialogs (pass `defaultValues`)
-37. `CreateQualityAuditorDialog.tsx` — include `qualifications` + `experience_summary` fields (Gap 10)
-38. `CreateRiskMeetingDialog.tsx` — include `management_review` type + optional `dept_register` FK (Gap 6)
-39. `CreateNonConformanceDialog.tsx` — include `nc_type` select populated from seeded types (Gap 29)
+**Standalone Create/Edit Dialogs — Risk Management:**
+8. `CreateRiskChampionDialog.tsx`
+9. `CreateRCAppointmentDialog.tsx`
+10. `CreateRiskAssessmentSheetDialog.tsx`
+11. `CreateDeptRiskRegisterDialog.tsx`
+12. `CreateDeptRegisterEntryDialog.tsx` — RAS select must filter to `status=approved`
+13. `CreateInstitutionalRiskRegisterDialog.tsx`
+14. `CreateRTAPDialog.tsx`
+15. `CreateRTAPItemDialog.tsx`
+16. `CreateQuarterlyPerformanceReportDialog.tsx`
+17. `CreateRiskMeetingDialog.tsx` — include `management_review` type + optional `dept_register` FK (Gap 6)
 
-### Phase G — Navigation & Sidebar (Day 8)
-40. Update `servicesConfig.ts` with all new sidebar items (add missing routes)
-41. Update `App.tsx` to replace all remaining `<ServicePlaceholder>` elements with real pages
+**Standalone Create/Edit Dialogs — Quality Assurance:**
+18. `CreateQualityAuditorDialog.tsx` — include `qualifications` + `experience_summary` fields (Gap 10)
+19. `CreateQAAppointmentDialog.tsx`
+20. `CreateQATrainingDialog.tsx`
+21. `CreateQMSProgramDialog.tsx`
+22. `CreateQMSAuditPlanDialog.tsx` — include cascading program dependency (§6.7)
+23. `CreateQMSChecklistDialog.tsx`
+24. `CreateQMSAuditReportDialog.tsx`
+25. `CreateNonConformanceDialog.tsx` — include `nc_type` select populated from seeded types (Gap 29)
+
+**Gap-Resolved Action Dialogs:**
+26. `NCDisputeDialog.tsx` — `dispute_reason` required textarea (Gap 4)
+27. `NCResolveDisputeDialog.tsx` — `resolution_action` + `new_status` select (Gap 4)
+
+**Child Section Components — Risk Management:**
+28. `RCAppointmentSection.tsx` — table + add/edit/delete + embedded `CreateRCAppointmentDialog`
+29. `DeptRegisterEntriesSection.tsx` — table + add/edit/delete + embedded `CreateDeptRegisterEntryDialog`
+30. `IRREntriesSection.tsx` — table + add/edit/delete for IRR entries
+31. `IRRActivityReportsSection.tsx` — activity reports table
+32. `IRRWorkshopNotifyButtons.tsx` — notify directors / notify RCs buttons (Gap 8)
+33. `IRRDistributeButton.tsx` — distribute to directorates button (Gap 24)
+34. `RTAPItemsSection.tsx` — table + return-for-rework + resubmit actions (Gap 22)
+35. `RTAPSendReminderButton.tsx` — send reminder to RCs (Gap 7)
+36. `RTAPDistributeButton.tsx` — distribute to directorates (Gap 24)
+37. `RASStatusActionButtons.tsx` — submit / endorse / submit-to-rmqam / approve / return-for-rework (Gaps 15/28)
+
+**Child Section Components — Quality Assurance:**
+38. `QAAppointmentSection.tsx` — table + `is_certified` gate (Gap 13)
+39. `QATrainingAttendeesSection.tsx` — attendees table + `exam_score`, `exam_attempt_number`, `passed` columns (Gap 3)
+40. `QATrainingApprovalButtons.tsx` — approve / reject (opens dialog) / notify-attendees buttons (Gap 23)
+41. `QMSTeamAssignmentSection.tsx`
+42. `QMSTimetableSection.tsx`
+43. `SignReportButtons.tsx` — TL sign + auditee sign buttons
+44. `QMSReportGovernanceButtons.tsx` — full governance chain from `finalised` → `adopted_by_commission` (Gaps 12/25/26)
+
+### Phase E — List Pages (Day 5)
+
+> All dialogs and section components from Phase D must exist before starting here.
+
+**Risk Management:**
+45. `RiskChampionsPage.tsx` — replace mock data; row click navigates to detail
+46. `RiskAssessmentSheetsPage.tsx` — row click navigates to detail
+47. `RiskMeetingsPage.tsx` — row click opens `RiskMeetingViewDialog` (no detail page)
+48. `DepartmentalRisksPage.tsx` — replace placeholder
+49. `InstitutionalRisksPage.tsx` — replace placeholder
+50. `RiskTreatmentPlansPage.tsx` — replace placeholder; RTAP list
+51. `RiskPerformanceReportsPage.tsx`
+
+**Quality Assurance:**
+52. `QualityAuditorsPage.tsx` — replace placeholder
+53. `QATrainingPage.tsx` — row click navigates to detail
+54. `QMSProgramsPage.tsx`
+55. `QMSPlansPage.tsx`
+56. `QMSChecklistsPage.tsx` — row click opens `QMSChecklistViewDialog` (no detail page)
+57. `QMSAuditReportsPage.tsx` — replaces `QualityAuditsPage.tsx` content
+58. `NonConformancesPage.tsx` — row click navigates to detail; overdue chip + `nc_type` filter (Gaps 5, 29)
+
+### Phase F — Detail Pages (Day 6–8)
+
+> All list pages from Phase E must compile before starting here. Section components from Phase D are already available.
+
+59. `RiskChampionDetailPage.tsx` — hosts `RCAppointmentSection` (Phase D ✓)
+60. `RiskAssessmentSheetDetailPage.tsx` — hosts `RASStatusActionButtons` (Phase D ✓)
+61. `DeptRiskRegisterDetailPage.tsx` — hosts `DeptRegisterEntriesSection` (Phase D ✓)
+62. `InstitutionalRiskDetailPage.tsx` — hosts `IRREntriesSection` + `IRRActivityReportsSection` + `IRRWorkshopNotifyButtons` + `IRRDistributeButton` (Phase D ✓)
+63. `RTAPDetailPage.tsx` — hosts `RTAPItemsSection` + `RTAPSendReminderButton` + `RTAPDistributeButton` (Phase D ✓)
+64. `RiskPerformanceReportDetailPage.tsx`
+65. `QualityAuditorDetailPage.tsx` — hosts `QAAppointmentSection` (Phase D ✓)
+66. `QATrainingDetailPage.tsx` — hosts `QATrainingAttendeesSection` + `QATrainingApprovalButtons` (Phase D ✓)
+67. `QMSProgramDetailPage.tsx`
+68. `QMSPlanDetailPage.tsx` — hosts `QMSTeamAssignmentSection` + `QMSTimetableSection` (Phase D ✓)
+69. `QMSAuditReportDetailPage.tsx` — hosts `SignReportButtons` + `QMSReportGovernanceButtons` (Phase D ✓)
+70. `NonConformanceDetailPage.tsx` — hosts `NCDisputeDialog` + `NCResolveDisputeDialog` + overdue indicator (Phase D ✓)
+
+### Phase G — Navigation & Routing (Day 8)
+
+> Single consolidated update — do this once after all pages exist.
+
+71. Update `servicesConfig.ts` with all new sidebar items (§1.3)
+72. Update `App.tsx`:
+    - Replace all remaining `<ServicePlaceholder>` elements with real page components
+    - Add all new list routes and all detail routes
+    - Add all imports (§1.2)
 
 ### Phase H — Dashboard (Day 8)
-42. `RiskDashboardPage.tsx` — summary cards + comparative analysis chart (Gap 1 + Gap 2)
+73. `RiskDashboardPage.tsx` — summary cards + comparative analysis chart (Gaps 1, 2)
 
 ### Phase I — Final QA (Day 9)
-43. Run UI behavior checks (§12.1) on all pages
-44. Run API integration checks (§12.2) on all entities — including gap-resolved action endpoints
-45. Run RBAC validation (§12.3) with test users of different roles
-46. Verify all gap-resolved features:
+74. Run UI behavior checks (§12.1) on all pages
+75. Run API integration checks (§12.2) on all entities — including gap-resolved action endpoints
+76. Run RBAC validation (§12.3) with test users of different roles
+77. Verify all gap-resolved features:
     - [ ] NC dispute/resolve workflow (Gap 4)
     - [ ] NC overdue badge + monthly summary (Gap 5)
     - [ ] RAS status transitions (Gaps 15/28)
@@ -3335,7 +3395,7 @@ Execute phases in this sequence. Each phase must be complete before starting the
     - [ ] Management review meeting type (Gap 6)
     - [ ] QA exam tracking per attendee (Gap 3)
     - [ ] NC type filter from seeded data (Gap 29)
-47. Fix any issues found
+78. Fix any issues found
 
 ---
 

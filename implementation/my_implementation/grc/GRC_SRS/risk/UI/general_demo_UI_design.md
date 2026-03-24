@@ -2,9 +2,9 @@ Risk Management and Quality Assurance as these menu structure:
 
 Risk Management
 
-1.Risk Settings
-2.Risk Champions
-3.Departmental Risks
+1. Risk Settings
+2. Risk Champions
+3. Departmental Risks
 4. Institutional Risks
 5. Risk Treatment Plans
 
@@ -257,7 +257,7 @@ Add Risk Rat
 
 
 
-
+###
 2.Risk Champions
 https://fcc.ictpack.net/service/grc/risk-champions
 

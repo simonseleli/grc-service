@@ -20,6 +20,7 @@ from django.db import IntegrityError
 from apps.core.models.lookups import (
     RiskCategory, RiskLikelihood, RiskImpact, RiskLevel,
     NonConformanceType, ISOClause,
+    RiskSector, StrategicObjective,
 )
 from tests.risk_management.conftest import SYSTEM_USER_ID
 
@@ -376,4 +377,168 @@ class TestConfigEndpoints:
     @pytest.mark.django_db
     def test_config_unauthenticated_returns_401(self, anon_client):
         resp = anon_client.get('/api/v1/grc/config/risk-categories/')
+        assert resp.status_code == 401
+
+
+# ===========================================================================
+# RiskSector Tests
+# ===========================================================================
+
+class TestRiskSectorLookup:
+
+    @pytest.mark.django_db
+    def test_creation(self, risk_sector):
+        assert risk_sector.code == 'health'
+        assert risk_sector.name == 'Health'
+        assert risk_sector.is_active is True
+
+    @pytest.mark.django_db
+    def test_unique_code(self, risk_sector):
+        with pytest.raises(IntegrityError):
+            RiskSector.objects.create(
+                code='health', name='Duplicate',
+                created_by=SYSTEM_USER_ID,
+            )
+
+    @pytest.mark.django_db
+    def test_str(self, risk_sector):
+        assert 'Health' in str(risk_sector)
+        assert 'health' in str(risk_sector)
+
+    @pytest.mark.django_db
+    def test_ordering(self, risk_sector, risk_sector_finance):
+        items = list(RiskSector.objects.all())
+        assert items[0].sort_order <= items[1].sort_order
+
+
+# ===========================================================================
+# StrategicObjective Tests
+# ===========================================================================
+
+class TestStrategicObjectiveLookup:
+
+    @pytest.mark.django_db
+    def test_creation(self, strategic_objective):
+        assert strategic_objective.code == 'SO-01'
+        assert 'compliance' in strategic_objective.name.lower()
+        assert strategic_objective.is_active is True
+
+    @pytest.mark.django_db
+    def test_unique_code(self, strategic_objective):
+        with pytest.raises(IntegrityError):
+            StrategicObjective.objects.create(
+                code='SO-01', name='Duplicate',
+                created_by=SYSTEM_USER_ID,
+            )
+
+    @pytest.mark.django_db
+    def test_str(self, strategic_objective):
+        s = str(strategic_objective)
+        assert 'SO-01' in s
+
+    @pytest.mark.django_db
+    def test_ordering(self, strategic_objective, strategic_objective_secondary):
+        items = list(StrategicObjective.objects.all())
+        assert items[0].sort_order <= items[1].sort_order
+
+
+# ===========================================================================
+# Config (Admin CRUD) — RiskSector & StrategicObjective Endpoints
+# ===========================================================================
+
+class TestConfigRiskSectorEndpoints:
+
+    @pytest.mark.django_db
+    def test_list(self, rmqam_client, risk_sector, allow_all_permissions):
+        resp = rmqam_client.get('/api/v1/grc/config/risk-sectors/')
+        assert resp.status_code == 200
+        assert resp.json()['success'] is True
+
+    @pytest.mark.django_db
+    def test_create(self, rmqam_client, allow_all_permissions):
+        resp = rmqam_client.post('/api/v1/grc/config/risk-sectors/', {
+            'code': 'services',
+            'name': 'Services',
+            'description': 'Service sector risks',
+            'sort_order': 3,
+        }, format='json')
+        assert resp.status_code == 201
+        assert RiskSector.objects.filter(code='services').exists()
+
+    @pytest.mark.django_db
+    def test_retrieve(self, rmqam_client, risk_sector, allow_all_permissions):
+        resp = rmqam_client.get(f'/api/v1/grc/config/risk-sectors/{risk_sector.id}/')
+        assert resp.status_code == 200
+        assert resp.json()['data']['code'] == 'health'
+
+    @pytest.mark.django_db
+    def test_update(self, rmqam_client, risk_sector, allow_all_permissions):
+        resp = rmqam_client.put(
+            f'/api/v1/grc/config/risk-sectors/{risk_sector.id}/',
+            {'name': 'Health Updated'},
+            format='json',
+        )
+        assert resp.status_code == 200
+        risk_sector.refresh_from_db()
+        assert risk_sector.name == 'Health Updated'
+
+    @pytest.mark.django_db
+    def test_soft_delete(self, rmqam_client, risk_sector, allow_all_permissions):
+        resp = rmqam_client.delete(f'/api/v1/grc/config/risk-sectors/{risk_sector.id}/')
+        assert resp.status_code == 200
+        risk_sector.refresh_from_db()
+        assert risk_sector.is_active is False
+
+    @pytest.mark.django_db
+    def test_unauthenticated_returns_401(self, anon_client):
+        resp = anon_client.get('/api/v1/grc/config/risk-sectors/')
+        assert resp.status_code == 401
+
+
+class TestConfigStrategicObjectiveEndpoints:
+
+    @pytest.mark.django_db
+    def test_list(self, rmqam_client, strategic_objective, allow_all_permissions):
+        resp = rmqam_client.get('/api/v1/grc/config/strategic-objectives/')
+        assert resp.status_code == 200
+        assert resp.json()['success'] is True
+
+    @pytest.mark.django_db
+    def test_create(self, rmqam_client, allow_all_permissions):
+        resp = rmqam_client.post('/api/v1/grc/config/strategic-objectives/', {
+            'code': 'SO-03',
+            'name': 'Improve service delivery',
+            'description': 'Service delivery objective',
+            'sort_order': 3,
+        }, format='json')
+        assert resp.status_code == 201
+        assert StrategicObjective.objects.filter(code='SO-03').exists()
+
+    @pytest.mark.django_db
+    def test_retrieve(self, rmqam_client, strategic_objective, allow_all_permissions):
+        resp = rmqam_client.get(f'/api/v1/grc/config/strategic-objectives/{strategic_objective.id}/')
+        assert resp.status_code == 200
+        assert resp.json()['data']['code'] == 'SO-01'
+
+    @pytest.mark.django_db
+    def test_update(self, rmqam_client, strategic_objective, allow_all_permissions):
+        resp = rmqam_client.put(
+            f'/api/v1/grc/config/strategic-objectives/{strategic_objective.id}/',
+            {'name': 'Updated objective'},
+            format='json',
+        )
+        assert resp.status_code == 200
+        strategic_objective.refresh_from_db()
+        assert strategic_objective.name == 'Updated objective'
+
+    @pytest.mark.django_db
+    def test_soft_delete(self, rmqam_client, strategic_objective, allow_all_permissions):
+        resp = rmqam_client.delete(f'/api/v1/grc/config/strategic-objectives/{strategic_objective.id}/')
+        assert resp.status_code == 200
+        strategic_objective.refresh_from_db()
+        assert strategic_objective.is_active is False
+
+    @pytest.mark.django_db
+    def test_unauthenticated_returns_401(self, anon_client):
+        resp = anon_client.get('/api/v1/grc/config/strategic-objectives/')
         assert resp.status_code == 401

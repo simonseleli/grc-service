@@ -18,6 +18,7 @@ __all__ = [
     # Risk Management Lookup Models
     'RiskCategory', 'RiskLikelihood', 'RiskImpact', 'RiskLevel',
     'NonConformanceType', 'ISOClause',
+    'RiskSector', 'StrategicObjective',
     # Organizational Models  
     'Directorate', 'Department', 'Unit', 'Section', 'OrganizationalSyncLog',
     # Core Audit Models

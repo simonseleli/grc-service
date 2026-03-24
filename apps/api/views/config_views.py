@@ -22,12 +22,14 @@ from apps.core.models import (
 from apps.core.models.lookups import (
     RiskCategory, RiskLikelihood, RiskImpact, RiskLevel,
     NonConformanceType, ISOClause,
+    RiskSector, StrategicObjective,
 )
 from apps.api.serializers.lookup_serializers import (
     FiscalYearSerializer, QuarterSerializer, AuditSeveritySerializer,
     FindingTypeSerializer, RiskRatingSerializer, AuditOpinionSerializer,
     RiskCategorySerializer, RiskLikelihoodSerializer, RiskImpactSerializer,
     RiskLevelSerializer, NonConformanceTypeSerializer, ISOClauseSerializer,
+    RiskSectorSerializer, StrategicObjectiveSerializer,
 )
 from rest_framework.permissions import IsAuthenticated
 from apps.api.permissions_jwt import (
@@ -1157,6 +1159,20 @@ class ConfigRiskLevelView(_RiskLookupConfigBase):
     serializer_class = RiskLevelSerializer
     resource_name = 'config_risk_level'
     label = 'Risk Level'
+
+
+class ConfigRiskSectorView(_RiskLookupConfigBase):
+    model_class = RiskSector
+    serializer_class = RiskSectorSerializer
+    resource_name = 'config_risk_sector'
+    label = 'Risk Sector'
+
+
+class ConfigStrategicObjectiveView(_RiskLookupConfigBase):
+    model_class = StrategicObjective
+    serializer_class = StrategicObjectiveSerializer
+    resource_name = 'config_strategic_objective'
+    label = 'Strategic Objective'
 
 
 class ConfigNonConformanceTypeView(_RiskLookupConfigBase):

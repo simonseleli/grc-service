@@ -309,9 +309,23 @@ class RiskAssessmentSheet(TimestampedModel, StatusMixin):
     risk_category = models.ForeignKey(
         'RiskCategory', on_delete=models.PROTECT, related_name='risk_sheets'
     )
+    risk_sector = models.ForeignKey(
+        'RiskSector', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='risk_sheets'
+    )
+    strategic_objective = models.ForeignKey(
+        'StrategicObjective', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='risk_sheets'
+    )
     risk_title = models.CharField(max_length=255)
     risk_description = models.TextField()
+    causes = models.TextField(blank=True, help_text="Root causes of the risk")
+    consequences = models.TextField(blank=True, help_text="Consequences if risk materialises")
+    risk_indicator = models.CharField(max_length=255, blank=True, help_text="Key risk indicator")
     risk_owner = models.UUIDField(help_text="IAM user UUID of the Risk Owner")
+    supporting_owners = models.JSONField(
+        default=list, help_text="List of supporting risk owner IAM user UUIDs"
+    )
     # Scoring inputs (lookup FK)
     likelihood = models.ForeignKey('RiskLikelihood', on_delete=models.PROTECT)
     impact = models.ForeignKey('RiskImpact', on_delete=models.PROTECT)
@@ -693,6 +707,29 @@ class RTAPItem(TimestampedModel, StatusMixin):
     treatment_description = models.TextField()
     responsible_officer = models.UUIDField(help_text="IAM UUID of the responsible officer")
     target_date = models.DateField()
+    kci = models.TextField(blank=True, help_text="Key Control Indicator")
+    EFFECTIVENESS_CHOICES = [
+        ('effective', 'Effective'),
+        ('partially_effective', 'Partially Effective'),
+        ('not_effective', 'Not Effective'),
+    ]
+    preventive_effectiveness = models.CharField(
+        max_length=30, choices=EFFECTIVENESS_CHOICES, blank=True,
+        help_text="Effectiveness of preventive controls"
+    )
+    preventive_rating = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="Preventive control effectiveness rating %"
+    )
+    corrective_effectiveness = models.CharField(
+        max_length=30, choices=EFFECTIVENESS_CHOICES, blank=True,
+        help_text="Effectiveness of corrective controls"
+    )
+    corrective_rating = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="Corrective control effectiveness rating %"
+    )
+    resources_required = models.TextField(blank=True, help_text="Resources required for treatment")
     STATUS_NOT_STARTED = 'not_started'
     STATUS_IN_PROGRESS = 'in_progress'
     STATUS_COMPLETED = 'completed'

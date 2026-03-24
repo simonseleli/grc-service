@@ -8,6 +8,7 @@ from apps.api.views.config_views import (
     ConfigRiskRatingView, ConfigSystemView,
     ConfigRiskCategoryView, ConfigRiskLikelihoodView, ConfigRiskImpactView,
     ConfigRiskLevelView, ConfigNonConformanceTypeView, ConfigISOClauseView,
+    ConfigRiskSectorView, ConfigStrategicObjectiveView,
 )
 
 urlpatterns = [
@@ -46,4 +47,8 @@ urlpatterns = [
     path('non-conformance-types/<uuid:pk>/', ConfigNonConformanceTypeView.as_view(), name='config-non-conformance-type-detail'),
     path('iso-clauses/', ConfigISOClauseView.as_view(), name='config-iso-clauses'),
     path('iso-clauses/<uuid:pk>/', ConfigISOClauseView.as_view(), name='config-iso-clause-detail'),
+    path('risk-sectors/', ConfigRiskSectorView.as_view(), name='config-risk-sectors'),
+    path('risk-sectors/<uuid:pk>/', ConfigRiskSectorView.as_view(), name='config-risk-sector-detail'),
+    path('strategic-objectives/', ConfigStrategicObjectiveView.as_view(), name='config-strategic-objectives'),
+    path('strategic-objectives/<uuid:pk>/', ConfigStrategicObjectiveView.as_view(), name='config-strategic-objective-detail'),
 ]

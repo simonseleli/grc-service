@@ -13,6 +13,7 @@ from apps.core.models.lookups import (
     MeetingMode, MeetingType, DirectivePriority, DirectiveCategory,
     RiskCategory, RiskLikelihood, RiskImpact, RiskLevel,
     NonConformanceType, ISOClause,
+    RiskSector, StrategicObjective,
 )
 
 
@@ -182,5 +183,19 @@ class ISOClauseSerializer(serializers.ModelSerializer):
     class Meta:
         model = ISOClause
         fields = ['id', 'code', 'clause_number', 'title', 'description', 'parent_clause', 'sort_order', 'is_active']
+        read_only_fields = ['id']
+
+
+class RiskSectorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RiskSector
+        fields = ['id', 'code', 'name', 'description', 'sort_order', 'is_active']
+        read_only_fields = ['id']
+
+
+class StrategicObjectiveSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StrategicObjective
+        fields = ['id', 'code', 'name', 'description', 'sort_order', 'is_active']
         read_only_fields = ['id']
         read_only_fields = ['id']

@@ -174,6 +174,7 @@ from apps.api.views.legal_public_register_views import (
 
 # ── Dashboard KPIs (GAP-12) ─────────────────────────────────────────────────
 from apps.api.views.legal_dashboard_views import (
+    LegalDashboardStatsView,
     LegalDashboardDefendantView,
     LegalDashboardPlaintiffView,
 )
@@ -367,6 +368,7 @@ urlpatterns = [
     path("public-register/", PublicRegisterListView.as_view(), name="legal-public-register"),
 
     # ── Dashboard KPIs (GAP-12) ──────────────────────────────────────────────
+    path("dashboard/stats/", LegalDashboardStatsView.as_view(), name="legal-dashboard-stats"),
     path("dashboard/defendant/", LegalDashboardDefendantView.as_view(), name="legal-dashboard-defendant"),
     path("dashboard/plaintiff/", LegalDashboardPlaintiffView.as_view(), name="legal-dashboard-plaintiff"),
 

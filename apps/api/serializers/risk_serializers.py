@@ -47,6 +47,8 @@ from .lookup_serializers import (
     RiskLikelihoodSerializer,
     RiskImpactSerializer,
     RiskLevelSerializer,
+    RiskSectorSerializer,
+    StrategicObjectiveSerializer,
     ISOClauseSerializer,
     NonConformanceTypeSerializer,
 )
@@ -246,6 +248,10 @@ class RiskAssessmentSheetSerializer(serializers.ModelSerializer):
     fiscal_year_id = serializers.UUIDField(write_only=True)
     risk_category = RiskCategorySerializer(read_only=True)
     risk_category_id = serializers.UUIDField(write_only=True)
+    risk_sector = RiskSectorSerializer(read_only=True)
+    risk_sector_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
+    strategic_objective = StrategicObjectiveSerializer(read_only=True)
+    strategic_objective_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
     likelihood = RiskLikelihoodSerializer(read_only=True)
     likelihood_id = serializers.UUIDField(write_only=True)
     impact = RiskImpactSerializer(read_only=True)
@@ -269,7 +275,11 @@ class RiskAssessmentSheetSerializer(serializers.ModelSerializer):
             'org_unit_id',
             'fiscal_year', 'fiscal_year_id',
             'risk_category', 'risk_category_id',
-            'risk_title', 'risk_description', 'risk_owner',
+            'risk_sector', 'risk_sector_id',
+            'strategic_objective', 'strategic_objective_id',
+            'risk_title', 'risk_description',
+            'causes', 'consequences', 'risk_indicator',
+            'risk_owner', 'supporting_owners',
             'likelihood', 'likelihood_id',
             'impact', 'impact_id',
             'inherent_risk_score', 'inherent_risk_level',
@@ -295,6 +305,10 @@ class RiskAssessmentSheetSerializer(serializers.ModelSerializer):
             'references': {'required': False},
             'status': {'required': False},
             'review_comments': {'required': False},
+            'causes': {'required': False},
+            'consequences': {'required': False},
+            'risk_indicator': {'required': False},
+            'supporting_owners': {'required': False},
         }
 
 
@@ -511,7 +525,9 @@ class RTAPItemSerializer(serializers.ModelSerializer):
             'inst_entry', 'inst_entry_id',
             'treatment_description', 'responsible_officer',
             'target_date', 'status', 'sort_order',
-            # GAP-22: rework tracking
+            'kci', 'preventive_effectiveness', 'preventive_rating',
+            'corrective_effectiveness', 'corrective_rating',
+            'resources_required',
             'review_comments', 'returned_at', 'resubmitted_at',
             'is_active', 'created_at', 'updated_at', 'created_by',
         ]
@@ -520,6 +536,12 @@ class RTAPItemSerializer(serializers.ModelSerializer):
             'created_by': {'required': False},
             'status': {'required': False},
             'review_comments': {'required': False},
+            'kci': {'required': False},
+            'preventive_effectiveness': {'required': False},
+            'preventive_rating': {'required': False},
+            'corrective_effectiveness': {'required': False},
+            'corrective_rating': {'required': False},
+            'resources_required': {'required': False},
         }
 
 
