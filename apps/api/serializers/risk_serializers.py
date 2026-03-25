@@ -39,6 +39,11 @@ from apps.core.models.risk_entities import (
     # Group 8 — QMS Audit Support
     QMSAuditMeeting,
     QMSAuditTimetableEntry,
+    # Group 9 — Knowledge Base & Surveys [SRS-FIX G-01, G-02]
+    RiskKnowledgeBase,
+    RiskSurvey,
+    RiskSurveyQuestion,
+    RiskSurveyResponse,
 )
 from .lookup_serializers import (
     FiscalYearSerializer,
@@ -178,6 +183,7 @@ class QualityAuditorSerializer(serializers.ModelSerializer):
             'exam_attempt', 'exam_score', 'is_certified', 'certification_date',
             'term_start', 'term_end', 'notes', 'qualifications', 'experience_summary',
             'training_session', 'training_session_id',
+            'nomination_status',  # SRS-FIX G-08
             'is_active', 'created_at', 'updated_at', 'created_by',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -185,6 +191,7 @@ class QualityAuditorSerializer(serializers.ModelSerializer):
             'created_by': {'required': False},
             'exam_score': {'required': False},
             'certification_date': {'required': False},
+            'nomination_status': {'required': False},
         }
 
 
@@ -457,6 +464,29 @@ class InstitutionalRiskEntrySerializer(serializers.ModelSerializer):
             'created_by': {'required': False},
         }
 
+    def validate_risk_sheet_id(self, value):
+        """SRS-FIX G-11 + G-06: Validate DRR membership and threshold."""
+        # G-11: Risk must come from an approved Departmental Risk Register
+        if not DeptRegisterEntry.objects.filter(
+            risk_sheet_id=value, is_active=True
+        ).exists():
+            raise serializers.ValidationError(
+                "Risk must be sourced from an active Departmental Risk Register "
+                "before inclusion in the IRR."
+            )
+        # G-06: Risk must meet institutional threshold
+        try:
+            sheet = RiskAssessmentSheet.objects.select_related('residual_risk_level').get(pk=value)
+        except RiskAssessmentSheet.DoesNotExist:
+            raise serializers.ValidationError("Risk assessment sheet not found.")
+        if sheet.residual_risk_level and hasattr(sheet.residual_risk_level, 'is_institutional_threshold'):
+            if not sheet.residual_risk_level.is_institutional_threshold:
+                raise serializers.ValidationError(
+                    "Only risks at or above the institutional risk appetite threshold "
+                    "may be added to the IRR."
+                )
+        return value
+
 
 class RiskTreatmentActionPlanSerializer(serializers.ModelSerializer):
     inst_register = InstitutionalRiskRegisterSerializer(read_only=True)
@@ -641,9 +671,11 @@ class ActivityReportSerializer(serializers.ModelSerializer):
             'reported_by', 'submission_date',
             'activities_summary', 'issues_raised', 'recommendations',
             'attachments',
+            # SRS-FIX G-03: DG noting
+            'dg_noted', 'dg_noted_by', 'dg_noted_at',
             'is_active', 'created_at', 'updated_at', 'created_by',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'dg_noted', 'dg_noted_by', 'dg_noted_at']
         extra_kwargs = {
             'created_by': {'required': False},
             'issues_raised': {'required': False},
@@ -757,6 +789,20 @@ class QMSAuditTeamAssignmentSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'created_by': {'required': False},
         }
+
+    def validate(self, attrs):
+        """SRS-FIX G-07: Enforce Rule E.2 — QA cannot audit own unit."""
+        attrs = super().validate(attrs)
+        auditor_id = attrs.get('auditor_id')
+        audit_plan_id = attrs.get('audit_plan_id')
+        if auditor_id and audit_plan_id:
+            qa = QualityAuditor.objects.filter(user_id=auditor_id, is_active=True).first()
+            plan = QMSAuditPlan.objects.filter(pk=audit_plan_id).first()
+            if qa and plan and qa.org_unit_id == plan.auditee_unit_id:
+                raise serializers.ValidationError(
+                    "QA cannot audit their own unit (conflict of interest — Rule E.2)."
+                )
+        return attrs
 
 
 class AuditChecklistSerializer(serializers.ModelSerializer):
@@ -934,4 +980,88 @@ class QMSAuditTimetableEntrySerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at']
         extra_kwargs = {
             'created_by': {'required': False},
+        }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GROUP 9 — Knowledge Base & Surveys [SRS-FIX G-01, G-02]
+# ══════════════════════════════════════════════════════════════════════════════
+
+class RiskKnowledgeBaseSerializer(serializers.ModelSerializer):
+    fiscal_year = FiscalYearSerializer(read_only=True)
+    fiscal_year_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
+
+    class Meta:
+        model = RiskKnowledgeBase
+        fields = [
+            'id', 'source_type', 'title', 'description',
+            'fiscal_year', 'fiscal_year_id',
+            'document_id', 'tags', 'contributed_by',
+            'is_active', 'created_at', 'updated_at', 'created_by',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'created_by': {'required': False},
+            'document_id': {'required': False},
+            'tags': {'required': False},
+        }
+
+
+class RiskSurveyQuestionSerializer(serializers.ModelSerializer):
+    survey_id = serializers.UUIDField(write_only=True)
+
+    class Meta:
+        model = RiskSurveyQuestion
+        fields = [
+            'id', 'survey_id',
+            'question_type', 'question_text', 'choices', 'sort_order',
+            'is_active', 'created_at', 'updated_at', 'created_by',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'created_by': {'required': False},
+            'choices': {'required': False},
+        }
+
+
+class RiskSurveySerializer(serializers.ModelSerializer):
+    fiscal_year = FiscalYearSerializer(read_only=True)
+    fiscal_year_id = serializers.UUIDField(write_only=True)
+    questions = RiskSurveyQuestionSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = RiskSurvey
+        fields = [
+            'id', 'title', 'description',
+            'fiscal_year', 'fiscal_year_id',
+            'org_unit_id', 'created_by_user', 'status',
+            'opens_at', 'closes_at',
+            'questions',
+            'is_active', 'created_at', 'updated_at', 'created_by',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'created_by': {'required': False},
+            'description': {'required': False},
+            'org_unit_id': {'required': False},
+            'status': {'required': False},
+            'opens_at': {'required': False},
+            'closes_at': {'required': False},
+        }
+
+
+class RiskSurveyResponseSerializer(serializers.ModelSerializer):
+    survey_id = serializers.UUIDField(write_only=True)
+
+    class Meta:
+        model = RiskSurveyResponse
+        fields = [
+            'id', 'survey_id',
+            'respondent_id', 'submitted_at', 'answers',
+            'is_active', 'created_at', 'updated_at', 'created_by',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'created_by': {'required': False},
+            'submitted_at': {'required': False},
         }

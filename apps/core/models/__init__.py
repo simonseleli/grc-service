@@ -76,4 +76,6 @@ __all__ = [
     'QATrainingSession', 'QATrainingAttendee',
     # Risk Management Models — Group 8: QMS Audit Support [GAP-05, GAP-10]
     'QMSAuditMeeting', 'QMSAuditTimetableEntry',
+    # Risk Management Models — Group 9: Knowledge Base & Surveys [SRS-FIX G-01, G-02]
+    'RiskKnowledgeBase', 'RiskSurvey', 'RiskSurveyQuestion', 'RiskSurveyResponse',
 ]

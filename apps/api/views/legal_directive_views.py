@@ -16,6 +16,7 @@ from rest_framework.views import APIView
 
 from apps.core.models import (
     MeetingDirective, LitigationDirective, TaskLitigation,
+    GoverningBody,
 )
 from apps.api.serializers.legal_serializers import (
     MeetingDirectiveSerializer, LitigationDirectiveSerializer,
@@ -113,14 +114,13 @@ class MeetingDirectiveListCreateView(APIView):
                     status_code=status.HTTP_401_UNAUTHORIZED,
                 )
 
-            # Business rule: parent minutes must be approved before directives can be created
+            # R6 (GAP-05): Directives can only be added during an ongoing meeting
             meeting = serializer.validated_data.get('meeting')
             if meeting:
-                has_approved_minutes = meeting.minutes.filter(status='approved').exists()
-                if not has_approved_minutes:
+                if meeting.status != 'ongoing':
                     return error_response(
-                        message="Meeting minutes must be approved before issuing directives",
-                        code="MINUTES_NOT_APPROVED",
+                        message="Directives can only be added to an ongoing meeting",
+                        code="MEETING_NOT_ONGOING",
                         status_code=status.HTTP_400_BAD_REQUEST,
                     )
 
@@ -189,13 +189,50 @@ class MeetingDirectiveDetailView(APIView):
                     status_code=status.HTTP_400_BAD_REQUEST,
                 )
 
+            user_id = getattr(request.user, 'id', None)
+            new_status = request.data.get('status')
+            new_fully_closed = request.data.get('fully_closed')
+
+            # R7 (GAP-06): Only assigned user can perform initial closure
+            if new_status == 'closed' and entity.status in ('open', 'in_progress', 'overdue'):
+                if str(entity.assigned_user_id) != str(user_id):
+                    return error_response(
+                        message="Only the assigned user can perform initial closure of a directive",
+                        code="NOT_ASSIGNED_USER",
+                        status_code=status.HTTP_403_FORBIDDEN,
+                    )
+
+            # R7 (GAP-06): Final closure only by Secretary of the governing body
+            if new_fully_closed is True or (isinstance(new_fully_closed, str) and new_fully_closed.lower() == 'true'):
+                if not entity.is_finally_closeable:
+                    return error_response(
+                        message="Directive must be in 'closed' status before final closure",
+                        code="INVALID_STATE_FOR_FINAL_CLOSURE",
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                    )
+                gb = entity.meeting.governing_body
+                if not gb.is_secretary(str(user_id)):
+                    return error_response(
+                        message="Only the Secretary of the governing body can perform final closure",
+                        code="NOT_SECRETARY",
+                        status_code=status.HTTP_403_FORBIDDEN,
+                    )
+
             serializer = MeetingDirectiveSerializer(entity, data=request.data, partial=partial)
             if not serializer.is_valid():
                 return validation_error_response(serializer.errors)
 
-            user_id = getattr(request.user, 'id', None)
             with transaction.atomic():
                 updated = serializer.save(modified_by=user_id)
+
+                # Set final closure metadata
+                if updated.fully_closed and not entity.fully_closed:
+                    updated.finally_closed_at = timezone.now()
+                    updated.finally_closed_by = user_id
+                    updated.status = 'fully_closed'
+                    updated.save(update_fields=[
+                        'finally_closed_at', 'finally_closed_by', 'status', 'updated_at',
+                    ])
 
             return success_response(data=MeetingDirectiveSerializer(updated).data)
         except Exception as e:

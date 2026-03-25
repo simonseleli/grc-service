@@ -17,6 +17,8 @@ from apps.core.models import (
     SettlementDefendant, SettlementPlaintiff,
     FinancialDefendant, FinancialPlaintiff,
     CaseDefendant, CasePlaintiff,
+    JudgmentDefendant, JudgmentPlaintiff,
+    LegalAuditLog,
 )
 from apps.api.serializers.legal_serializers import (
     SettlementDefendantSerializer, SettlementPlaintiffSerializer,
@@ -880,5 +882,326 @@ class FinancialPlaintiffDetailView(APIView):
             logger.exception("Failed to update plaintiff financials")
             return server_error_response(
                 message="Failed to update plaintiff financials",
+                details=str(e) if settings.DEBUG else None,
+            )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# R8 (GAP-10): Dedicated financial action endpoints with validation
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class FinancialDefendantRecordRecoveryView(APIView):
+    """POST /legal/financials/defendant/<case_defendant_pk>/record-recovery/"""
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanManageLegalSettlement().has_permission(request, self):
+            self.permission_denied(request, message='grc:legal_settlement:manage required.')
+
+    def post(self, request, case_defendant_pk):
+        try:
+            user_id = getattr(request.user, 'id', None)
+            if not user_id:
+                return error_response(
+                    message="User not authenticated", code="AUTH_REQUIRED",
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                )
+
+            financial = get_object_or_404(
+                FinancialDefendant.objects.select_related('case_defendant'),
+                case_defendant_id=case_defendant_pk,
+            )
+
+            # Validate: recovery only if case outcome is 'won'
+            judgment = JudgmentDefendant.objects.filter(
+                case_defendant_id=case_defendant_pk, is_active=True,
+            ).first()
+            if not judgment or judgment.outcome != 'won':
+                return error_response(
+                    message="Recovery can only be recorded when the case judgment outcome is 'won'",
+                    code="INVALID_JUDGMENT_OUTCOME",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            amount = request.data.get('amount')
+            if not amount:
+                return error_response(
+                    message="'amount' is required",
+                    code="AMOUNT_REQUIRED",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            from django.utils import timezone
+            record = {
+                'date': request.data.get('date', str(timezone.now().date())),
+                'amount': str(amount),
+                'reference': request.data.get('reference', ''),
+                'status': 'requested',
+                'recorded_by': str(user_id),
+            }
+
+            with transaction.atomic():
+                recoveries = financial.recoveries or []
+                recoveries.append(record)
+                financial.recoveries = recoveries
+                financial.save(update_fields=['recoveries', 'updated_at'])
+
+                LegalAuditLog.objects.create(
+                    entity_type='financial_defendant',
+                    entity_id=financial.id,
+                    action='record_recovery',
+                    actor_id=user_id,
+                    comment=f"Recovery recorded: {amount}",
+                    metadata=record,
+                )
+
+            return success_response(
+                data=FinancialDefendantSerializer(financial).data,
+                message="Recovery recorded successfully",
+            )
+        except Exception as e:
+            logger.exception("Failed to record recovery")
+            return server_error_response(
+                message="Failed to record recovery",
+                details=str(e) if settings.DEBUG else None,
+            )
+
+
+class FinancialDefendantRecordPaymentView(APIView):
+    """POST /legal/financials/defendant/<case_defendant_pk>/record-payment/"""
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanManageLegalSettlement().has_permission(request, self):
+            self.permission_denied(request, message='grc:legal_settlement:manage required.')
+
+    def post(self, request, case_defendant_pk):
+        try:
+            user_id = getattr(request.user, 'id', None)
+            if not user_id:
+                return error_response(
+                    message="User not authenticated", code="AUTH_REQUIRED",
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                )
+
+            financial = get_object_or_404(
+                FinancialDefendant.objects.select_related('case_defendant'),
+                case_defendant_id=case_defendant_pk,
+            )
+
+            # Validate: payment only if case outcome is 'lost'
+            judgment = JudgmentDefendant.objects.filter(
+                case_defendant_id=case_defendant_pk, is_active=True,
+            ).first()
+            if not judgment or judgment.outcome != 'lost':
+                return error_response(
+                    message="Payment can only be recorded when the case judgment outcome is 'lost'",
+                    code="INVALID_JUDGMENT_OUTCOME",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            amount = request.data.get('amount')
+            if not amount:
+                return error_response(
+                    message="'amount' is required",
+                    code="AMOUNT_REQUIRED",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            from django.utils import timezone
+            record = {
+                'date': request.data.get('date', str(timezone.now().date())),
+                'amount': str(amount),
+                'reference': request.data.get('reference', ''),
+                'status': 'requested',
+                'recorded_by': str(user_id),
+            }
+
+            with transaction.atomic():
+                payments = financial.payments or []
+                payments.append(record)
+                financial.payments = payments
+                financial.save(update_fields=['payments', 'updated_at'])
+
+                LegalAuditLog.objects.create(
+                    entity_type='financial_defendant',
+                    entity_id=financial.id,
+                    action='record_payment',
+                    actor_id=user_id,
+                    comment=f"Payment recorded: {amount}",
+                    metadata=record,
+                )
+
+            return success_response(
+                data=FinancialDefendantSerializer(financial).data,
+                message="Payment recorded successfully",
+            )
+        except Exception as e:
+            logger.exception("Failed to record payment")
+            return server_error_response(
+                message="Failed to record payment",
+                details=str(e) if settings.DEBUG else None,
+            )
+
+
+class FinancialPlaintiffRecordRecoveryView(APIView):
+    """POST /legal/financials/plaintiff/<case_plaintiff_pk>/record-recovery/"""
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanManageLegalSettlement().has_permission(request, self):
+            self.permission_denied(request, message='grc:legal_settlement:manage required.')
+
+    def post(self, request, case_plaintiff_pk):
+        try:
+            user_id = getattr(request.user, 'id', None)
+            if not user_id:
+                return error_response(
+                    message="User not authenticated", code="AUTH_REQUIRED",
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                )
+
+            financial = get_object_or_404(
+                FinancialPlaintiff.objects.select_related('case_plaintiff'),
+                case_plaintiff_id=case_plaintiff_pk,
+            )
+
+            judgment = JudgmentPlaintiff.objects.filter(
+                case_plaintiff_id=case_plaintiff_pk, is_active=True,
+            ).first()
+            if not judgment or judgment.outcome != 'won':
+                return error_response(
+                    message="Recovery can only be recorded when the case judgment outcome is 'won'",
+                    code="INVALID_JUDGMENT_OUTCOME",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            amount = request.data.get('amount')
+            if not amount:
+                return error_response(
+                    message="'amount' is required",
+                    code="AMOUNT_REQUIRED",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            from django.utils import timezone
+            record = {
+                'date': request.data.get('date', str(timezone.now().date())),
+                'amount': str(amount),
+                'reference': request.data.get('reference', ''),
+                'status': 'requested',
+                'recorded_by': str(user_id),
+            }
+
+            with transaction.atomic():
+                recoveries = financial.recoveries or []
+                recoveries.append(record)
+                financial.recoveries = recoveries
+                financial.recovered_amount = sum(
+                    float(r.get('amount', 0)) for r in recoveries
+                )
+                financial.save(update_fields=['recoveries', 'recovered_amount', 'updated_at'])
+
+                LegalAuditLog.objects.create(
+                    entity_type='financial_plaintiff',
+                    entity_id=financial.id,
+                    action='record_recovery',
+                    actor_id=user_id,
+                    comment=f"Recovery recorded: {amount}",
+                    metadata=record,
+                )
+
+            return success_response(
+                data=FinancialPlaintiffSerializer(financial).data,
+                message="Recovery recorded successfully",
+            )
+        except Exception as e:
+            logger.exception("Failed to record recovery")
+            return server_error_response(
+                message="Failed to record recovery",
+                details=str(e) if settings.DEBUG else None,
+            )
+
+
+class FinancialPlaintiffRecordPaymentView(APIView):
+    """POST /legal/financials/plaintiff/<case_plaintiff_pk>/record-payment/"""
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanManageLegalSettlement().has_permission(request, self):
+            self.permission_denied(request, message='grc:legal_settlement:manage required.')
+
+    def post(self, request, case_plaintiff_pk):
+        try:
+            user_id = getattr(request.user, 'id', None)
+            if not user_id:
+                return error_response(
+                    message="User not authenticated", code="AUTH_REQUIRED",
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                )
+
+            financial = get_object_or_404(
+                FinancialPlaintiff.objects.select_related('case_plaintiff'),
+                case_plaintiff_id=case_plaintiff_pk,
+            )
+
+            judgment = JudgmentPlaintiff.objects.filter(
+                case_plaintiff_id=case_plaintiff_pk, is_active=True,
+            ).first()
+            if not judgment or judgment.outcome != 'lost':
+                return error_response(
+                    message="Payment can only be recorded when the case judgment outcome is 'lost'",
+                    code="INVALID_JUDGMENT_OUTCOME",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            amount = request.data.get('amount')
+            if not amount:
+                return error_response(
+                    message="'amount' is required",
+                    code="AMOUNT_REQUIRED",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            from django.utils import timezone
+            record = {
+                'date': request.data.get('date', str(timezone.now().date())),
+                'amount': str(amount),
+                'reference': request.data.get('reference', ''),
+                'status': 'requested',
+                'recorded_by': str(user_id),
+            }
+
+            with transaction.atomic():
+                payments = financial.payments or []
+                payments.append(record)
+                financial.payments = payments
+                financial.save(update_fields=['payments', 'updated_at'])
+
+                LegalAuditLog.objects.create(
+                    entity_type='financial_plaintiff',
+                    entity_id=financial.id,
+                    action='record_payment',
+                    actor_id=user_id,
+                    comment=f"Payment recorded: {amount}",
+                    metadata=record,
+                )
+
+            return success_response(
+                data=FinancialPlaintiffSerializer(financial).data,
+                message="Payment recorded successfully",
+            )
+        except Exception as e:
+            logger.exception("Failed to record payment")
+            return server_error_response(
+                message="Failed to record payment",
                 details=str(e) if settings.DEBUG else None,
             )

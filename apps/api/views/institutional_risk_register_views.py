@@ -678,3 +678,79 @@ class IRRDistributeView(APIView):
         except Exception:
             logger.exception("Failed to distribute IRR")
             return server_error_response(message="Failed to distribute register")
+
+
+# ── SRS-FIX G-03: DG Noting for Activity Report ───────────────────────────
+
+
+class ActivityReportDGNoteView(APIView):
+    """
+    SRS-FIX G-03: RMQAM submits Activity Report to DG for noting.
+    POST body: {} (DG user is taken from JWT).
+    """
+    permission_classes = [IsAuthenticated, CanManageInstitutionalRiskRegister]
+
+    def post(self, request, pk):
+        user_id = getattr(request.user, 'id', None)
+        if not user_id:
+            return Response(
+                {"success": False, "error": {"message": "User not authenticated", "code": "AUTH_REQUIRED"}},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        try:
+            report = get_object_or_404(ActivityReport.objects.select_for_update(), pk=pk)
+            if report.dg_noted:
+                return error_response(message="Activity report already noted by DG.", code="ALREADY_NOTED")
+            from django.utils import timezone
+            with transaction.atomic():
+                report.dg_noted = True
+                report.dg_noted_by = user_id
+                report.dg_noted_at = timezone.now()
+                report.save(update_fields=['dg_noted', 'dg_noted_by', 'dg_noted_at'])
+            return Response({
+                "success": True,
+                "data": ActivityReportSerializer(report).data,
+                "message": "Activity report noted by DG.",
+            })
+        except Http404:
+            raise
+        except Exception:
+            logger.exception("Failed to DG-note activity report")
+            return server_error_response(message="Failed to note activity report")
+
+
+# ── SRS-FIX G-10: Standalone Activity Report List ─────────────────────────
+
+
+class StandaloneActivityReportListView(APIView):
+    """
+    SRS-FIX G-10: Cross-register query for activity reports.
+    GET /risk/activity-reports/?quarter=<uuid>&fiscal_year=<uuid>
+    """
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not HasAnyPermission(['grc:institutional_risk_register:manage', 'grc:risk_assessment:conduct']).has_permission(request, self):
+            self.permission_denied(request, message='Permission required.')
+
+    def get(self, request):
+        try:
+            queryset = ActivityReport.objects.select_related('inst_register', 'quarter').filter(is_active=True)
+            quarter = request.query_params.get('quarter')
+            fiscal_year = request.query_params.get('fiscal_year')
+            if quarter:
+                queryset = queryset.filter(quarter_id=quarter)
+            if fiscal_year:
+                queryset = queryset.filter(inst_register__fiscal_year_id=fiscal_year)
+            ordering = get_ordering_param(request, default='-created_at', allowed_fields=['created_at', 'submission_date'])
+            queryset = queryset.order_by(ordering)
+            page_data = paginate_queryset(queryset, request)
+            serializer = ActivityReportSerializer(page_data["queryset"], many=True)
+            return paginated_list_response(
+                items=serializer.data, count=page_data["total"],
+                page=page_data["page"], page_size=page_data["page_size"],
+            )
+        except Exception as e:
+            logger.exception("Failed to retrieve activity reports")
+            return server_error_response(message="Failed to retrieve activity reports")

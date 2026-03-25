@@ -211,6 +211,17 @@ class QATrainingAttendeeDetailView(APIView):
                 with transaction.atomic():
                     attendee.modified_by = user_id
                     updated = serializer.save()
+                    # SRS-FIX G-08: Auto-flag QA for replacement when exam failed ≥2 times
+                    if (
+                        updated.exam_attempt_number is not None
+                        and updated.exam_attempt_number >= 2
+                        and updated.passed is False
+                    ):
+                        from apps.core.models.risk_entities import QualityAuditor
+                        qa = updated.quality_auditor
+                        if qa and qa.nomination_status == QualityAuditor.NOMINATION_STATUS_ACTIVE:
+                            qa.nomination_status = QualityAuditor.NOMINATION_STATUS_REPLACEMENT_NEEDED
+                            qa.save(update_fields=['nomination_status'])
                 return Response({"success": True, "data": QATrainingAttendeeSerializer(updated).data, "message": "Attendee updated"})
             return validation_error_response(errors=serializer.errors)
         except Http404:

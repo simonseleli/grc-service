@@ -219,6 +219,9 @@ class QuarterlyReportWorkflowStartView(APIView):
                     {"success": False, "error": {"message": "User not authenticated", "code": "AUTH_REQUIRED"}},
                     status=status.HTTP_401_UNAUTHORIZED,
                 )
+            # SRS-FIX G-09: Snapshot live metrics before submitting for approval
+            report = get_object_or_404(QuarterlyPerformanceReport, pk=pk)
+            report.snapshot_metrics()
             service = QuarterlyRiskReportService()
             report = service.submit_for_approval(report_id=str(pk), submitter_id=str(user_id))
             # Upload QPR PDF to DRS (non-blocking, outside atomic)

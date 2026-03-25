@@ -1068,6 +1068,7 @@
       "name": "Risk Champion",
       "description": "Conducts risk assessments, manages departmental registers, responds to RTAP items",
       "permissions": [
+        "grc:risk_champion:view",
         "grc:risk_assessment:conduct",
         "grc:dept_risk_register:manage",
         "grc:rtap:respond",

@@ -10,6 +10,7 @@ from django.conf import settings
 from django.db import transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import exceptions, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
@@ -17,6 +18,7 @@ from rest_framework.views import APIView
 from apps.core.models import (
     Meeting, MeetingAgenda, ConflictDeclaration, MeetingParticipant,
     MeetingCounter, GoverningBody, MeetingDirective, Member,
+    SubmissionForDetermination, Resolution,
 )
 from apps.api.serializers.legal_serializers import (
     MeetingSerializer, MeetingListSerializer,
@@ -38,6 +40,14 @@ from apps.api.utils.response_helpers import (
 logger = logging.getLogger(__name__)
 
 LOCKED_STATUSES = ('closed', 'cancelled')
+
+
+def _get_client_ip(request):
+    """Extract client IP address from request, respecting X-Forwarded-For."""
+    xff = request.META.get('HTTP_X_FORWARDED_FOR')
+    if xff:
+        return xff.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR')
 
 
 def _generate_meeting_number(gb, sequence: int) -> str:
@@ -683,8 +693,36 @@ class MeetingAgendaDetailView(APIView):
                 return validation_error_response(serializer.errors)
 
             user_id = getattr(request.user, 'id', None)
+            outcome_being_set = 'outcome' in request.data and request.data['outcome']
+            previous_outcome = entity.outcome
+
             with transaction.atomic():
                 updated = serializer.save(modified_by=user_id)
+
+                # R1 (GAP-01): Propagate outcome back to SubmissionForDetermination
+                if outcome_being_set and not previous_outcome and updated.submission_id:
+                    sub = updated.submission
+                    sub.status = 'determined'
+                    sub.outcome = updated.outcome
+                    sub.outcome_notes = updated.outcome_notes or ''
+                    sub.determination_date = timezone.now()
+                    sub.meeting = updated.meeting
+                    sub.save(update_fields=[
+                        'status', 'outcome', 'outcome_notes',
+                        'determination_date', 'meeting', 'updated_at',
+                    ])
+
+                # R2 (GAP-02): Auto-create Resolution from agenda outcome
+                if outcome_being_set and not previous_outcome:
+                    if not Resolution.objects.filter(agenda_item=updated, is_active=True).exists():
+                        Resolution.objects.create(
+                            meeting=updated.meeting,
+                            agenda_item=updated,
+                            resolution_text=updated.outcome_notes or updated.title,
+                            date_adopted=timezone.now(),
+                            status=updated.outcome or 'noted',
+                            created_by=user_id,
+                        )
 
             return success_response(data=MeetingAgendaSerializer(updated).data)
         except Exception as e:
@@ -1161,3 +1199,401 @@ class MeetingDirectivesSubResourceView(APIView):
                 message="Failed to retrieve meeting directives",
                 details=str(e) if settings.DEBUG else None,
             )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# R3 (GAP-04): Meeting Start — dedicated endpoint with quorum + time guard
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class MeetingStartView(APIView):
+    """POST /legal/meetings/<pk>/start/  — Transition meeting to ONGOING."""
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanManageLegalMeeting().has_permission(request, self):
+            self.permission_denied(request, message='grc:legal_meeting:manage required.')
+
+    def post(self, request, pk):
+        user_id = getattr(request.user, 'id', None)
+        if not user_id:
+            return error_response(
+                message="User not authenticated", code="AUTH_REQUIRED",
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
+        try:
+            meeting = get_object_or_404(Meeting, pk=pk, is_active=True)
+
+            if meeting.status == 'ongoing':
+                return success_response(
+                    data=MeetingSerializer(meeting).data,
+                    message="Meeting is already ongoing",
+                )
+
+            if meeting.status not in ('quorum_ready', 'agenda_shared', 'invitations_sent', 'registered'):
+                return error_response(
+                    message=f"Meeting cannot be started from status '{meeting.status}'",
+                    code="INVALID_STATUS",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if not meeting.quorum_met:
+                return error_response(
+                    message="Cannot start meeting — quorum not met",
+                    code="QUORUM_NOT_MET",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            now = timezone.now()
+            if not (meeting.scheduled_start <= now <= meeting.scheduled_end):
+                return error_response(
+                    message="Cannot start meeting — current time is outside the scheduled window",
+                    code="OUTSIDE_SCHEDULE",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            with transaction.atomic():
+                old_status = meeting.status
+                meeting.status = 'ongoing'
+                meeting.save(update_fields=['status', 'updated_at'])
+                meeting.log_workflow_action(
+                    action='meeting_started',
+                    actor_id=str(user_id),
+                    comment='Meeting started — quorum met and within schedule',
+                    ip_address=_get_client_ip(request),
+                    previous_status=old_status,
+                    new_status='ongoing',
+                    metadata={'previous_status': old_status, 'new_status': 'ongoing'},
+                )
+
+            return success_response(
+                data=MeetingSerializer(meeting).data,
+                message="Meeting started successfully",
+            )
+        except Exception as e:
+            logger.exception("Failed to start meeting")
+            return server_error_response(
+                message="Failed to start meeting",
+                details=str(e) if settings.DEBUG else None,
+            )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# R13 (GAP-14): Meeting lifecycle action endpoints
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class MeetingShareAgendaView(APIView):
+    """POST /legal/meetings/<pk>/share-agenda/"""
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanManageLegalMeeting().has_permission(request, self):
+            self.permission_denied(request, message='grc:legal_meeting:manage required.')
+
+    def post(self, request, pk):
+        user_id = getattr(request.user, 'id', None)
+        if not user_id:
+            return error_response(
+                message="User not authenticated", code="AUTH_REQUIRED",
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
+        try:
+            meeting = get_object_or_404(Meeting, pk=pk, is_active=True)
+
+            if meeting.status not in ('invitations_sent', 'registered'):
+                return error_response(
+                    message=f"Cannot share agenda from status '{meeting.status}'",
+                    code="INVALID_STATUS",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            agenda_count = MeetingAgenda.objects.filter(meeting=meeting, is_active=True).count()
+            if agenda_count == 0:
+                return error_response(
+                    message="Cannot share agenda — no agenda items exist",
+                    code="NO_AGENDA_ITEMS",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            with transaction.atomic():
+                old_status = meeting.status
+                meeting.status = 'agenda_shared'
+                meeting.save(update_fields=['status', 'updated_at'])
+                meeting.log_workflow_action(
+                    action='agenda_shared',
+                    actor_id=str(user_id),
+                    comment=f'Agenda shared with {agenda_count} item(s)',
+                    ip_address=_get_client_ip(request),
+                    previous_status=old_status,
+                    new_status='agenda_shared',
+                    metadata={'previous_status': old_status, 'new_status': 'agenda_shared'},
+                )
+
+            return success_response(
+                data=MeetingSerializer(meeting).data,
+                message="Agenda shared successfully",
+            )
+        except Exception as e:
+            logger.exception("Failed to share agenda")
+            return server_error_response(
+                message="Failed to share agenda",
+                details=str(e) if settings.DEBUG else None,
+            )
+
+
+class MeetingMarkQuorumReadyView(APIView):
+    """POST /legal/meetings/<pk>/mark-quorum-ready/"""
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanManageLegalMeeting().has_permission(request, self):
+            self.permission_denied(request, message='grc:legal_meeting:manage required.')
+
+    def post(self, request, pk):
+        user_id = getattr(request.user, 'id', None)
+        if not user_id:
+            return error_response(
+                message="User not authenticated", code="AUTH_REQUIRED",
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
+        try:
+            meeting = get_object_or_404(Meeting, pk=pk, is_active=True)
+
+            if meeting.status not in ('agenda_shared', 'invitations_sent', 'registered'):
+                return error_response(
+                    message=f"Cannot mark quorum ready from status '{meeting.status}'",
+                    code="INVALID_STATUS",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if not meeting.quorum_met:
+                return error_response(
+                    message="Cannot mark quorum ready — quorum not met",
+                    code="QUORUM_NOT_MET",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            with transaction.atomic():
+                old_status = meeting.status
+                meeting.status = 'quorum_ready'
+                meeting.save(update_fields=['status', 'updated_at'])
+                meeting.log_workflow_action(
+                    action='quorum_ready',
+                    actor_id=str(user_id),
+                    comment=f'Quorum met at {meeting.quorum_percentage}%',
+                    ip_address=_get_client_ip(request),
+                    previous_status=old_status,
+                    new_status='quorum_ready',
+                    metadata={'previous_status': old_status, 'new_status': 'quorum_ready'},
+                )
+
+            return success_response(
+                data=MeetingSerializer(meeting).data,
+                message="Meeting marked as quorum ready",
+            )
+        except Exception as e:
+            logger.exception("Failed to mark quorum ready")
+            return server_error_response(
+                message="Failed to mark quorum ready",
+                details=str(e) if settings.DEBUG else None,
+            )
+
+
+class MeetingPostponeView(APIView):
+    """POST /legal/meetings/<pk>/postpone/  body: {"reason": "..."}"""
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanManageLegalMeeting().has_permission(request, self):
+            self.permission_denied(request, message='grc:legal_meeting:manage required.')
+
+    def post(self, request, pk):
+        user_id = getattr(request.user, 'id', None)
+        if not user_id:
+            return error_response(
+                message="User not authenticated", code="AUTH_REQUIRED",
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
+        try:
+            meeting = get_object_or_404(Meeting, pk=pk, is_active=True)
+
+            if meeting.status in ('closed', 'cancelled', 'postponed'):
+                return error_response(
+                    message=f"Cannot postpone meeting with status '{meeting.status}'",
+                    code="INVALID_STATUS",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            reason = request.data.get('reason', '')
+
+            with transaction.atomic():
+                old_status = meeting.status
+                meeting.status = 'postponed'
+                meeting.reschedule_reason = reason
+                meeting.save(update_fields=['status', 'reschedule_reason', 'updated_at'])
+                meeting.log_workflow_action(
+                    action='meeting_postponed',
+                    actor_id=str(user_id),
+                    comment=reason or 'Meeting postponed',
+                    ip_address=_get_client_ip(request),
+                    previous_status=old_status,
+                    new_status='postponed',
+                    metadata={'previous_status': old_status, 'new_status': 'postponed'},
+                )
+
+            return success_response(
+                data=MeetingSerializer(meeting).data,
+                message="Meeting postponed",
+            )
+        except Exception as e:
+            logger.exception("Failed to postpone meeting")
+            return server_error_response(
+                message="Failed to postpone meeting",
+                details=str(e) if settings.DEBUG else None,
+            )
+
+
+class MeetingCloseView(APIView):
+    """POST /legal/meetings/<pk>/close/"""
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanManageLegalMeeting().has_permission(request, self):
+            self.permission_denied(request, message='grc:legal_meeting:manage required.')
+
+    def post(self, request, pk):
+        user_id = getattr(request.user, 'id', None)
+        if not user_id:
+            return error_response(
+                message="User not authenticated", code="AUTH_REQUIRED",
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
+        try:
+            meeting = get_object_or_404(Meeting, pk=pk, is_active=True)
+
+            if meeting.status != 'ongoing':
+                return error_response(
+                    message=f"Only ongoing meetings can be closed. Current status: '{meeting.status}'",
+                    code="INVALID_STATUS",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            with transaction.atomic():
+                old_status = meeting.status
+                meeting.status = 'closed'
+                meeting.save(update_fields=['status', 'updated_at'])
+                meeting.log_workflow_action(
+                    action='meeting_closed',
+                    actor_id=str(user_id),
+                    comment='Meeting closed',
+                    ip_address=_get_client_ip(request),
+                    previous_status=old_status,
+                    new_status='closed',
+                    metadata={'previous_status': old_status, 'new_status': 'closed'},
+                )
+
+            return success_response(
+                data=MeetingSerializer(meeting).data,
+                message="Meeting closed successfully",
+            )
+        except Exception as e:
+            logger.exception("Failed to close meeting")
+            return server_error_response(
+                message="Failed to close meeting",
+                details=str(e) if settings.DEBUG else None,
+            )
+
+
+class MeetingRescheduleView(APIView):
+    """POST /legal/meetings/<pk>/reschedule/  body: {"scheduled_start":"...", "scheduled_end":"...", "reason":"..."}"""
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanManageLegalMeeting().has_permission(request, self):
+            self.permission_denied(request, message='grc:legal_meeting:manage required.')
+
+    def post(self, request, pk):
+        user_id = getattr(request.user, 'id', None)
+        if not user_id:
+            return error_response(
+                message="User not authenticated", code="AUTH_REQUIRED",
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
+        try:
+            meeting = get_object_or_404(Meeting, pk=pk, is_active=True)
+
+            if meeting.status in ('closed', 'cancelled'):
+                return error_response(
+                    message=f"Cannot reschedule a meeting with status '{meeting.status}'",
+                    code="INVALID_STATUS",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            new_start = request.data.get('scheduled_start')
+            new_end = request.data.get('scheduled_end')
+            reason = request.data.get('reason', '')
+
+            if not new_start or not new_end:
+                return error_response(
+                    message="'scheduled_start' and 'scheduled_end' are required",
+                    code="MISSING_FIELDS",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            from django.utils.dateparse import parse_datetime
+            parsed_start = parse_datetime(new_start)
+            parsed_end = parse_datetime(new_end)
+            if not parsed_start or not parsed_end:
+                return error_response(
+                    message="Invalid datetime format for 'scheduled_start' or 'scheduled_end'",
+                    code="INVALID_DATETIME",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
+
+            with transaction.atomic():
+                old_status = meeting.status
+                meeting.status = 'rescheduled'
+                meeting.scheduled_start = parsed_start
+                meeting.scheduled_end = parsed_end
+                meeting.reschedule_reason = reason
+                meeting.save(update_fields=[
+                    'status', 'scheduled_start', 'scheduled_end',
+                    'reschedule_reason', 'updated_at',
+                ])
+                meeting.log_workflow_action(
+                    action='meeting_rescheduled',
+                    actor_id=str(user_id),
+                    comment=reason or 'Meeting rescheduled',
+                    ip_address=_get_client_ip(request),
+                    previous_status=old_status,
+                    new_status='rescheduled',
+                    metadata={
+                        'previous_status': old_status,
+                        'new_status': 'rescheduled',
+                        'new_start': str(parsed_start),
+                        'new_end': str(parsed_end),
+                    },
+                )
+
+            return success_response(
+                data=MeetingSerializer(meeting).data,
+                message="Meeting rescheduled successfully",
+            )
+        except Exception as e:
+            logger.exception("Failed to reschedule meeting")
+            return server_error_response(
+                message="Failed to reschedule meeting",
+                details=str(e) if settings.DEBUG else None,
+            )
+

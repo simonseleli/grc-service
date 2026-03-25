@@ -84,8 +84,9 @@ class DirectorateListView(APIView):
 
     def check_permissions(self, request):
         super().check_permissions(request)
-        if not CanViewAuditUniverse().has_permission(request, self):
-            self.permission_denied(request, message='grc:audit_universe:view required.')
+        from apps.api.permissions_jwt import IsGRCUser
+        if not IsGRCUser().has_permission(request, self):
+            self.permission_denied(request, message='A valid GRC role is required.')
 
     def get(self, request):
         """Get all active directorates with pagination"""

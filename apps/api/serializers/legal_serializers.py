@@ -253,13 +253,14 @@ class CaseDefendantSerializer(serializers.ModelSerializer):
             'risk_level', 'risk_level_id',
             'initiation_documents', 'status', 'dg_review_status',
             'assigned_legal_officer_ids', 'assigned_legal_manager_id',
-            'next_hearing_date',
+            'next_hearing_date', 'case_folder_url',
             'is_archived', 'archived_at', 'archived_by',
             'hold_reason',
             'workflow_plan_id', 'workflow_stage',
             'is_active', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'reference_number', 'workflow_plan_id', 'workflow_stage',
+        read_only_fields = ['id', 'reference_number', 'dg_review_status',
+                           'workflow_plan_id', 'workflow_stage',
                            'is_archived', 'archived_at', 'archived_by',
                            'created_at', 'updated_at']
 
@@ -409,13 +410,14 @@ class CasePlaintiffSerializer(serializers.ModelSerializer):
             'risk_level', 'risk_level_id',
             'initiation_documents', 'status', 'dg_review_status',
             'assigned_legal_officer_ids', 'assigned_legal_manager_id',
-            'next_hearing_date',
+            'next_hearing_date', 'case_folder_url',
             'is_archived', 'archived_at', 'archived_by',
             'hold_reason',
             'workflow_plan_id', 'workflow_stage',
             'is_active', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'reference_number', 'workflow_plan_id', 'workflow_stage',
+        read_only_fields = ['id', 'reference_number', 'dg_review_status',
+                           'workflow_plan_id', 'workflow_stage',
                            'is_archived', 'archived_at', 'archived_by',
                            'created_at', 'updated_at']
 

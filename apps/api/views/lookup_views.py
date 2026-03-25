@@ -324,12 +324,11 @@ class GRCUsersByRoleView(APIView):
 
     GET /audit/lookups/users/?role_code=<code>
 
-    Supported role_code values (GRC roles only):
-      - chief_internal_auditor
-      - internal_auditor
-      - audit_committee
-      - management
-      - auditee
+    Supported role_code values (all GRC roles — Audit, Risk Management, Legal):
+      Internal Audit: chief_internal_auditor, internal_auditor, audit_committee,
+                      management, auditee, director_general, commission
+      Risk Management: rmqam, rmo, risk_champion, quality_auditor, lsm
+      Legal: legal_manager, legal_officer, committee_secretary, committee_chair
 
     Returns a flat list of user objects: [{id, email, first_name, last_name}]
     Results are cached by the IAMClient for 5 minutes.
@@ -339,7 +338,8 @@ class GRCUsersByRoleView(APIView):
 
     def check_permissions(self, request):
         super().check_permissions(request)
-        if not CanViewAuditPlan().has_permission(request, self):
+        from apps.api.permissions_jwt import IsGRCUser
+        if not IsGRCUser().has_permission(request, self):
             self.permission_denied(request, message='A valid GRC role is required.')
 
     def get(self, request):
@@ -352,11 +352,25 @@ class GRCUsersByRoleView(APIView):
 
         # Only allow GRC role codes to prevent arbitrary IAM data exposure
         allowed_roles = {
+            # Internal Audit roles
             'chief_internal_auditor',
             'internal_auditor',
             'audit_committee',
             'management',
             'auditee',
+            'director_general',
+            'commission',
+            # Risk Management roles
+            'rmqam',
+            'rmo',
+            'risk_champion',
+            'quality_auditor',
+            'lsm',
+            # Legal roles
+            'legal_manager',
+            'legal_officer',
+            'committee_secretary',
+            'committee_chair',
         }
         if role_code not in allowed_roles:
             return Response(

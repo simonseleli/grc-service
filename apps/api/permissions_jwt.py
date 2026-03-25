@@ -140,6 +140,25 @@ class HasAllPermissions(BasePermission):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Generic "is a GRC user" guard — has at least one GRC permission in JWT
+# ──────────────────────────────────────────────────────────────────────────────
+
+class IsGRCUser(BasePermission):
+    """
+    Passes if the authenticated user has at least one GRC permission in their JWT.
+    Used to guard shared lookup endpoints (user search, directorates, etc.) that
+    all GRC roles — both Audit and Risk Management — need to access.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if not hasattr(request, 'grc_permissions'):
+            return False
+        return bool(request.grc_permissions)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Named permission classes — one per code in config/permissions/grc-service.json
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -648,6 +667,15 @@ class CanRegisterLegalCase(BasePermission):
         if not request.user or not request.user.is_authenticated:
             return False
         return _check_grc_permission_locally(request, 'grc:legal_case:register')
+
+
+class CanApproveLegalCase(BasePermission):
+    """Check: grc:legal_case:approve — DG-level approval actions (e.g., Mark Case as Reviewed)."""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return _check_grc_permission_locally(request, 'grc:legal_case:approve')
 
 
 # ── Legal Filing ──────────────────────────────────────────────────────────────

@@ -575,6 +575,11 @@ class RiskLevel(TimestampedModel, StatusMixin):
     max_score = models.DecimalField(max_digits=6, decimal_places=2)
     color_code = models.CharField(max_length=7, default='#6B7280')
     sort_order = models.IntegerField(default=0)
+    # SRS-FIX G-06: Marks the minimum risk level qualifying for IRR inclusion
+    is_institutional_threshold = models.BooleanField(
+        default=False,
+        help_text="If True, risks at or above this level qualify for the Institutional Risk Register"
+    )
 
     class Meta:
         db_table = 'grc_risk_level'

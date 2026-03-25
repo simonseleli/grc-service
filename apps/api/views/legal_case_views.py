@@ -8,15 +8,17 @@ from datetime import datetime
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
 from apps.core.models import (
     CaseDefendant, CasePlaintiff, LegalCaseCounter,
-    FinancialDefendant, FinancialPlaintiff,
+    FinancialDefendant, FinancialPlaintiff, LegalAuditLog,
 )
 from apps.api.serializers.legal_serializers import (
     CaseDefendantSerializer, CaseDefendantListSerializer,
@@ -24,7 +26,7 @@ from apps.api.serializers.legal_serializers import (
 )
 from apps.api.permissions_jwt import (
     CanViewLegalCase, CanManageLegalCase, CanCloseLegalCase,
-    CanRegisterLegalCase,
+    CanRegisterLegalCase, CanApproveLegalCase,
     HasAnyPermission,
 )
 from apps.core.services.legal_case_service import LegalCaseService
@@ -108,6 +110,16 @@ class CaseDefendantListCreateView(APIView):
                 queryset = queryset.filter(status=status_filter)
             if is_active is not None:
                 queryset = queryset.filter(is_active=is_active.lower() == 'true')
+
+            # R11 (GAP-11): Global text search
+            q = request.query_params.get('q', '').strip()
+            if q:
+                queryset = queryset.filter(
+                    Q(reference_number__icontains=q) |
+                    Q(court_case_number__icontains=q) |
+                    Q(plaintiff_advocate__icontains=q) |
+                    Q(nature_of_claim__icontains=q)
+                )
 
             # Row-level access: Legal Officers (view-only) see only cases assigned to them (SIG-05).
             # Legal Managers and higher (manage permission) see all cases.
@@ -543,6 +555,16 @@ class CasePlaintiffListCreateView(APIView):
                 queryset = queryset.filter(status=status_filter)
             if is_active is not None:
                 queryset = queryset.filter(is_active=is_active.lower() == 'true')
+
+            # R11 (GAP-11): Global text search
+            q = request.query_params.get('q', '').strip()
+            if q:
+                queryset = queryset.filter(
+                    Q(reference_number__icontains=q) |
+                    Q(respondent_name__icontains=q) |
+                    Q(nature_of_breach__icontains=q) |
+                    Q(description__icontains=q)
+                )
 
             # Row-level access: Legal Officers (view-only) see only cases assigned to them (SIG-05).
             # Legal Managers and higher (manage permission) see all cases.
@@ -1283,3 +1305,90 @@ class CaseReportView(APIView):
 
         events.sort(key=lambda e: e['timestamp'])
         return events
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# R15 (GAP-15): DG "Mark Case as Reviewed" action endpoint
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class CaseDGMarkReviewedView(APIView):
+    """
+    POST /legal/cases/<side>/<pk>/mark-reviewed/
+    DG marks a case as reviewed without issuing a directive.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if not CanApproveLegalCase().has_permission(request, self):
+            self.permission_denied(
+                request,
+                message='grc:legal_case:approve permission required (DG role).',
+            )
+
+    def post(self, request, side, pk):
+        user_id = getattr(request.user, 'id', None)
+        if not user_id:
+            return error_response(
+                message="User not authenticated", code="AUTH_REQUIRED",
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        model = MODEL_MAP.get(side)
+        serializer_cls = SERIALIZER_MAP.get(side)
+        if not model:
+            return error_response(
+                message=f"Invalid case side: '{side}'. Use 'defendant' or 'plaintiff'.",
+                code="INVALID_SIDE",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            case = get_object_or_404(model, pk=pk, is_active=True)
+
+            if case.dg_review_status == 'reviewed':
+                return success_response(
+                    data=serializer_cls(case).data,
+                    message="Case already marked as reviewed",
+                )
+
+            with transaction.atomic():
+                old_status = case.dg_review_status
+                case.dg_review_status = 'reviewed'
+                case.save(update_fields=['dg_review_status', 'updated_at'])
+
+                LegalAuditLog.objects.create(
+                    entity_type=f'case_{side}',
+                    entity_id=case.id,
+                    action='dg_mark_reviewed',
+                    actor_id=user_id,
+                    previous_status=old_status or '',
+                    new_status='reviewed',
+                    comment=request.data.get('comment', 'DG marked case as reviewed'),
+                    ip_address=_get_client_ip(request),
+                )
+
+            return success_response(
+                data=serializer_cls(case).data,
+                message="Case marked as reviewed by DG",
+            )
+        except Exception as e:
+            logger.exception("Failed to mark case as reviewed")
+            return server_error_response(
+                message="Failed to mark case as reviewed",
+                details=str(e) if settings.DEBUG else None,
+            )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# R9 (GAP-08): Client IP extraction utility
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _get_client_ip(request):
+    """Extract client IP address from request, respecting X-Forwarded-For."""
+    xff = request.META.get('HTTP_X_FORWARDED_FOR')
+    if xff:
+        return xff.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR')
+

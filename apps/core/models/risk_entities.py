@@ -223,6 +223,19 @@ class QualityAuditor(TimestampedModel, StatusMixin):
         QATrainingSession, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='auditors', help_text="Completed training before examination"
     )
+    # SRS-FIX G-08: Nomination status for replacement tracking
+    NOMINATION_STATUS_ACTIVE = 'active'
+    NOMINATION_STATUS_REPLACEMENT_NEEDED = 'replacement_needed'
+    NOMINATION_STATUS_REPLACED = 'replaced'
+    NOMINATION_STATUS_CHOICES = [
+        (NOMINATION_STATUS_ACTIVE, 'Active'),
+        (NOMINATION_STATUS_REPLACEMENT_NEEDED, 'Replacement Needed'),
+        (NOMINATION_STATUS_REPLACED, 'Replaced'),
+    ]
+    nomination_status = models.CharField(
+        max_length=30, choices=NOMINATION_STATUS_CHOICES,
+        default=NOMINATION_STATUS_ACTIVE, db_index=True,
+    )
 
     class Meta:
         db_table = 'grc_risk_quality_auditor'
@@ -574,6 +587,16 @@ class InstitutionalRiskRegister(TimestampedModel, StatusMixin, WorkflowMixin):
     def __str__(self):
         return f"IRR – FY {self.fiscal_year_id} ({self.status})"
 
+    def clean(self):
+        """SRS-FIX G-04: Validate LSM submission ≥7 days before Committee meeting."""
+        from django.core.exceptions import ValidationError
+        super().clean()
+        if self.lsm_submission_date and self.committee_meeting_date:
+            if (self.committee_meeting_date - self.lsm_submission_date).days < 7:
+                raise ValidationError(
+                    "LSM must receive documents at least 7 days before the Committee meeting."
+                )
+
     def get_workflow_context(self) -> dict:
         return {
             'entity_type': 'institutional_risk_register',
@@ -673,6 +696,16 @@ class RiskTreatmentActionPlan(TimestampedModel, StatusMixin, WorkflowMixin):
 
     def __str__(self):
         return f"RTAP – FY {self.fiscal_year_id} ({self.status})"
+
+    def clean(self):
+        """SRS-FIX G-04: Validate LSM submission ≥7 days before Committee meeting."""
+        from django.core.exceptions import ValidationError
+        super().clean()
+        if self.lsm_submission_date and self.committee_meeting_date:
+            if (self.committee_meeting_date - self.lsm_submission_date).days < 7:
+                raise ValidationError(
+                    "LSM must receive documents at least 7 days before the Committee meeting."
+                )
 
     def get_workflow_context(self) -> dict:
         return {
@@ -858,6 +891,48 @@ class QuarterlyPerformanceReport(TimestampedModel, StatusMixin, WorkflowMixin):
     def __str__(self):
         return f"QPR – FY {self.fiscal_year_id} Q{self.quarter_id} ({self.status})"
 
+    def clean(self):
+        """SRS-FIX G-05: Validate LSM submission ≥7 days before Committee meeting."""
+        from django.core.exceptions import ValidationError
+        super().clean()
+        if self.lsm_submission_date and self.committee_meeting_date:
+            if (self.committee_meeting_date - self.lsm_submission_date).days < 7:
+                raise ValidationError(
+                    "LSM must receive documents at least 7 days before the Committee meeting."
+                )
+
+    def snapshot_metrics(self):
+        """
+        SRS-FIX G-09: Auto-compute QPR snapshot fields from live RTAP/IRR data.
+        Call before save() when transitioning to rmqam_prepare or beyond.
+        """
+        irr = InstitutionalRiskRegister.objects.filter(
+            fiscal_year=self.fiscal_year, is_active=True
+        ).first()
+        if irr:
+            entries = InstitutionalRiskEntry.objects.filter(
+                inst_register=irr, is_active=True
+            ).select_related('risk_sheet__residual_risk_level')
+            self.total_risks = entries.count()
+            self.high_risks = entries.filter(
+                risk_sheet__residual_risk_level__code='high'
+            ).count()
+            self.medium_risks = entries.filter(
+                risk_sheet__residual_risk_level__code='medium'
+            ).count()
+            self.low_risks = entries.filter(
+                risk_sheet__residual_risk_level__code='low'
+            ).count()
+
+        rtap = RiskTreatmentActionPlan.objects.filter(
+            fiscal_year=self.fiscal_year, is_active=True
+        ).first()
+        if rtap:
+            items = RTAPItem.objects.filter(rtap=rtap, is_active=True)
+            self.rtap_completed = items.filter(status='completed').count()
+            self.rtap_in_progress = items.filter(status='in_progress').count()
+            self.rtap_not_started = items.filter(status='not_started').count()
+
     def get_workflow_context(self) -> dict:
         return {
             'entity_type': 'quarterly_performance_report',
@@ -896,6 +971,10 @@ class ActivityReport(TimestampedModel, StatusMixin):
     attachments = models.JSONField(
         default=list, help_text="[{'document_id': '...', 'title': '...'}]"
     )
+    # SRS-FIX G-03: DG noting (FCC_SBP_RMQA_04 step 8)
+    dg_noted = models.BooleanField(default=False)
+    dg_noted_by = models.UUIDField(null=True, blank=True, help_text="DG user UUID who noted this report")
+    dg_noted_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = 'grc_risk_activity_report'
@@ -1057,7 +1136,7 @@ class QMSAuditPlan(TimestampedModel, StatusMixin, WorkflowMixin):
 class QMSAuditTeamAssignment(TimestampedModel, StatusMixin):
     """
     Join table: assigns a QA (by UUID) to an Audit Plan.
-    Rule E.2 check (QA org unit ≠ auditee unit) enforced in service layer.
+    Rule E.2: QA org unit ≠ auditee unit — enforced in clean().
     """
     audit_plan = models.ForeignKey(
         QMSAuditPlan, on_delete=models.CASCADE, related_name='team_assignments'
@@ -1074,6 +1153,18 @@ class QMSAuditTeamAssignment(TimestampedModel, StatusMixin):
     class Meta:
         db_table = 'grc_risk_qms_team_assignment'
         unique_together = [['audit_plan', 'auditor_id']]
+
+    def clean(self):
+        """SRS-FIX G-07: QA cannot audit their own unit (Rule E.2)."""
+        from django.core.exceptions import ValidationError
+        super().clean()
+        qa = QualityAuditor.objects.filter(user_id=self.auditor_id, is_active=True).first()
+        if qa and self.audit_plan_id:
+            plan = self.audit_plan
+            if qa.org_unit_id == plan.auditee_unit_id:
+                raise ValidationError(
+                    "QA cannot audit their own unit (conflict of interest — Rule E.2)."
+                )
 
     def __str__(self):
         return f"Team: {self.auditor_id} ({self.role}) – Plan {self.audit_plan_id}"
@@ -1239,6 +1330,7 @@ class RiskMeeting(TimestampedModel, StatusMixin):
         ('institutional_workshop', 'Institutional Workshop'),
         ('awareness_session', 'Awareness Session'),
         ('management_review', 'Management Review'),  # GAP-6
+        ('interview', 'Interview'),  # SRS-FIX G-12: §4.11.1.1 req 3
     ]
     meeting_type = models.CharField(max_length=30, choices=MEETING_TYPE_CHOICES)
     organized_by = models.UUIDField(help_text="user_id of organizer")
@@ -1345,3 +1437,117 @@ class QMSAuditTimetableEntry(TimestampedModel, StatusMixin):
 
     def __str__(self):
         return f"Timetable: {self.process_or_area} ({self.date} {self.start_time})"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GROUP 9 — Knowledge Base & Surveys [SRS-FIX G-01, G-02]
+# ══════════════════════════════════════════════════════════════════════════════
+
+class RiskKnowledgeBase(TimestampedModel, StatusMixin):
+    """
+    SRS-FIX G-02: Formal interface for lessons learned, industry best practices,
+    and historical audit findings used during risk identification (§4.11.1.1 req 4).
+    """
+    SOURCE_TYPE_CHOICES = [
+        ('lesson_learned', 'Lesson Learned'),
+        ('audit_finding', 'Audit Finding'),
+        ('industry_best_practice', 'Industry Best Practice'),
+        ('external_report', 'External Report'),
+    ]
+    source_type = models.CharField(max_length=30, choices=SOURCE_TYPE_CHOICES, db_index=True)
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    fiscal_year = models.ForeignKey(
+        'core.FiscalYear', on_delete=models.PROTECT, null=True, blank=True,
+        related_name='knowledge_base_entries'
+    )
+    document_id = models.UUIDField(
+        null=True, blank=True, help_text="DRS document UUID for supporting evidence"
+    )
+    tags = models.JSONField(default=list, help_text="Searchable keyword tags")
+    contributed_by = models.UUIDField(help_text="IAM user UUID who contributed this entry")
+
+    class Meta:
+        db_table = 'grc_risk_knowledge_base'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"[{self.get_source_type_display()}] {self.title}"
+
+
+class RiskSurvey(TimestampedModel, StatusMixin):
+    """
+    SRS-FIX G-01: Risk identification survey (§4.11.1.1 req 3).
+    Targeted to an org unit for a fiscal year.
+    """
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    fiscal_year = models.ForeignKey(
+        'core.FiscalYear', on_delete=models.PROTECT, related_name='risk_surveys'
+    )
+    org_unit_id = models.UUIDField(
+        null=True, blank=True,
+        help_text="Target org unit UUID (null = institution-wide)"
+    )
+    created_by_user = models.UUIDField(help_text="RMQAM/RMO user UUID who created the survey")
+    STATUS_DRAFT = 'draft'
+    STATUS_OPEN = 'open'
+    STATUS_CLOSED = 'closed'
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, 'Draft'),
+        (STATUS_OPEN, 'Open'),
+        (STATUS_CLOSED, 'Closed'),
+    ]
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT, db_index=True)
+    opens_at = models.DateTimeField(null=True, blank=True)
+    closes_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'grc_risk_survey'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Survey: {self.title} ({self.status})"
+
+
+class RiskSurveyQuestion(TimestampedModel, StatusMixin):
+    """Individual question within a RiskSurvey."""
+    survey = models.ForeignKey(RiskSurvey, on_delete=models.CASCADE, related_name='questions')
+    QUESTION_TYPE_CHOICES = [
+        ('text', 'Text'),
+        ('rating', 'Rating (1-5)'),
+        ('yes_no', 'Yes / No'),
+        ('multiple_choice', 'Multiple Choice'),
+    ]
+    question_type = models.CharField(max_length=20, choices=QUESTION_TYPE_CHOICES)
+    question_text = models.TextField()
+    choices = models.JSONField(default=list, help_text="Options for multiple_choice type")
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = 'grc_risk_survey_question'
+        ordering = ['sort_order']
+
+    def __str__(self):
+        return f"Q{self.sort_order}: {self.question_text[:50]}"
+
+
+class RiskSurveyResponse(TimestampedModel, StatusMixin):
+    """
+    One respondent's answer set for a survey.
+    """
+    survey = models.ForeignKey(RiskSurvey, on_delete=models.CASCADE, related_name='responses')
+    respondent_id = models.UUIDField(db_index=True, help_text="IAM user UUID")
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    answers = models.JSONField(
+        default=list,
+        help_text='[{"question_id": "uuid", "answer": "..."}]'
+    )
+
+    class Meta:
+        db_table = 'grc_risk_survey_response'
+        unique_together = [['survey', 'respondent_id']]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Response: {self.respondent_id} – {self.survey_id}"

@@ -18,6 +18,8 @@ from apps.api.views import (
     risk_meeting_views,
     qa_training_views,
     qms_audit_support_views,
+    risk_knowledge_base_views,
+    risk_survey_views,
 )
 
 urlpatterns = [
@@ -197,4 +199,22 @@ urlpatterns = [
     # ── Dashboard + QPR Export [GAP-20] ───────────────────────────────────
     path("dashboard/export/", risk_dashboard_views.RiskDashboardExportView.as_view(), name="risk-dashboard-export"),
     path("quarterly-reports/<uuid:pk>/export/", quarterly_risk_report_views.QPRExportView.as_view(), name="quarterly-report-export"),
+
+    # ── SRS-FIX G-03: DG Noting ───────────────────────────────────────────
+    path("institutional-registers/activity-reports/<uuid:pk>/dg-note/", institutional_risk_register_views.ActivityReportDGNoteView.as_view(), name="activity-report-dg-note"),
+
+    # ── SRS-FIX G-10: Standalone Activity Reports ─────────────────────────
+    path("activity-reports/", institutional_risk_register_views.StandaloneActivityReportListView.as_view(), name="activity-report-standalone-list"),
+
+    # ── SRS-FIX G-02: Risk Knowledge Base ─────────────────────────────────
+    path("knowledge-base/", risk_knowledge_base_views.RiskKnowledgeBaseListCreateView.as_view(), name="risk-knowledge-base-list-create"),
+    path("knowledge-base/<uuid:pk>/", risk_knowledge_base_views.RiskKnowledgeBaseDetailView.as_view(), name="risk-knowledge-base-detail"),
+
+    # ── SRS-FIX G-01: Risk Surveys ────────────────────────────────────────
+    path("surveys/", risk_survey_views.RiskSurveyListCreateView.as_view(), name="risk-survey-list-create"),
+    path("surveys/<uuid:pk>/", risk_survey_views.RiskSurveyDetailView.as_view(), name="risk-survey-detail"),
+    path("surveys/<uuid:pk>/questions/", risk_survey_views.RiskSurveyQuestionListCreateView.as_view(), name="risk-survey-question-list-create"),
+    path("surveys/questions/<uuid:pk>/", risk_survey_views.RiskSurveyQuestionDetailView.as_view(), name="risk-survey-question-detail"),
+    path("surveys/<uuid:pk>/responses/", risk_survey_views.RiskSurveyResponseListCreateView.as_view(), name="risk-survey-response-list-create"),
+    path("surveys/responses/<uuid:pk>/", risk_survey_views.RiskSurveyResponseDetailView.as_view(), name="risk-survey-response-detail"),
 ]

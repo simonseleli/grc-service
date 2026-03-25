@@ -32,6 +32,12 @@ from apps.api.views.legal_meeting_views import (
     MeetingParticipantDetailView,
     MeetingPopulateMattersArisingView,
     MeetingDirectivesSubResourceView,
+    MeetingStartView,
+    MeetingShareAgendaView,
+    MeetingMarkQuorumReadyView,
+    MeetingPostponeView,
+    MeetingCloseView,
+    MeetingRescheduleView,
 )
 
 # ── Minutes ──────────────────────────────────────────────────────────────────
@@ -82,6 +88,7 @@ from apps.api.views.legal_case_views import (
     CaseHoldView,
     CaseResumeView,
     CaseReportView,
+    CaseDGMarkReviewedView,
 )
 
 # ── Hearings ─────────────────────────────────────────────────────────────────
@@ -132,6 +139,10 @@ from apps.api.views.legal_settlement_views import (
     SettlementPlaintiffCancelWorkflowView,
     FinancialDefendantDetailView,
     FinancialPlaintiffDetailView,
+    FinancialDefendantRecordRecoveryView,
+    FinancialDefendantRecordPaymentView,
+    FinancialPlaintiffRecordRecoveryView,
+    FinancialPlaintiffRecordPaymentView,
 )
 
 # ── Judgments & Appeals ──────────────────────────────────────────────────────
@@ -225,6 +236,14 @@ urlpatterns = [
     path("meetings/<uuid:meeting_pk>/participants/", MeetingParticipantListCreateView.as_view(), name="legal-meeting-participant-list"),
     path("meeting-participants/<uuid:pk>/", MeetingParticipantDetailView.as_view(), name="legal-meeting-participant-detail"),
 
+    # ── Meeting Lifecycle Actions (R3/GAP-04, R13/GAP-14) ────────────────────
+    path("meetings/<uuid:pk>/start/", MeetingStartView.as_view(), name="legal-meeting-start"),
+    path("meetings/<uuid:pk>/share-agenda/", MeetingShareAgendaView.as_view(), name="legal-meeting-share-agenda"),
+    path("meetings/<uuid:pk>/mark-quorum-ready/", MeetingMarkQuorumReadyView.as_view(), name="legal-meeting-mark-quorum-ready"),
+    path("meetings/<uuid:pk>/postpone/", MeetingPostponeView.as_view(), name="legal-meeting-postpone"),
+    path("meetings/<uuid:pk>/close/", MeetingCloseView.as_view(), name="legal-meeting-close"),
+    path("meetings/<uuid:pk>/reschedule/", MeetingRescheduleView.as_view(), name="legal-meeting-reschedule"),
+
     # ── Minutes ──────────────────────────────────────────────────────────────
     path("minutes/", MinutesListCreateView.as_view(), name="legal-minutes-list-create"),
     path("minutes/<uuid:pk>/", MinutesDetailView.as_view(), name="legal-minutes-detail"),
@@ -261,6 +280,9 @@ urlpatterns = [
 
     # ── Case Report / Timeline (SRS §4.13) ───────────────────────────────────
     path("cases/<str:side>/<uuid:pk>/report/", CaseReportView.as_view(), name="legal-case-report"),
+
+    # ── DG Mark Case as Reviewed (R15/GAP-15) ────────────────────────────────
+    path("cases/<str:side>/<uuid:pk>/mark-reviewed/", CaseDGMarkReviewedView.as_view(), name="legal-case-mark-reviewed"),
 
     # ── Cases — Plaintiff ────────────────────────────────────────────────────
     path("cases/plaintiff/", CasePlaintiffListCreateView.as_view(), name="legal-case-plaintiff-list-create"),
@@ -321,6 +343,10 @@ urlpatterns = [
     path("settlements/defendant/<uuid:pk>/cancel-workflow/", SettlementDefendantCancelWorkflowView.as_view(), name="legal-settlement-defendant-cancel-workflow"),
     path("settlements/defendant/<uuid:pk>/financials/", FinancialDefendantDetailView.as_view(), name="legal-settlement-defendant-financial"),
 
+    # ── Financial Actions — Defendant (R8/GAP-10) ────────────────────────────
+    path("financials/defendant/<uuid:case_defendant_pk>/record-recovery/", FinancialDefendantRecordRecoveryView.as_view(), name="legal-financial-defendant-record-recovery"),
+    path("financials/defendant/<uuid:case_defendant_pk>/record-payment/", FinancialDefendantRecordPaymentView.as_view(), name="legal-financial-defendant-record-payment"),
+
     # ── Settlements — Plaintiff ──────────────────────────────────────────────
     path("settlements/plaintiff/", SettlementPlaintiffListCreateView.as_view(), name="legal-settlement-plaintiff-list-create"),
     path("settlements/plaintiff/<uuid:pk>/", SettlementPlaintiffDetailView.as_view(), name="legal-settlement-plaintiff-detail"),
@@ -330,6 +356,10 @@ urlpatterns = [
     path("settlements/plaintiff/<uuid:pk>/workflow-action/", SettlementPlaintiffWorkflowActionView.as_view(), name="legal-settlement-plaintiff-workflow-action"),
     path("settlements/plaintiff/<uuid:pk>/cancel-workflow/", SettlementPlaintiffCancelWorkflowView.as_view(), name="legal-settlement-plaintiff-cancel-workflow"),
     path("settlements/plaintiff/<uuid:pk>/financials/", FinancialPlaintiffDetailView.as_view(), name="legal-settlement-plaintiff-financial"),
+
+    # ── Financial Actions — Plaintiff (R8/GAP-10) ────────────────────────────
+    path("financials/plaintiff/<uuid:case_plaintiff_pk>/record-recovery/", FinancialPlaintiffRecordRecoveryView.as_view(), name="legal-financial-plaintiff-record-recovery"),
+    path("financials/plaintiff/<uuid:case_plaintiff_pk>/record-payment/", FinancialPlaintiffRecordPaymentView.as_view(), name="legal-financial-plaintiff-record-payment"),
 
     # ── Judgments — Defendant ────────────────────────────────────────────────
     path("judgments/defendant/", JudgmentDefendantListCreateView.as_view(), name="legal-judgment-defendant-list-create"),

@@ -332,14 +332,17 @@ class Meeting(TimestampedModel, StatusMixin, WorkflowMixin):
         from apps.core.workflow_entity_paths import add_entity_detail_path_to_metadata
         return add_entity_detail_path_to_metadata(meta, 'meeting')
 
-    def log_workflow_action(self, action, actor_id, stage_name='', comment='', metadata=None):
+    def log_workflow_action(self, action, actor_id, stage_name='', comment='', metadata=None, ip_address=None, previous_status='', new_status=''):
         LegalAuditLog.objects.create(
             entity_type='meeting',
             entity_id=self.id,
             action=action,
             actor_id=actor_id,
+            previous_status=previous_status,
+            new_status=new_status,
             stage_name=stage_name,
             comment=comment or '',
+            ip_address=ip_address,
             metadata=metadata or {},
         )
 
@@ -568,14 +571,17 @@ class Minutes(TimestampedModel, StatusMixin, WorkflowMixin):
         from apps.core.workflow_entity_paths import add_entity_detail_path_to_metadata
         return add_entity_detail_path_to_metadata(meta, 'minutes')
 
-    def log_workflow_action(self, action, actor_id, stage_name='', comment='', metadata=None):
+    def log_workflow_action(self, action, actor_id, stage_name='', comment='', metadata=None, ip_address=None, previous_status='', new_status=''):
         LegalAuditLog.objects.create(
             entity_type='minutes',
             entity_id=self.id,
             action=action,
             actor_id=actor_id,
+            previous_status=previous_status,
+            new_status=new_status,
             stage_name=stage_name,
             comment=comment or '',
+            ip_address=ip_address,
             metadata=metadata or {},
         )
 
@@ -661,6 +667,9 @@ class CaseDefendant(TimestampedModel, StatusMixin, WorkflowMixin):
     archived_at = models.DateTimeField(null=True, blank=True)
     archived_by = models.UUIDField(null=True, blank=True)
 
+    # ── Case Folder (SRS §4.11) ────────────────────────────────────────────
+    case_folder_url = models.URLField(max_length=500, blank=True, help_text="URL to the DRS case folder")
+
     # ── On-hold (SIG-09) ────────────────────────────────────────────────────
     hold_reason = models.TextField(blank=True)
 
@@ -696,14 +705,17 @@ class CaseDefendant(TimestampedModel, StatusMixin, WorkflowMixin):
         from apps.core.workflow_entity_paths import add_entity_detail_path_to_metadata
         return add_entity_detail_path_to_metadata(meta, 'case_defendant')
 
-    def log_workflow_action(self, action, actor_id, stage_name='', comment='', metadata=None):
+    def log_workflow_action(self, action, actor_id, stage_name='', comment='', metadata=None, ip_address=None, previous_status='', new_status=''):
         LegalAuditLog.objects.create(
             entity_type='case_defendant',
             entity_id=self.id,
             action=action,
             actor_id=actor_id,
+            previous_status=previous_status,
+            new_status=new_status,
             stage_name=stage_name,
             comment=comment or '',
+            ip_address=ip_address,
             metadata=metadata or {},
         )
 
@@ -770,14 +782,17 @@ class FilingDefendant(TimestampedModel, StatusMixin, WorkflowMixin):
         from apps.core.workflow_entity_paths import add_entity_detail_path_to_metadata
         return add_entity_detail_path_to_metadata(meta, 'filing_defendant')
 
-    def log_workflow_action(self, action, actor_id, stage_name='', comment='', metadata=None):
+    def log_workflow_action(self, action, actor_id, stage_name='', comment='', metadata=None, ip_address=None, previous_status='', new_status=''):
         LegalAuditLog.objects.create(
             entity_type='filing_defendant',
             entity_id=self.id,
             action=action,
             actor_id=actor_id,
+            previous_status=previous_status,
+            new_status=new_status,
             stage_name=stage_name,
             comment=comment or '',
+            ip_address=ip_address,
             metadata=metadata or {},
         )
 
@@ -789,6 +804,7 @@ class ResponseDefendant(TimestampedModel, StatusMixin):
         ('preliminary_objections', 'Preliminary Objections'),
         ('counter_claim', 'Counter Claim'),
         ('reply_to_defence', 'Reply to Defence'),
+        ('response_to_ruling', 'Response to Ruling'),
         ('other', 'Other'),
     ]
 
@@ -927,14 +943,17 @@ class SettlementDefendant(TimestampedModel, StatusMixin, WorkflowMixin):
         from apps.core.workflow_entity_paths import add_entity_detail_path_to_metadata
         return add_entity_detail_path_to_metadata(meta, 'settlement_defendant')
 
-    def log_workflow_action(self, action, actor_id, stage_name='', comment='', metadata=None):
+    def log_workflow_action(self, action, actor_id, stage_name='', comment='', metadata=None, ip_address=None, previous_status='', new_status=''):
         LegalAuditLog.objects.create(
             entity_type='settlement_defendant',
             entity_id=self.id,
             action=action,
             actor_id=actor_id,
+            previous_status=previous_status,
+            new_status=new_status,
             stage_name=stage_name,
             comment=comment or '',
+            ip_address=ip_address,
             metadata=metadata or {},
         )
 
@@ -1009,14 +1028,17 @@ class JudgmentDefendant(TimestampedModel, StatusMixin, WorkflowMixin):
         from apps.core.workflow_entity_paths import add_entity_detail_path_to_metadata
         return add_entity_detail_path_to_metadata(meta, 'judgment_defendant')
 
-    def log_workflow_action(self, action, actor_id, stage_name='', comment='', metadata=None):
+    def log_workflow_action(self, action, actor_id, stage_name='', comment='', metadata=None, ip_address=None, previous_status='', new_status=''):
         LegalAuditLog.objects.create(
             entity_type='judgment_defendant',
             entity_id=self.id,
             action=action,
             actor_id=actor_id,
+            previous_status=previous_status,
+            new_status=new_status,
             stage_name=stage_name,
             comment=comment or '',
+            ip_address=ip_address,
             metadata=metadata or {},
         )
 
@@ -1192,6 +1214,9 @@ class CasePlaintiff(TimestampedModel, StatusMixin, WorkflowMixin):
     archived_at = models.DateTimeField(null=True, blank=True)
     archived_by = models.UUIDField(null=True, blank=True)
 
+    # ── Case Folder (SRS §5.8) ────────────────────────────────────────────
+    case_folder_url = models.URLField(max_length=500, blank=True, help_text="URL to the DRS case folder")
+
     # ── On-hold (SIG-09) ────────────────────────────────────────────────────
     hold_reason = models.TextField(blank=True)
 
@@ -1226,14 +1251,17 @@ class CasePlaintiff(TimestampedModel, StatusMixin, WorkflowMixin):
         from apps.core.workflow_entity_paths import add_entity_detail_path_to_metadata
         return add_entity_detail_path_to_metadata(meta, 'case_plaintiff')
 
-    def log_workflow_action(self, action, actor_id, stage_name='', comment='', metadata=None):
+    def log_workflow_action(self, action, actor_id, stage_name='', comment='', metadata=None, ip_address=None, previous_status='', new_status=''):
         LegalAuditLog.objects.create(
             entity_type='case_plaintiff',
             entity_id=self.id,
             action=action,
             actor_id=actor_id,
+            previous_status=previous_status,
+            new_status=new_status,
             stage_name=stage_name,
             comment=comment or '',
+            ip_address=ip_address,
             metadata=metadata or {},
         )
 
@@ -1302,14 +1330,17 @@ class FilingPlaintiff(TimestampedModel, StatusMixin, WorkflowMixin):
         from apps.core.workflow_entity_paths import add_entity_detail_path_to_metadata
         return add_entity_detail_path_to_metadata(meta, 'filing_plaintiff')
 
-    def log_workflow_action(self, action, actor_id, stage_name='', comment='', metadata=None):
+    def log_workflow_action(self, action, actor_id, stage_name='', comment='', metadata=None, ip_address=None, previous_status='', new_status=''):
         LegalAuditLog.objects.create(
             entity_type='filing_plaintiff',
             entity_id=self.id,
             action=action,
             actor_id=actor_id,
+            previous_status=previous_status,
+            new_status=new_status,
             stage_name=stage_name,
             comment=comment or '',
+            ip_address=ip_address,
             metadata=metadata or {},
         )
 
@@ -1397,14 +1428,17 @@ class SettlementPlaintiff(TimestampedModel, StatusMixin, WorkflowMixin):
         from apps.core.workflow_entity_paths import add_entity_detail_path_to_metadata
         return add_entity_detail_path_to_metadata(meta, 'settlement_plaintiff')
 
-    def log_workflow_action(self, action, actor_id, stage_name='', comment='', metadata=None):
+    def log_workflow_action(self, action, actor_id, stage_name='', comment='', metadata=None, ip_address=None, previous_status='', new_status=''):
         LegalAuditLog.objects.create(
             entity_type='settlement_plaintiff',
             entity_id=self.id,
             action=action,
             actor_id=actor_id,
+            previous_status=previous_status,
+            new_status=new_status,
             stage_name=stage_name,
             comment=comment or '',
+            ip_address=ip_address,
             metadata=metadata or {},
         )
 
@@ -1479,14 +1513,17 @@ class JudgmentPlaintiff(TimestampedModel, StatusMixin, WorkflowMixin):
         from apps.core.workflow_entity_paths import add_entity_detail_path_to_metadata
         return add_entity_detail_path_to_metadata(meta, 'judgment_plaintiff')
 
-    def log_workflow_action(self, action, actor_id, stage_name='', comment='', metadata=None):
+    def log_workflow_action(self, action, actor_id, stage_name='', comment='', metadata=None, ip_address=None, previous_status='', new_status=''):
         LegalAuditLog.objects.create(
             entity_type='judgment_plaintiff',
             entity_id=self.id,
             action=action,
             actor_id=actor_id,
+            previous_status=previous_status,
+            new_status=new_status,
             stage_name=stage_name,
             comment=comment or '',
+            ip_address=ip_address,
             metadata=metadata or {},
         )
 

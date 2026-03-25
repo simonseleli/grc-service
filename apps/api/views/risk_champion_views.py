@@ -43,8 +43,10 @@ class RiskChampionListCreateView(APIView):
     def check_permissions(self, request):
         super().check_permissions(request)
         if request.method == 'GET':
-            if not CanViewRiskChampion().has_permission(request, self):
-                self.permission_denied(request, message='grc:risk_champion:view required.')
+            can_view = CanViewRiskChampion().has_permission(request, self)
+            can_manage = CanManageRiskChampion().has_permission(request, self)
+            if not (can_view or can_manage):
+                self.permission_denied(request, message='grc:risk_champion:view or grc:risk_champion:manage required.')
         elif request.method == 'POST':
             if not CanManageRiskChampion().has_permission(request, self):
                 self.permission_denied(request, message='grc:risk_champion:manage required.')
@@ -108,8 +110,10 @@ class RiskChampionDetailView(APIView):
     def check_permissions(self, request):
         super().check_permissions(request)
         if request.method == 'GET':
-            if not CanViewRiskChampion().has_permission(request, self):
-                self.permission_denied(request, message='grc:risk_champion:view required.')
+            can_view = CanViewRiskChampion().has_permission(request, self)
+            can_manage = CanManageRiskChampion().has_permission(request, self)
+            if not (can_view or can_manage):
+                self.permission_denied(request, message='grc:risk_champion:view or grc:risk_champion:manage required.')
         elif request.method in ('PUT', 'PATCH', 'DELETE'):
             if not CanManageRiskChampion().has_permission(request, self):
                 self.permission_denied(request, message='grc:risk_champion:manage required.')
@@ -177,8 +181,10 @@ class RiskChampionAppointmentListCreateView(APIView):
     def check_permissions(self, request):
         super().check_permissions(request)
         if request.method == 'GET':
-            if not CanViewRiskChampion().has_permission(request, self):
-                self.permission_denied(request, message='grc:risk_champion:view required.')
+            can_view = CanViewRiskChampion().has_permission(request, self)
+            can_manage = CanManageRiskChampion().has_permission(request, self)
+            if not (can_view or can_manage):
+                self.permission_denied(request, message='grc:risk_champion:view or grc:risk_champion:manage required.')
         elif request.method == 'POST':
             if not CanManageRiskChampion().has_permission(request, self):
                 self.permission_denied(request, message='grc:risk_champion:manage required.')
@@ -230,8 +236,10 @@ class RiskChampionAppointmentDetailView(APIView):
     def check_permissions(self, request):
         super().check_permissions(request)
         if request.method == 'GET':
-            if not CanViewRiskChampion().has_permission(request, self):
-                self.permission_denied(request, message='grc:risk_champion:view required.')
+            can_view = CanViewRiskChampion().has_permission(request, self)
+            can_manage = CanManageRiskChampion().has_permission(request, self)
+            if not (can_view or can_manage):
+                self.permission_denied(request, message='grc:risk_champion:view or grc:risk_champion:manage required.')
         elif request.method in ('PUT', 'PATCH', 'DELETE'):
             if not CanManageRiskChampion().has_permission(request, self):
                 self.permission_denied(request, message='grc:risk_champion:manage required.')
